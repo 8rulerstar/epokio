@@ -25,6 +25,14 @@
 - Rescanning adapts: quick while training, slower when idle, slower on battery, or only when asked.
 - "Train again" no longer fails when the original run named a GPU this machine or queue slot does not have.
 - AI tools can report their activity (`POST /ai/report`, MCP `report_ai_activity`) for the menu bar character.
+- The helper no longer stalls for half a minute at start when reverse DNS is slow (offline, behind a login page, or on a slow VPN).
+
+**Fixes**
+- Windows: error reports and run records now hide your home folder in every form Windows writes it (backslashes, other letter case, escaped backslashes), so your user name is no longer left in them.
+- Windows: watching a server over SSH works (Windows OpenSSH cannot share connections), line endings are kept, and odd folder names on the server no longer stop the watcher.
+- SSH watching refuses file names that would write outside its own folder.
+- Mac app: runs started without a seed, or trained on an NVIDIA machine, open again (the run page failed to load them).
+- Comparing the same dataset on a Mac and on Windows no longer marks every file as changed.
 
 **Known limits**
 - The Mac app is still not notarized. Automatic updates are built in but stay off until a release is signed with an update key.
