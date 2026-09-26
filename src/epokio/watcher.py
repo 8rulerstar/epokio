@@ -77,9 +77,20 @@ class Watcher:
         for url in cfg.get("urls", []):
             webhook(url, Event(kind, r, "running"))
 
+    def stop_watch(self, timeout: float = 5.0):
+        """감시 스레드를 멈추고 끝날 때까지 기다린다. 한 프로세스에 Agent를 여럿 만드는 시험용.
+        ★멈추지 않은 스레드가 뒤 시험이 바꿔 둔 sweep.DIR을 읽어, 그 시험의 스윕 시도를 제 대기열에 넣었다"""
+        self._stop_watching = True
+        pace = getattr(self, "pace", None)
+        if pace is not None:
+            pace.wake.set()
+        t = getattr(self, "_watch_thread", None)
+        if t is not None and t.is_alive():
+            t.join(timeout)
+
     def _watch(self):
         import time
-        while True:
+        while not getattr(self, "_stop_watching", False):
             try:
                 roots = [r for r in self.roots + [Path.home() / ".epokio" / "runs"] if r.exists()]
                 mon = getattr(self, "_mon", None)
@@ -108,7 +119,7 @@ class Watcher:
                     self._scanned = (time.time(), [str(r) for r in roots], mon.runs)   # /runs가 이걸 쓴다(다시 훑지 않게)
                 # 스윕 조기 중단: 가망 없는 시도를 멈춘다(켠 스윕만)
                 q = getattr(self, "queue", None)
-                if q is not None:
+                if q is not None and not getattr(self, "_stop_watching", False):
                     from . import sweep
                     for jid in sweep.check_prune(q):
                         j = q.get(jid)

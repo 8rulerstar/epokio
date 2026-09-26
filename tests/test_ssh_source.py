@@ -1,18 +1,29 @@
 """SSH 가벼운 모드: 가짜 ssh(이 기계에서 바로 실행)로 스캔 스크립트 → 비춤 → 기존 scan이 읽는지. 진짜 원격 서버는 여기서 안 본다"""
 import os
-import stat
+import sys
 import time
+from types import SimpleNamespace
 
 import pytest
 
 from epokio import scan, ssh_source
 
+# 가짜 ssh 는 파이썬 스크립트다(셸 스크립트는 윈도우에서 실행 파일이 아니다: WinError 193).
+# -o 옵션과 호스트를 건너뛰고, 원격 셸처럼 나머지를 shlex 로 풀어 이 기계의 파이썬으로 돌린다
+FAKE_SSH = """import shlex, subprocess, sys
+a = sys.argv[1:]
+while a and a[0] == "-o":
+    a = a[2:]
+words = shlex.split(" ".join(a[1:]))
+assert words[:2] == ["python3", "-"], words
+sys.exit(subprocess.run([sys.executable, "-"] + words[2:]).returncode)
+"""
+
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
-    fake = tmp_path / "fakessh"
-    fake.write_text('#!/bin/sh\nwhile [ "$1" = "-o" ]; do shift 2; done\nshift\nexec sh -c "$*"\n')
-    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    fake = tmp_path / "fakessh.py"
+    fake.write_text(FAKE_SSH)
     home = tmp_path / "server_home"
     run = home / "proj" / "runs" / "detect" / "train3"
     run.mkdir(parents=True)
@@ -21,9 +32,10 @@ def env(tmp_path, monkeypatch):
     (home / "proj" / "datasets" / "junk").mkdir(parents=True)                      # 건너뛸 곳
     (home / "proj" / "datasets" / "junk" / "results.csv").write_text("epoch\n1\n")
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))       # 윈도우의 expanduser("~")는 HOME 이 아니라 이것을 본다
     monkeypatch.setattr(ssh_source, "MIRROR", tmp_path / "mirror")
     monkeypatch.setattr(ssh_source, "CONFIG", tmp_path / "hosts.json")
-    return str(fake), run
+    return [sys.executable, str(fake)], run
 
 
 def test_scan_mirror_and_read(env):
@@ -71,11 +83,10 @@ def test_rejects_option_like_hosts_and_bad_paths(env):
 
 
 def test_failure_message_is_readable(env, tmp_path):
-    bad = tmp_path / "badssh"
-    bad.write_text("#!/bin/sh\necho 'Permission denied (publickey).' >&2\nexit 255\n")
-    bad.chmod(bad.stat().st_mode | stat.S_IEXEC)
+    bad = tmp_path / "badssh.py"
+    bad.write_text("import sys\nsys.stderr.write('Permission denied (publickey).\\n')\nsys.exit(255)\n")
     with pytest.raises(ValueError, match="Permission denied"):
-        ssh_source.run_remote("h", {}, ssh=str(bad))
+        ssh_source.run_remote("h", {}, ssh=[sys.executable, str(bad)])
 
 
 def test_config_hosts_skip_wildcards(tmp_path):
@@ -117,3 +128,40 @@ def test_failed_host_is_polled_less_often(env):
     p.poll_once({"host": "h"})
     assert not p.due("h", time.time())                                   # 실패 직후엔 쉰다
     assert p.due("h", time.time() + ssh_source.EVERY * ssh_source.MAX_BACKOFF + 1)
+
+
+def test_windows_drops_connection_sharing(monkeypatch, tmp_path):
+    """윈도우판 OpenSSH 는 ControlMaster 를 못 쓴다: 윈도우에서는 옵션을 빼고, 상태에 이유를 남긴다"""
+    monkeypatch.setattr(ssh_source, "CONTROL_DIR", tmp_path / "ctl")
+    monkeypatch.setattr(ssh_source, "MIRROR", tmp_path / "mirror")
+    assert "ControlMaster=auto" in ssh_source._ssh_cmd("ssh", "h", "{}")
+    monkeypatch.setattr(sys, "platform", "win32")
+    win = ssh_source._ssh_cmd("ssh", "h", "{}")
+    assert not any(a.startswith("Control") for a in win) and win[-4:] == ["h", "python3", "-", "'{}'"]
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen.update(kw)
+        return SimpleNamespace(returncode=0, stdout=b'{"now": 1, "runs": []}\r\n', stderr=b"")
+    monkeypatch.setattr(ssh_source.subprocess, "run", fake_run)
+    st = ssh_source.Poller().poll_once({"host": "h"})
+    assert st["ok"] and "ControlMaster" in st["note"]
+    assert isinstance(seen["input"], bytes) and b"\r" not in seen["input"]      # 스크립트 개행을 바꾸지 않고 넘긴다
+
+
+def test_windows_names_and_paths_round_trip(monkeypatch, tmp_path):
+    monkeypatch.setattr(ssh_source, "MIRROR", tmp_path / "mirror")
+    monkeypatch.setattr(sys, "platform", "win32")
+    for remote in ["/home/u/runs/exp:1?", "C:\\Users\\u\\runs\\train3", "/home/u/runs/end."]:
+        d = ssh_source.local_dir("h", remote)
+        assert not any(c in d.name for c in '<>:"|?*') and not d.name.endswith(".")
+        assert ssh_source.remote_path(os.sep.join([str(ssh_source.MIRROR), "h", d.parent.name, d.name])) == remote
+    for bad in ["C:x", "..\\x", "a/../../x", "/abs", "\\\\srv\\x"]:
+        assert not ssh_source._safe_rel(bad)
+    assert ssh_source._safe_rel("checkpoint-5/trainer_state.json")
+
+
+def test_crlf_files_are_mirrored_as_is(env):
+    """윈도우 텍스트 모드는 LF 를 CRLF 로 바꾼다: 서버 내용을 바이트 그대로 쓰는지"""
+    ssh_source.apply("h", {"now": time.time(), "runs": [{"path": "/r/exp", "files": {"results.csv": [0, "a\r\nb\n"]}}]})
+    assert (ssh_source.local_dir("h", "/r/exp") / "results.csv").read_bytes() == b"a\r\nb\n"

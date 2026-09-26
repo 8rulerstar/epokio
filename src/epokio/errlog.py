@@ -24,13 +24,20 @@ def log_dir(home: Path | None = None) -> Path:
 
 
 def scrub(text: str, home: Path | None = None) -> str:
-    """홈 경로를 `~`로 바꾼다. 실제 경로(realpath)도 함께 바꾼다."""
-    h = str(home or Path.home()).rstrip("/")
-    if not h or h == "/":
+    """홈 경로를 `~`로 바꾼다. 실제 경로(realpath)도 함께 바꾼다.
+    ★윈도우 경로(C:\\Users\\이름)를 못 가려 오류 보고에 사용자 이름이 그대로 샜다. 예외 메시지는 repr이라
+    역슬래시가 두 겹(C:\\\\Users\\\\이름)으로 적힌다. 그래서 구분자 두 가지와 두 겹 역슬래시를 모두 찾고,
+    대소문자는 무시한다(윈도우·맥 기본 파일 시스템은 대소문자를 가리지 않는다)."""
+    h = str(home or Path.home()).rstrip("/\\")
+    if not h or re.fullmatch(r"[A-Za-z]:", h):
         return text
-    variants = sorted({h, os.path.realpath(h)}, key=len, reverse=True)
-    for v in variants:      # 뒤가 경로 끝(/, 공백, 따옴표 등)일 때만: /Users/a 가 /Users/ab 를 먹지 않게
-        text = re.sub(re.escape(v) + r"(?![\w.-])", "~", text)
+    variants = set()
+    for base in {h, os.path.realpath(h).rstrip("/\\")}:
+        for v in (base, base.replace("\\", "/"), base.replace("/", "\\")):
+            variants |= {v, v.replace("\\", "\\\\")}
+    for v in sorted(variants, key=len, reverse=True):
+        # 뒤가 경로 끝(구분자, 공백, 따옴표 등)일 때만: /Users/a 가 /Users/ab 를 먹지 않게
+        text = re.sub(re.escape(v) + r"(?![\w.-])", "~", text, flags=re.IGNORECASE)
     return text
 
 

@@ -12,7 +12,9 @@ def python_ok(py: str) -> bool:
       사용자가 설정에서 직접 적은 환경(목록에 안 잡히는 conda·컨테이너 경로)도 써야 하기 때문"""
     if not py:
         return True                                        # 비우면 대기열이 기본 파이썬을 고른다
-    if py in {e.get("path") for e in envs.list_envs()}:
-        return True
     # 파일이 있는지는 보지 않는다: 원격 기계의 경로를 여기서 받아 그 기계로 넘기기도 한다(스윕). 실행은 그쪽에서 다시 검사한다
-    return os.path.basename(py).lower().startswith("python")
+    # 이름 규칙을 먼저 본다. ★환경 목록(list_envs)은 파이썬마다 띄워 보느라 conda 환경이 여럿이면 수 초가 걸려,
+    #   POST /jobs가 원격 스윕의 5초 제한(sweep_remote.TIMEOUT)을 넘겨 시도가 그 기계에 안 들어갔다
+    if os.path.basename(py).lower().startswith("python"):
+        return True
+    return py in {e.get("path") for e in envs.list_envs()}

@@ -38,10 +38,10 @@ def keys():
                         "-Xswiftc", "-emit-localized-strings-path", "-Xswiftc", d],
                        cwd=MAC, check=True, capture_output=True)
         for f in Path(d).glob("*.stringsdata"):
-            for e in json.loads(f.read_text()).get("tables", {}).get("Localizable", []):
+            for e in json.loads(f.read_text(encoding="utf-8")).get("tables", {}).get("Localizable", []):
                 out.add(e["key"])
     for f in (MAC / "Sources").rglob("*.swift"):
-        out |= {k.replace('\\"', '"') for k in re.findall(r'\bL\("((?:[^"\\]|\\.)*)"', f.read_text())}
+        out |= {k.replace('\\"', '"') for k in re.findall(r'\bL\("((?:[^"\\]|\\.)*)"', f.read_text(encoding="utf-8"))}
     return {k for k in out if not SKIP.match(k)}
 
 
@@ -58,7 +58,7 @@ def table(lang):
     p = RES / f"{lang}.lproj" / "Localizable.strings"
     if not p.exists():
         return {}
-    return dict(entries(p.read_text()))
+    return dict(entries(p.read_text(encoding="utf-8")))
 
 
 def specs(s):
@@ -101,7 +101,7 @@ def report(sel, ks, same=False):
     bad = 0
     for lang in sel:
         p = RES / f"{lang}.lproj" / "Localizable.strings"
-        r = check(lang, ks, p.read_text() if p.exists() else "", same)
+        r = check(lang, ks, p.read_text(encoding="utf-8") if p.exists() else "", same)
         for k in r["missing"]:
             print(f"{lang} missing:", k)
         for k in r["duplicate"]:

@@ -52,6 +52,7 @@ def agent_url(tmp_path, monkeypatch):
     finally:
         srv.shutdown()
         srv.server_close()
+        agent.stop_watch()      # ★남은 감시 스레드가 뒤 시험(스윕)의 sweep.DIR을 읽어 시도를 가로챘다
 
 
 def fetch(url, token=None):
@@ -201,7 +202,9 @@ def test_events_and_health_say_which_boot_they_come_from(agent_url, tmp_path):
     _, e = fetch(base + "/events?since=0")
     boot = json.loads(h)["boot"]
     assert boot and json.loads(e)["boot"] == boot
-    assert Agent([root], "again").boot != boot
+    again = Agent([root], "again")
+    again.stop_watch()
+    assert again.boot != boot
 
 
 def test_lite_runs_leave_out_the_curve_history(agent_url):

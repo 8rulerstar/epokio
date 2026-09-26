@@ -132,11 +132,9 @@
   "schema": "num",
   "seed": {},
   "system": {
-   "chip": "str",
    "machine": "str",
    "os": "str",
-   "os_release": "str",
-   "os_version": "str"
+   "os_release": "str"
   }
  },
  "stage": "str",

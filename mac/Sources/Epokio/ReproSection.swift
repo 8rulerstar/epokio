@@ -23,6 +23,9 @@ struct ReproSection: View {
             out.append(("cylinder", L("Data"), L("%d images", n) + (d.listing_sha256.map { "  ·  " + String($0.prefix(8)) } ?? "")))
         }
         if let chip = repro.system?["chip"] ?? repro.system?["machine"] { out.append(("cpu", L("Machine"), chip)) }
+        if let gpus = repro.system?["gpus"] {                              // NVIDIA 기계: 이름(드라이버)·CUDA 판
+            out.append(("rectangle.3.group", "GPU", gpus + (repro.system?["cuda"].map { "  ·  CUDA " + $0 } ?? "")))
+        }
         return out
     }
 

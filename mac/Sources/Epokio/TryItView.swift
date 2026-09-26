@@ -98,6 +98,12 @@ struct TryItView: View {
         .contentShape(.rect)
         .onTapGesture { pickImage() }
         .accessibilityAddTraits(.isButton)
+        // Tab 으로 옮겨 오고 Space·Return 으로도 열리게 한다.
+        // Button 으로 감싸는 길은 막혀 있다. .buttonStyle(.plain) 인 Button 은 Tab 이 들르지 않는다(작은 시험 앱으로 확인).
+        // focusable 이라야 포커스를 받고, 그래서 키도 직접 받는다
+        .focusable()
+        .onKeyPress(.space) { pickImage(); return .handled }
+        .onKeyPress(.return) { pickImage(); return .handled }
         .onDrop(of: [.fileURL], isTargeted: $dropHover) { items in
             _ = items.first?.loadObject(ofClass: URL.self) { u, _ in if let u { Task { @MainActor in load(u) } } }
             return true

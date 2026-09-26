@@ -50,8 +50,15 @@ def shape(v):
 DATA_KEYED = {"columns", "column_info", "args"}
 
 
+# 기계마다 생겼다 빠지는 선택 열쇠(repro.py system_info): 맥에서만 chip·os_version, NVIDIA 기계에서만 gpus·cuda.
+# 앱(RunRepro.system)은 전부 옵셔널로 읽으므로 계약에서 뺀다. 안 빼면 우분투·윈도우 CI에서 깨진다
+PLATFORM_KEYS = {"system": {"chip", "os_version", "gpus", "cuda"}}
+
+
 def normalize(v, key=None):
     if isinstance(v, dict):
+        if key in PLATFORM_KEYS:
+            v = {k: x for k, x in v.items() if k not in PLATFORM_KEYS[key]}
         if key in DATA_KEYED:
             inner = [normalize(x) for x in v.values()]
             return {"*": inner[0] if inner else None}
@@ -95,3 +102,26 @@ def _deep_responses(tmp_path, monkeypatch) -> dict:
         j = q.get(t["job"]); j.output, j.state = str(tmp_path / "sw" / j.id), "done"
         test_sweep._run(tmp_path / "sw" / j.id, [top / 2, top])
     return {"sweep.json": sweep.summary(sweep.load(spec["id"]), q), "eval.json": review.rescore(test_review.data(), 0.25)}
+
+
+@pytest.mark.skipif(not APP.exists(), reason="맥 앱이 빌드돼 있지 않다(swift build)")
+def test_swift_app_reads_every_repro_value_kind(tmp_path, monkeypatch):
+    """★재현 기록의 seed·system 을 [String: String] 으로 읽어, 값 하나에 학습 상세 전체가 안 열렸다.
+    이 앱의 학습 버튼으로 seed 없이 시작한 학습(seed_default: true)과 NVIDIA 기계(gpus 목록)가 전부 그랬다.
+    예제 폴더에는 seed 가 없어 위 계약 시험이 잡지 못했다"""
+    kinds = {
+        "seed_default": {"seed": {"seed_default": True}},
+        "seed_number": {"seed": {"seed": 42, "deterministic": True}},
+        "nvidia": {"system": {"os": "Linux", "gpus": [{"name": "RTX 4090", "driver": "550.54"}], "cuda": "12.4"}},
+        "unknown_shape": {"system": {"os": "Linux", "extra": {"nested": [1, 2]}}, "python": {"packages": {"torch": 2.4}}},
+    }
+    for tag, patch in kinds.items():
+        got = _responses(tmp_path / tag, monkeypatch)
+        run = got["run.json"]
+        run["repro"] = {**(run.get("repro") or {}), **patch}
+        out = tmp_path / tag / "c"
+        out.mkdir(parents=True)
+        for name, data in got.items():
+            (out / name).write_text(json.dumps(data, default=str))
+        r = subprocess.run([str(APP), "--contract", str(out)], capture_output=True, text=True, timeout=60)
+        assert r.returncode == 0, (tag, (r.stdout + r.stderr)[-300:])

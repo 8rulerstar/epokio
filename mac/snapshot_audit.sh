@@ -8,7 +8,9 @@ APP="$(cd "$(dirname "$0")" && pwd)/.build/debug/Epokio"
 [ -x "$APP" ] || { echo "먼저 swift build"; exit 1; }
 mkdir -p "$OUT"; rm -f "$OUT"/*.png "$OUT"/*.log
 
-SECTIONS="home runs runs-table train data review label queue inbox compare detail lineage menubar design onboarding palette shortcuts settings-appearance settings-notify settings-machines settings-customize settings-assistant"
+# detail·lineage 는 학습을 골라야 내용이 나오므로 아래에서 --select 와 함께 따로 찍는다
+SECTIONS="home runs runs-table train data review label queue inbox compare labeler menubar design onboarding palette shortcuts settings-appearance settings-notify settings-machines settings-customize settings-assistant"
+SEL=helmet_finetune          # 예시 학습 하나(격리 agent 의 /demo 가 만든다)
 FAIL=0; VACUOUS=0; OK=0; VAC=""
 
 run() {  # run <이름> <인자…>
@@ -39,6 +41,11 @@ else echo "점검기 시험 실패, 새는 것을 못 잡는다: $(cat "$OUT/_se
 
 run popover --snapshot "$OUT/popover.png"
 for s in $SECTIONS; do run "$s" --snapshot-window "$s" "$OUT/$s.png"; done
+# 학습 하나를 고른 상태. 경로가 가장 많이 나오는 화면들이라 유출 점검의 핵심이다
+# (--select 없이 찍으면 빙글이만 나와 점검이 헛돈다)
+run detail --snapshot-window detail "$OUT/detail.png" --select "$SEL" --expand
+run lineage --snapshot-window lineage "$OUT/lineage.png" --select "$SEL"
+run studio-runs --snapshot-window studio "$OUT/studio-runs.png" --section Runs --select "$SEL"
 
 echo
 [ $VACUOUS -eq 0 ] || echo "글자 없는 화면(눈으로 볼 것):$VAC"

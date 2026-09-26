@@ -1090,6 +1090,8 @@
 "Images: %lld" = "图像：%lld";
 "Labeled: %lld" = "有标签：%lld";
 "CPU temperature" = "CPU 温度";
+"SoC temperature" = "SoC 温度";
+"Show SoC temperature" = "显示 SoC 温度";
 
 /* 报告问题 */
 "Report a problem" = "报告问题";

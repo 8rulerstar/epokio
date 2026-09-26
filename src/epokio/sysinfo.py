@@ -2,14 +2,14 @@
 
 측정 방법 (전부 관리자 권한 없이)
   맥 GPU   : ioreg IOAccelerator 의 "Device Utilization %"  (Apple Silicon, 약 16ms)
-  맥 CPU   : ps 로 %cpu 합 / 코어 수 (같은 ps로 AI 도구 몫도. aiuse.py)   (약 15ms)
+  맥 CPU   : host_processor_info 눈금 차이 (maccpu.py)      (약 0.1ms, 첫 표본은 None)
+  맥 AI 몫 : ps 의 %cpu (실행 파일 경로만 본다. aiuse.py)    (약 15ms)
   맥 메모리: vm_stat + sysctl hw.memsize                     (약 6ms)
   윈도우   : GetSystemTimes + GlobalMemoryStatusEx (ctypes)
   리눅스   : /proc/stat + /proc/meminfo
   NVIDIA   : nvidia-smi --query-gpu                          (원격 agent가 읽어 보낸다)
   맥 온도 : IOHIDEventSystemClient 온도 센서 (mactemp.py, 5초 캐시, 다시 읽기 30~70ms)
   ⚠powermetrics는 sudo가 필요해서 쓰지 않는다.
-
 한 번 읽는 데 35ms쯤 든다. 60fps 화면을 막지 않게 Sampler가 별도 스레드에서 읽는다.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ import time
 from collections import deque
 from dataclasses import asdict, dataclass, field
 
-from . import aiuse, mactemp
+from . import aiuse, maccpu, mactemp
 from .sysinfo_os import (_cpu_delta, _cpu_prev, _linux_cpu_mem, _windows_cpu_mem,  # noqa: F401  다시 내보낸다
                          parse_pmset_batt, parse_power_supply)
 
@@ -96,23 +96,29 @@ def _static(key, make):
 
 
 def _mac_gpu() -> list[GPU]:
+    # ★이름은 GPU 노드의 "model". 예전엔 machdep.cpu.brand_string(CPU 이름)이 들어갔다.
+    # ★mem_total 은 물리 메모리. 예전 "Alloc system memory"(약 4 GB)는 쓸수록 분모가 커졌다.
     out = _run(["ioreg", "-r", "-d", "1", "-w", "0", "-c", "IOAccelerator"])
     util = re.search(r'"Device Utilization %"=(\d+)', out)
     used = re.search(r'"In use system memory"=(\d+)', out)
-    alloc = re.search(r'"Alloc system memory"=(\d+)', out)
-    name = _static("brand", lambda: _run(["sysctl", "-n", "machdep.cpu.brand_string"]).strip() or "Apple GPU")
+    model = re.search(r'"model"\s*=\s*"([^"]+)"', out)
     if not util:
         return []
-    return [GPU(name=name, util=float(util.group(1)),
+    total = _static("memsize", lambda: _run(["sysctl", "-n", "hw.memsize"]).strip())
+    return [GPU(name=(model.group(1).strip() if model else "Apple GPU"), util=float(util.group(1)),
                 mem_used=int(used.group(1)) / 2**30 if used else None,
-                mem_total=int(alloc.group(1)) / 2**30 if alloc else None)]
+                mem_total=int(total) / 2**30 if total else None)]
 
 
 def _mac_cpu_ai() -> tuple[float | None, float | None]:
-    """(전체 CPU %, AI 도구 %). ps 한 번으로 둘. comm= 은 실행 파일 경로만(인자는 안 읽는다. aiuse.py)"""
+    """(전체 CPU %, AI 도구 %).
+
+    ★전체 CPU 는 maccpu(커널 눈금 차이). ps 의 %cpu 는 최대 1분 감쇠 평균이라 지금 구간 값이 아니다.
+    AI 몫만 ps 로 남긴다. "그 도구가 대체로 일하는 중인가"라는 대리 지표엔 감쇠 평균이 오히려 맞고,
+    프로세스별로 갈라 볼 수단이 ps 말고 없다. comm= 은 실행 파일 경로만이다(aiuse.py).
+    """
     out = _run(["ps", "-Ao", "%cpu=,comm="])
-    pcts = [float(m) for m in re.findall(r"^\s*([\d.]+)\s", out, re.M)]
-    return (min(sum(pcts) / (os.cpu_count() or 1), 100.0) if pcts else None), aiuse.scan_ps(out)
+    return maccpu.cpu_percent(), aiuse.scan_ps(out)
 
 
 def _mac_mem() -> tuple[float | None, float | None]:
@@ -152,10 +158,13 @@ def _nvidia() -> list[GPU]:
         if len(parts) < 5:
             continue
         f = lambda v: float(v) if v not in ("", "[N/A]", "N/A") else None
+        gb = lambda v: (f(v) / 1024) if f(v) is not None else None      # ★[N/A]를 0.0 GB로 바꾸지 않는다
         gpus.append(GPU(name=parts[0], util=f(parts[1]),
-                        mem_used=(f(parts[2]) or 0) / 1024, mem_total=(f(parts[3]) or 0) / 1024,
+                        mem_used=gb(parts[2]), mem_total=gb(parts[3]),
                         temp=f(parts[4])))
     return gpus
+
+_PSUTIL: dict = {}      # psutil 첫 표본을 버렸는지
 
 
 def _generic_cpu_mem():
@@ -167,7 +176,9 @@ def _generic_cpu_mem():
     try:
         import psutil
         vm = psutil.virtual_memory()
-        return psutil.cpu_percent(interval=None), vm.used / 2**30, vm.total / 2**30
+        pct = psutil.cpu_percent(interval=None)     # ★첫 호출은 0.0 이다(화면에 "0%"로 나갔다)
+        primed, _PSUTIL["primed"] = _PSUTIL.get("primed"), True
+        return (pct if primed else None), vm.used / 2**30, vm.total / 2**30   # _cpu_delta 처럼 첫 표본은 버린다
     except ImportError:
         pass
     try:

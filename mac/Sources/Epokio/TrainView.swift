@@ -247,6 +247,12 @@ struct TrainView: View {
         .scaleEffect(dropHover ? 1.01 : 1)
         .contentShape(.rect)
         .onTapGesture { pick() }
+        // Tab 으로 옮겨 오고 Space·Return 으로도 열리게 한다.
+        // 다른 두 드롭 영역과 달리 여기만 Button 으로 못 감싼다. 안에 작은 버튼 둘(샘플·data.yaml 만들기)이 있어
+        // 감싸면 그 둘이 바깥 버튼에 먹혀 안 눌린다. 그래서 focusable 로 포커스만 받고 키는 직접 받는다
+        .focusable()
+        .onKeyPress(.space) { pick(); return .handled }
+        .onKeyPress(.return) { pick(); return .handled }
         .help("Click to choose, or drop a data.yaml. It lists your images and classes.")
         .contextMenu {
             Button("Choose data.yaml…", systemImage: "folder") { pick() }
@@ -306,7 +312,7 @@ struct TrainView: View {
             TextField("Run name (optional)", text: $name).textFieldStyle(.roundedBorder).frame(width: 220)
             Spacer()
             if let status { Text(status).font(.ui(11.5)).foregroundStyle(ink.soft).transition(.opacity) }
-            else if let why = blocked {                                    // 버튼이 꺼진 이유를 글로(꺼진 버튼은 도움말이 안 뜬다)
+            else if let why = blocked {                                    // 시작 버튼이 꺼진 이유. 꺼진 버튼도 도움말은 뜨지만, 여기선 다음 할 일이라 늘 보인다
                 Label(why, systemImage: "info.circle").font(.role(.caption)).foregroundStyle(ink.soft).transition(.opacity)
             }
             Button {

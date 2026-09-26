@@ -47,10 +47,12 @@ def _run(cmd: list[str], cwd: str | None = None) -> str | None:
 
 
 def tilde(value):
-    """홈 경로를 ~로. 문자열·목록·사전 안까지."""
-    home = str(Path.home())
+    """홈 경로를 ~로. 문자열·목록·사전 안까지.
+    ★단순 치환이라 윈도우(C:\\Users\\이름, 대소문자 차이)에서 사용자 이름이 재현 기록에 남았고,
+      홈이 /Users/a 면 /Users/ab 까지 먹었다. 오류 보고와 같은 errlog.scrub 을 쓴다"""
     if isinstance(value, str):
-        return value.replace(home, "~") if home and home != "/" else value
+        from .errlog import scrub
+        return scrub(value)
     if isinstance(value, list):
         return [tilde(v) for v in value]
     if isinstance(value, dict):

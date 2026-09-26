@@ -108,6 +108,13 @@ struct PickCard: View {
     let folder: Bool
     @State private var hover = false
 
+    private func choose() {
+        let p = NSOpenPanel()
+        p.canChooseDirectories = folder; p.canChooseFiles = !folder
+        if !types.isEmpty { p.allowedContentTypes = types }
+        if p.runModal() == .OK { url = p.url }
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: url == nil ? symbol : "checkmark.circle.fill")
@@ -125,12 +132,13 @@ struct PickCard: View {
         .onHover { h in withAnimation(Motion.hover) { hover = h } }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .onTapGesture {
-            let p = NSOpenPanel()
-            p.canChooseDirectories = folder; p.canChooseFiles = !folder
-            if !types.isEmpty { p.allowedContentTypes = types }
-            if p.runModal() == .OK { url = p.url }
-        }
+        .onTapGesture { choose() }
+        // Tab 으로 옮겨 오고 Space·Return 으로도 열리게 한다.
+        // Button 으로 감싸는 길은 막혀 있다. .buttonStyle(.plain) 인 Button 은 Tab 이 들르지 않는다(작은 시험 앱으로 확인).
+        // focusable 이라야 포커스를 받고, 그래서 키도 직접 받는다
+        .focusable()
+        .onKeyPress(.space) { choose(); return .handled }
+        .onKeyPress(.return) { choose(); return .handled }
         .onDrop(of: [.fileURL], isTargeted: $hover) { items in
             _ = items.first?.loadObject(ofClass: URL.self) { u, _ in if let u { Task { @MainActor in url = u } } }
             return true

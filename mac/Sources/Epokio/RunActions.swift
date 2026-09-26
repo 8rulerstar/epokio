@@ -69,8 +69,9 @@ extension RunDetailView {
         return VStack(spacing: 4) {
             RailAction(symbol: "arrow.clockwise", title: L("Train Again"), hint: L("Start a new run with the same settings"), enabled: canTrain) { trainAgain() }
             RailAction(symbol: "play.circle", title: L("Resume"), hint: resume.hint, enabled: resume.ok) { resumeRun() }
-            RailAction(symbol: "eye", title: L("Try"), hint: L("Try the model on your own images"), enabled: hasModel) { tryModel() }
-            RailAction(symbol: "checkmark.rectangle.stack", title: L("Review"), hint: L("Review mistakes on the validation images"), enabled: hasModel) { reviewModel() }
+            // 끈 버튼에도 이유를 띄운다(resumeState와 같은 방식). 다른 기계면 그 사실이, 이 맥이면 best.pt가 없다는 것이 이유다
+            RailAction(symbol: "eye", title: L("Try"), hint: hasModel ? L("Try the model on your own images") : noModelHint(L("This run has no best.pt to try.")), enabled: hasModel) { tryModel() }
+            RailAction(symbol: "checkmark.rectangle.stack", title: L("Review"), hint: hasModel ? L("Review mistakes on the validation images") : noModelHint(L("This run has no best.pt to check.")), enabled: hasModel) { reviewModel() }
             RailGap()
             ExportRailButton(enabled: hasModel && run.framework.map { $0 != "ultralytics" } != true,
                              trainImgsz: detail?.args["imgsz"].flatMap { Int($0) }) { o in Task { await exportModel(o) } }
@@ -87,12 +88,17 @@ extension RunDetailView {
             Button(L("Train Again"), systemImage: "arrow.clockwise") { trainAgain() }.disabled(!canTrain).help(L("Start a new run with the same settings"))
             Button(L("Resume"), systemImage: "play.circle") { resumeRun() }.disabled(!resume.ok).help(resume.hint)
             Button(L("Try"), systemImage: "eye") { tryModel() }.disabled(!hasModel)
+                .help(hasModel ? "" : noModelHint(L("This run has no best.pt to try.")))
             Button(L("Review"), systemImage: "checkmark.rectangle.stack") { reviewModel() }.disabled(!hasModel)
+                .help(hasModel ? "" : noModelHint(L("This run has no best.pt to check.")))
             Divider()
             Button(L("Show in Finder"), systemImage: "folder") { NSWorkspace.shared.open(URL(fileURLWithPath: run.path)) }.disabled(!local)
         }
         .help(local ? "" : String(localized: "Available for runs on this Mac"))
     }
+
+    /// 모델이 없어 끈 버튼의 이유. 다른 기계면 그 사실이 먼저다(그 맥에 파일이 있어도 여기서는 못 쓴다)
+    func noModelHint(_ missing: String) -> String { store.isLocal(run) ? missing : L("Available for runs on this Mac") }
 
     /// 재개 가능 여부와 그 이유(끈 버튼에 그대로 띄운다). 판단은 agent와 같은 기준: 멈춘 run + weights/last.pt
     /// ★"끝난 학습"과 "멈춘 학습"을 안 가르면 done을 재개해 ultralytics가 0에폭으로 즉시 끝난다

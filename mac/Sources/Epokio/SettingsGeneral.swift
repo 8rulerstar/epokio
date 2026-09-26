@@ -51,7 +51,7 @@ struct GeneralTab: View {
             .onChange(of: hotKey) { GlobalHotKey.shared.apply() }
             ScanModeRow()
             UpdateSettingsRow()
-            Toggle(L("Show CPU temperature"), isOn: $showCPUTemp)
+            Toggle(L("Show SoC temperature"), isOn: $showCPUTemp)
             Toggle("Achievements", isOn: $achievements)
                 .help("Badges for things like your first finished run. Adds an Achievements screen to the sidebar.")
                 // 켜는 즉시 채점한다. 안 그러면 다음 새로고침까지 이미 딴 업적이 잠긴 것처럼 보인다(아이콘 갤러리의 자물쇠)

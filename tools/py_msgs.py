@@ -6,8 +6,9 @@ src/epokio/locales/*.json만 본다(두 검사가 서로의 파일을 건드리�
     python tools/py_msgs.py            보고만 하고 0으로 끝난다
     python tools/py_msgs.py --strict   빠진 것이나 불일치가 있으면 1로 끝난다
 
-tr()에 변수를 넘기는 자리가 몇 군데 있다(예: tr(split), tr(KINDS[kind][0])).
-값이 코드의 상수 표에서 오므로 _INDIRECT가 그 표들을 읽어 키로 세어 준다.
+tr()에 변수를 넘기는 자리가 몇 군데 있다(예: tr(split), tr(diagnose.RULES의 제목)).
+값이 코드의 상수 표에서 오므로 _indirect()가 그 표들을 읽어 키로 세어 준다.
+트레이·알림은 tr()이 아니라 i18n.t(짧은 키)로 부르므로 i18n.PHRASES도 같이 읽는다.
 """
 from __future__ import annotations
 
@@ -31,9 +32,17 @@ def _indirect() -> dict[str, str]:
     """tr()에 상수 표의 값이 들어가는 자리. 표를 읽어 키 → 출처로 돌려준다."""
     sys.path.insert(0, str(SRC))
     out: dict[str, str] = {}
-    from epokio import notify, report
+    from epokio import diagnose, i18n, notify, report
+    # 트레이·알림은 tr()이 아니라 i18n.t(짧은 키)로 부른다. PHRASES의 영어 원문이 locales의 키다
+    for k, v in i18n.PHRASES.items():
+        out[v] = f"i18n.PHRASES[{k!r}]"
+    # 알림 제목은 KINDS의 값(짧은 키) → PHRASES를 거쳐 원문이 된다. 그 고리가 끊기면 여기서 잡는다
     for k, v in notify.KINDS.items():
-        out[v[0]] = f"notify.KINDS[{k!r}]"
+        out[i18n.PHRASES.get(v, v)] = f"notify.KINDS[{k!r}]"
+    # 실패 원인 표: diagnose.py가 제목과 고칠 방법을 tr()에 넘긴다
+    for _pat, ttl, fix in diagnose.RULES:
+        out[ttl] = "diagnose.RULES"
+        out[fix] = "diagnose.RULES"
     for name in ("STATE_EN", "HEAD_NAME"):
         for k, v in getattr(report, name).items():
             out[v] = f"report.{name}[{k!r}]"

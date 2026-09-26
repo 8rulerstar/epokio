@@ -1088,6 +1088,8 @@
 "Images: %lld" = "Ảnh: %lld";
 "Labeled: %lld" = "Đã gán nhãn: %lld";
 "CPU temperature" = "Nhiệt độ CPU";
+"SoC temperature" = "Nhiệt độ SoC";
+"Show SoC temperature" = "Hiện nhiệt độ SoC";
 "Report a problem" = "Báo cáo sự cố";
 "Close" = "Đóng";
 "Copied" = "Đã sao chép";

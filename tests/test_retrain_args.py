@@ -80,5 +80,5 @@ def test_resume_job_writes_into_original_folder(tmp_path, monkeypatch):
     j = jobs.Job(id="r1", kind="train", name="exp3_resume", python="python", params={"model": str(last), "resume": True})
     jobs.build_command(j)
     assert j.output == str(tmp_path / "exp3")
-    src = (tmp_path / "scripts" / "r1.py").read_text()
+    src = (tmp_path / "scripts" / "r1.py").read_text(encoding="utf-8")     # 스크립트는 UTF-8(윈도우 기본 cp1252로 읽으면 터진다)
     assert '"project"' not in src and '"resume": true' in src

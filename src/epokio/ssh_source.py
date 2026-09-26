@@ -16,6 +16,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import urllib.parse
@@ -119,36 +120,51 @@ def mirror_dir(host: str) -> Path:
     return MIRROR / re.sub(r"[^A-Za-z0-9_.\-]", "_", host)
 
 
-def run_remote(host: str, cfg: dict, ssh: str = "ssh", timeout: float = TIMEOUT) -> dict:
+def _ssh_cmd(ssh, host: str, arg: str) -> list[str]:
+    """ssh 명령 줄. ssh는 프로그램 이름 하나 또는 [프로그램, 인자...] 목록"""
+    cmd = [ssh] if isinstance(ssh, str) else list(ssh)
+    cmd += ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8"]
+    # ★한 서버에 15초마다 새로 로그인하면 하루 5,760번이라 서버 로그가 쌓이고 fail2ban에 걸린다.
+    #   접속을 재사용한다(ControlMaster). 소켓은 ~/.epokio/ssh-control 아래에만 둔다.
+    #   윈도우판 OpenSSH는 ControlMaster(유닉스 소켓 공유)를 지원하지 않아 켜면 접속 자체가 실패한다.
+    #   그래서 윈도우에서는 빼고 매번 새로 접속한다(느리고 서버 로그가 더 쌓인다, 상태의 note로 알린다)
+    if sys.platform != "win32":
+        CONTROL_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(CONTROL_DIR, 0o700)
+        except OSError:
+            pass
+        sock = CONTROL_DIR / (re.sub(r"[^A-Za-z0-9_.\-]", "_", host)[:40] + ".sock")
+        cmd += ["-o", "ControlMaster=auto", "-o", f"ControlPath={sock}", "-o", "ControlPersist=120"]
+    return cmd + [host, "python3", "-", _quote(arg)]
+
+
+NO_REUSE_NOTE = ("Windows OpenSSH cannot reuse connections (ControlMaster), "
+                 "so Epokio logs in to the server on every read")
+
+
+def run_remote(host: str, cfg: dict, ssh="ssh", timeout: float = TIMEOUT) -> dict:
     """서버에서 스캔 스크립트를 돌린다. 실패하면 ValueError(사람이 읽을 이유)"""
     if not valid_host(host):
         raise ValueError("invalid host name")
     arg = json.dumps({"paths": cfg.get("paths", []), "auto": cfg.get("auto", True)})
-    # ★한 서버에 15초마다 새로 로그인하면 하루 5,760번이라 서버 로그가 쌓이고 fail2ban에 걸린다.
-    #   접속을 재사용한다(ControlMaster). 소켓은 ~/.epokio/ssh-control 아래에만 둔다
-    CONTROL_DIR.mkdir(parents=True, exist_ok=True)
+    cmd = _ssh_cmd(ssh, host, arg)
     try:
-        os.chmod(CONTROL_DIR, 0o700)
-    except OSError:
-        pass
-    sock = CONTROL_DIR / (re.sub(r"[^A-Za-z0-9_.\-]", "_", host)[:40] + ".sock")
-    cmd = [ssh, "-o", "BatchMode=yes", "-o", "ConnectTimeout=8",
-           "-o", "ControlMaster=auto", "-o", f"ControlPath={sock}", "-o", "ControlPersist=120",
-           host, "python3", "-", _quote(arg)]
-    try:
-        p = subprocess.run(cmd, input=REMOTE, capture_output=True, text=True, timeout=timeout)
+        # 바이트로 넘긴다: 텍스트 모드는 윈도우에서 스크립트의 \n을 \r\n으로 바꾸고, 출력은 로캘 코드페이지로 읽는다
+        p = subprocess.run(cmd, input=REMOTE.encode("utf-8"), capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         raise ValueError("timed out")
     except OSError as e:
         raise ValueError(str(e))
+    out = p.stdout.decode("utf-8", "replace")
     if p.returncode != 0:
-        err = (p.stderr or "").strip().splitlines()
+        err = p.stderr.decode("utf-8", "replace").strip().splitlines()
         msg = err[-1] if err else f"ssh exited with {p.returncode}"
         if "python3" in msg and ("not found" in msg or "No such" in msg):
             msg = "python3 is not installed on the server"
         raise ValueError(msg[:300])
     try:
-        return json.loads(p.stdout.strip().splitlines()[-1])
+        return json.loads(out.strip().splitlines()[-1])
     except (ValueError, IndexError):
         raise ValueError("the server sent something Epokio could not read")
 
@@ -170,14 +186,14 @@ def apply(host: str, got: dict, now: float | None = None) -> int:
             continue
         keep.add(d)
         for name, pair in (r.get("files") or {}).items():
-            if ".." in Path(name).parts or name.startswith("/"):
+            if not _safe_rel(name):
                 continue
             mt, text = float(pair[0]) + skew, pair[1]
             f = d / name
             f.parent.mkdir(parents=True, exist_ok=True)
-            if not f.exists() or f.read_text(encoding="utf-8", errors="replace") != text:
+            if not f.exists() or f.read_text(encoding="utf-8", errors="replace", newline="") != text:
                 tmp = f.with_name(f.name + ".tmp")
-                tmp.write_text(text, encoding="utf-8")
+                tmp.write_text(text, encoding="utf-8", newline="")    # 윈도우에서도 개행을 바꾸지 않는다
                 tmp.replace(f)
             os.utime(f, (mt, mt))
     if base.is_dir() and not got.get("truncated"):               # 서버에서 지운 학습은 여기서도
@@ -187,12 +203,36 @@ def apply(host: str, got: dict, now: float | None = None) -> int:
     return len(keep)
 
 
+def _safe_rel(name: str) -> bool:
+    """서버가 준 파일 이름이 비춤 폴더 밖으로 못 나가는가. 윈도우에서 절대 경로가 되는 C: 와 \\ 도 막는다"""
+    parts = re.split(r"[\\/]", name)
+    return bool(name) and "" not in parts and ".." not in parts and "." not in parts and ":" not in name
+
+
+_WIN_BAD = re.compile(r'[<>:"|?*%\x00-\x1f]')
+
+
+def _local_name(n: str) -> str:
+    """학습 폴더 이름을 이 기계에서 만들 수 있게. 윈도우에서만 금지 글자와 끝의 점·공백을 %XX로(맥·리눅스는 그대로)"""
+    if sys.platform != "win32":
+        return n
+    n = _WIN_BAD.sub(lambda m: "%%%02X" % ord(m.group()), n)
+    return n[:-1] + "%%%02X" % ord(n[-1]) if n[-1] in ". " else n
+
+
+def _win_path(p: str) -> bool:
+    return "\\" in p or bool(re.match(r"^[A-Za-z]:", p))
+
+
 def local_dir(host: str, remote: str) -> Path | None:
-    """서버 경로 → 비춤 폴더. <호스트>/<부모 경로를 한 칸으로>/<학습 폴더>: scan 깊이 안에 들고, 학습 이름은 그대로"""
-    parts = [p for p in remote.split("/") if p]
+    """서버 경로 → 비춤 폴더. <호스트>/<부모 경로를 한 칸으로>/<학습 폴더>: scan 깊이 안에 들고, 학습 이름은 그대로.
+    윈도우 서버 경로(C:\\a\\b)는 \\ 로 가르고 부모를 그 모양대로 적어 둔다(remote_path가 되돌린다)"""
+    win = _win_path(remote)
+    parts = [p for p in re.split(r"[\\/]" if win else "/", remote) if p]
     if not parts or ".." in parts or "." in parts:
         return None
-    return mirror_dir(host) / urllib.parse.quote("/" + "/".join(parts[:-1]), safe="") / parts[-1]
+    parent = "\\".join(parts[:-1]) if win else "/" + "/".join(parts[:-1])
+    return mirror_dir(host) / urllib.parse.quote(parent, safe="") / _local_name(parts[-1])
 
 
 def host_of(path: str) -> str | None:
@@ -209,8 +249,10 @@ def remote_path(path: str) -> str:
     rest = path[len(str(MIRROR)) + 1:].split(os.sep)
     if len(rest) < 3:
         return ""
-    parent = urllib.parse.unquote(rest[1]).rstrip("/")
-    return parent + "/" + "/".join(rest[2:])
+    parent = urllib.parse.unquote(rest[1])
+    name = urllib.parse.unquote(rest[2]) if sys.platform == "win32" else rest[2]
+    sep = "\\" if _win_path(parent) else "/"
+    return parent.rstrip(sep) + sep + sep.join([name] + rest[3:])
 
 
 class Poller:
@@ -232,9 +274,10 @@ class Poller:
             got = run_remote(h, host, self.ssh)
             n = apply(h, got)
             st = {"ok": True, "error": None, "runs": n, "at": time.time(), "python": got.get("python"),
-                  "truncated": bool(got.get("truncated"))}
+                  "truncated": bool(got.get("truncated")),
+                  "note": NO_REUSE_NOTE if sys.platform == "win32" else None}
             self._fails.pop(h, None)
-        except ValueError as e:
+        except (ValueError, OSError) as e:       # OSError: 비춤 폴더를 못 만듦 등. 뒤 스레드가 죽지 않게
             self._fails[h] = min(self._fails.get(h, 0) + 1, 10)
             st = {**self.status.get(h, {}), "ok": False, "error": str(e), "at": time.time()}
         self.status[h] = st

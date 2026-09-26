@@ -10,6 +10,7 @@
 (집 규칙 시험과 같은 방식). 응답 모양은 tests/test_contract.py가 따로 지킨다.
 """
 import json
+import os
 from pathlib import Path
 
 from epokio import adapters, scan
@@ -106,6 +107,13 @@ def _hf(d: Path, epochs: list[float], total: int = 20) -> Path:
 def test_hf_midepoch_eval_is_not_done(tmp_path):
     """eval_steps로 19.33에서 평가한 학습은 19에폭까지 끝난 것이다. 20/20 완료가 아니다"""
     d = _hf(tmp_path / "hf", [18.0, 19.0, 19.33])
+    # 시간 열 없는 HF는 경과 시간을 폴더 생성 시각(없으면 가장 이른 파일 mtime)으로 어림한다.
+    # 리눅스·윈도우(py<3.12)엔 st_birthtime이 없어 파일 하나뿐이면 경과 0초가 되어 eta가 늘 None이다.
+    # 학습 시작 때 쓰인 파일을 하나 두어 어느 OS에서든 경과 시간(10분)이 있게 한다
+    cfg = d / "config.json"
+    cfg.write_text("{}", encoding="utf-8")
+    old = (d / "trainer_state.json").stat().st_mtime - 600
+    os.utime(cfg, (old, old))
     assert adapters.load(d).rows[-1]["epoch"] == "19.33"            # 곡선 점은 평가 시점(dev), 끝낸 에폭은 아래 19
     r = scan.read_run(d)
     assert r.epoch == 19 and r.total == 20

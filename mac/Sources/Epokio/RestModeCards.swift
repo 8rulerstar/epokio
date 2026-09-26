@@ -147,7 +147,7 @@ private struct RestTile: View {
         switch item {
         case .memory: "\(RestFormat.gb(readings.memUsed)) / \(RestFormat.gb(readings.memTotal))"
         case .network: "↑ \(RestFormat.rate(readings.netUp))   ↓ \(RestFormat.rate(readings.netDown))"
-        case .temp: L("CPU temperature") + " \(Int((readings.cpuTemp ?? 0).rounded()))°C"
+        case .temp: L("SoC temperature") + " \(Int((readings.cpuTemp ?? 0).rounded()))°C"
         case .battery: L("Battery") + " \(Int((readings.battery ?? 0).rounded()))%"
             + (readings.charging == true ? " · " + L("Charging") : "")
         case .disk: L("Disk free") + " " + RestFormat.gb(readings.diskFree)

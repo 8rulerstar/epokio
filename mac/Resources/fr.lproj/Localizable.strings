@@ -911,6 +911,8 @@
 "Time left" = "Temps restant";
 "Stopped" = "Arrêtée";
 "CPU temperature" = "Température du CPU";
+"SoC temperature" = "Température du SoC";
+"Show SoC temperature" = "Afficher la température du SoC";
 "Data" = "Données";
 "Finished, failed, stalled" = "Terminé, échoué, bloqué";
 "Ready. \"epokio\" is now in the Python list." = "Prêt. « epokio » figure maintenant dans la liste Python.";

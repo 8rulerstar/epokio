@@ -71,12 +71,13 @@ def test_build_retrain_merges_with_original_yaml_and_keeps_val(tmp_path):
     (out / "epokio_eval.json").write_text(json.dumps(d))
     (out / "review.csv").write_text(f"image,verdict\n{img},model_wrong\n")
     got = retrain.build_retrain(out, str(run / "weights/best.pt"), ["model_wrong"], repeat=2)
-    y = Path(got["data"]).read_text()
-    assert str(ds / "images/train") in y and str(out / "retrain/images") in y and "0: cat" in y
+    y = Path(got["data"]).read_text(encoding="utf-8")        # ★인코딩을 안 적으면 윈도우(cp1252)가 한국어 주석에서 터졌다
+    # 경로는 JSON 문자열로 적힌다. 윈도우에선 역슬래시가 두 겹이라 적힌 모양 그대로 찾는다
+    assert json.dumps(str(ds / "images/train")) in y and json.dumps(str(out / "retrain/images")) in y and "0: cat" in y
     assert got["files"] == 2 and (ds / "labels/val/a.txt").read_text() == "0 0.5 0.5 0.2 0.2\n"
     # ★검증 이미지를 학습에 넣었으면 새 검증 목록에서 빠져야 한다(누수 방지)
     assert got["moved_from_val"] == 1 and "val.txt" in y
-    assert str(img) not in (out / "retrain/val.txt").read_text()
+    assert str(img) not in (out / "retrain/val.txt").read_text(encoding="utf-8")
 
 
 def test_review_routes_validate(tmp_path, monkeypatch):

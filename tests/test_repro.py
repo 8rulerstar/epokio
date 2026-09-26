@@ -186,3 +186,14 @@ def test_compare(tmp_path):
 def test_compare_runs_missing_files(tmp_path):
     r = repro_runs.compare_runs(tmp_path / "a", tmp_path / "b")
     assert r["same"] is False and r["have"] == [False, False] and r["diffs"] == [] and r["unknown"] == []
+
+
+def test_tilde_hides_windows_home_and_respects_name_boundary(monkeypatch):
+    """★재현 기록은 단순 치환이라 윈도우 홈(역슬래시·대소문자)에서 사용자 이름이 남았다"""
+    from pathlib import Path
+    from epokio import repro
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: Path(r"C:\Users\Alice")))
+    out = repro.tilde({"cwd": r"c:\users\alice\runs", "cfg": ["C:/Users/Alice/d.yaml"], "other": r"C:\Users\AliceX\x"})
+    assert "alice" not in out["cwd"].lower() and out["cwd"].startswith("~"), out
+    assert out["cfg"] == ["~/d.yaml"], out
+    assert out["other"] == r"C:\Users\AliceX\x", out          # 이름이 더 긴 다른 사용자는 그대로

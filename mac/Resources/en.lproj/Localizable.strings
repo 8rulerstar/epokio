@@ -1,5 +1,7 @@
 /* English is the source language. */
 "CPU temperature" = "CPU temperature";
+"SoC temperature" = "SoC temperature";
+"Show SoC temperature" = "Show SoC temperature";
 "Battery" = "Battery";
 "CPU" = "CPU";
 "Charging" = "Charging";

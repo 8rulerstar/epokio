@@ -90,11 +90,11 @@ struct RunRepro: Codable, Hashable {
     var partial: Bool?
     var code: Code?
     var python: PythonInfo?
-    var seed: [String: String]?
+    var seed: LooseStrings?                 // 숫자·참거짓이 올 수 있다(ReproValues.swift)
     var data: DataFingerprint?
-    var system: [String: String]?
+    var system: LooseStrings?               // NVIDIA 기계는 gpus 가 목록이다
     struct Code: Codable, Hashable { var commit: String?; var branch: String?; var dirty: Bool?; var repo: String? }
-    struct PythonInfo: Codable, Hashable { var version: String?; var path: String?; var packages: [String: String]? }
+    struct PythonInfo: Codable, Hashable { var version: String?; var path: String?; var packages: LooseStrings? }
     struct DataFingerprint: Codable, Hashable { var path: String?; var images: Int?; var listing_sha256: String? }
 }
 

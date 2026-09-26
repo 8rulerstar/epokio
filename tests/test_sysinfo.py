@@ -109,3 +109,46 @@ def test_cpu_delta_is_bounded_and_ignores_a_still_clock():
     assert sysinfo._cpu_delta("t", 50, 100) == 50.0
     assert sysinfo._cpu_delta("t", 50, 100) is None         # 시계가 안 움직이면 0으로 나누지 않는다
     assert sysinfo._cpu_delta("t", 1050, 1100) == 100.0     # 100을 넘지 않는다
+
+def test_mac_gpu_name_is_the_gpu_model_not_the_cpu_brand(monkeypatch):
+    """★GPU 이름 칸에 machdep.cpu.brand_string(CPU 이름)을 넣던 버그."""
+    ioreg = ('  "Device Utilization %"=42\n  "In use system memory"=1073741824\n'
+             '  "Alloc system memory"=4294967296\n  "model" = "Apple M4 Pro"\n')
+    monkeypatch.setattr(sysinfo, "_STATIC", {"memsize": str(48 * 2**30)})
+    monkeypatch.setattr(sysinfo, "_run", lambda cmd, timeout=3: ioreg)
+    g = sysinfo._mac_gpu()[0]
+    assert g.name == "Apple M4 Pro" and g.util == 42.0
+    assert g.mem_used == 1.0
+    assert g.mem_total == 48.0          # 물리 총량. "Alloc system memory"(4 GB)가 아니다
+
+
+def test_mac_gpu_without_model_says_apple_gpu(monkeypatch):
+    monkeypatch.setattr(sysinfo, "_STATIC", {"memsize": ""})
+    monkeypatch.setattr(sysinfo, "_run", lambda cmd, timeout=3: '  "Device Utilization %"=7\n')
+    g = sysinfo._mac_gpu()[0]
+    assert g.name == "Apple GPU" and g.mem_used is None and g.mem_total is None
+
+
+def test_nvidia_na_memory_stays_none(monkeypatch):
+    """★[N/A] 를 0.0 GB 로 바꾸면 "메모리 0 GB" 로 보인다."""
+    line = "NVIDIA A100,55,[N/A],[N/A],61\n"
+    monkeypatch.setattr(sysinfo, "nvidia_smi_path", lambda: "/usr/bin/nvidia-smi")
+    monkeypatch.setattr(sysinfo, "_run", lambda cmd, timeout=3: line)
+    g = sysinfo._nvidia()[0]
+    assert g.util == 55.0 and g.temp == 61.0
+    assert g.mem_used is None and g.mem_total is None
+
+
+def test_psutil_first_cpu_sample_is_none(monkeypatch):
+    """★psutil.cpu_percent(interval=None)의 첫 호출은 0.0 이다. 화면에 "0%"로 나갔다."""
+    import sys as _sys
+    import types
+
+    vm = types.SimpleNamespace(used=8 * 2**30, total=16 * 2**30)
+    fake = types.SimpleNamespace(virtual_memory=lambda: vm,
+                                 cpu_percent=lambda interval=None: 0.0)
+    monkeypatch.setitem(_sys.modules, "psutil", fake)
+    monkeypatch.setattr(sysinfo, "_PSUTIL", {})
+    assert sysinfo._generic_cpu_mem() == (None, 8.0, 16.0)      # 첫 표본
+    fake.cpu_percent = lambda interval=None: 37.5
+    assert sysinfo._generic_cpu_mem() == (37.5, 8.0, 16.0)      # 두 번째부터 값

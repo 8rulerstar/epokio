@@ -30,6 +30,9 @@ DETECT_HEAD = ("epoch,time,train/box_loss,train/cls_loss,train/dfl_loss,metrics/
                "metrics/mAP50(B),metrics/mAP50-95(B),val/box_loss,val/cls_loss,val/dfl_loss,lr/pg0\n")
 
 
+NET_HOST = "127.0.0.2" if os.name == "nt" else "127.1"
+
+
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -49,24 +52,49 @@ class AgentProc:
         # 배터리로 돌면 절전 모드가 되어 /runs가 20초씩 캐시된다. 시험은 기계 전원과 무관해야 한다
         (home / ".epokio" / "config.json").write_text(json.dumps({"scan_mode": "auto", "saver_on_battery": False}))
         env = {k: v for k, v in os.environ.items() if not k.startswith("EPOKIO")}
-        env.update(HOME=str(home), PYTHONPATH=str(ROOT / "src"), PYTHONUNBUFFERED="1")
+        # ★윈도우의 Path.home()은 HOME이 아니라 USERPROFILE을 본다. HOME만 바꿔 agent가 다른 집에 agent.json·토큰을 썼다
+        # PYTHONFAULTHANDLER: 답이 없을 때 SIGABRT로 모든 스레드의 위치를 출력 파일에 받는다(아래 _hung)
+        env.update(HOME=str(home), USERPROFILE=str(home), PYTHONPATH=str(ROOT / "src"), PYTHONUNBUFFERED="1",
+                   PYTHONFAULTHANDLER="1")
         cmd = [sys.executable, "-m", "epokio.agent", "--port", str(self.port), "--host", host, "--label", "e2e"]
         for r in roots:
             cmd += ["--root", str(r)]
-        self.proc = subprocess.Popen(cmd, env=env, cwd=str(home), stdout=subprocess.PIPE,
+        # 출력은 파일로. ★아무도 안 읽는 PIPE는 가득 차면 agent가 print에서 멈추고, 멈춘 이유도 남지 않았다
+        self.out = home / "agent.out"
+        self._out = open(self.out, "w", encoding="utf-8")
+        self.proc = subprocess.Popen(cmd, env=env, cwd=str(home), stdout=self._out,
                                      stderr=subprocess.STDOUT, text=True)
-        self.url = f"http://127.0.0.1:{self.port}"
-        deadline = time.time() + 15
+        # 127.0.0.2는 윈도우용(아래 NET_HOST). 나머지는 모두 127.0.0.1로 닿는다
+        self.url = f"http://{'127.0.0.2' if host == '127.0.0.2' else '127.0.0.1'}:{self.port}"
+        deadline = time.time() + 30             # 새로 받은 CI 기계는 첫 실행이 느리다
         while time.time() < deadline:
             if self.proc.poll() is not None:
-                raise RuntimeError("agent exited early:\n" + self.proc.stdout.read())
+                raise RuntimeError("agent exited early:\n" + self._output())
             try:
                 self.get("/health")
                 return
             except OSError:
                 time.sleep(0.1)
+        raise RuntimeError("agent did not answer /health in 30 s\n" + self._hung())
+
+    def _output(self) -> str:
+        self._out.flush()
+        text = self.out.read_text(encoding="utf-8", errors="replace")
+        log = self.home / ".epokio" / "agent.log"
+        if log.exists():
+            text += "\n--- agent.log ---\n" + log.read_text(encoding="utf-8", errors="replace")[-4000:]
+        return text
+
+    def _hung(self) -> str:
+        """답이 없는 agent의 모든 스레드 위치를 받아 온다(POSIX만: faulthandler가 SIGABRT에 스택을 찍는다)"""
+        if os.name != "nt" and self.proc.poll() is None:
+            self.proc.send_signal(signal.SIGABRT)
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
         self.stop()
-        raise RuntimeError("agent did not answer /health in 15 s")
+        return self._output()
 
     def request(self, path: str, body: dict | None = None, headers: dict | None = None):
         data = None if body is None else json.dumps(body).encode()
@@ -87,15 +115,27 @@ class AgentProc:
         return (self.home / ".epokio" / "token").read_text().strip()
 
     def stop(self) -> int:
+        """POSIX는 SIGTERM(도우미 종료 신호 처리를 시험한다). ★윈도우의 SIGTERM은 TerminateProcess라 atexit가 안 돌아
+        agent.json이 남고 종료 코드도 1이다. 윈도우에서 실제로 끄는 길(epokio agent --stop)은 /shutdown이라 그것을 쓴다"""
         if self.proc.poll() is None:
-            self.proc.send_signal(signal.SIGTERM)
+            if os.name == "nt":
+                self.shutdown_request()
+            else:
+                self.proc.send_signal(signal.SIGTERM)
             try:
                 self.proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
                 self.proc.wait(timeout=5)
-        self.proc.stdout.close()
+        if not self._out.closed:
+            self._out.close()
         return self.proc.returncode
+
+    def shutdown_request(self):
+        try:
+            self.request("/shutdown", body={}, headers={"Authorization": "Bearer " + self.token()})
+        except OSError:
+            pass
 
 
 def _run_by_name(agent: AgentProc, name: str) -> dict | None:
@@ -148,7 +188,9 @@ def test_health_and_agent_record(world):
     rec = json.loads((agent.home / ".epokio" / "agent.json").read_text())     # 앱·웹·터미널이 찾는 주소
     assert rec["port"] == agent.port
     tok = agent.home / ".epokio" / "token"
-    assert len(agent.token()) >= 32 and (tok.stat().st_mode & 0o777) == 0o600
+    assert len(agent.token()) >= 32
+    if os.name != "nt":                  # 윈도우는 권한 비트가 없다(사용자 프로필 ACL이 막는다)
+        assert (tok.stat().st_mode & 0o777) == 0o600
 
 
 def test_runs_lists_every_framework_fixture(world):
@@ -308,10 +350,12 @@ def test_nan_loss_marks_the_run_failed_and_detail_explains_divergence(world):
 
 def test_network_mode_needs_token_for_reads(tmp_path):
     """이 기계 밖에서 닿게 띄우면 보기에도 토큰. 0.0.0.0은 실제로 LAN에 열리므로
-    '127.1'(루프백 주소지만 is_loopback 목록 밖)으로 띄워 같은 경로를 탄다"""
+    '127.1'(루프백 주소지만 is_loopback 목록 밖)으로 띄워 같은 경로를 탄다.
+    ★윈도우의 getaddrinfo는 '127.1'을 모른다(Errno 11001). 윈도우는 127.0.0.0/8 전체가 루프백이라 127.0.0.2를 쓴다
+    (맥은 lo0에 127.0.0.1만 있어 127.0.0.2를 못 연다)"""
     runs = tmp_path / "runs"
     shutil.copytree(FORMATS / "ultralytics84_detect", runs / "a")
-    agent = AgentProc(tmp_path / "home", [runs], host="127.1")
+    agent = AgentProc(tmp_path / "home", [runs], host=NET_HOST)
     try:
         assert agent.get("/health")[0] == 200                        # 살아 있는지 보기는 열려 있다
         assert agent.request("/")[0] == 200                          # 토큰 입력 화면
@@ -332,8 +376,20 @@ def test_agent_record_is_removed_on_shutdown(tmp_path):
     runs.mkdir()
     agent = AgentProc(tmp_path / "home", [runs])
     rec = tmp_path / "home" / ".epokio" / "agent.json"
-    assert json.loads(rec.read_text())["port"] == agent.port
+    assert json.loads(rec.read_text(encoding="utf-8"))["port"] == agent.port
     assert agent.stop() == 0
     assert not rec.exists()                                          # 끝나면 지운다: 앱이 죽은 주소를 안 믿게
     with pytest.raises(OSError):
         urllib.request.urlopen(agent.url + "/health", timeout=1)     # 포트도 닫혔다
+
+
+def test_shutdown_request_also_removes_record(tmp_path):
+    """윈도우가 도우미를 끄는 길(/shutdown, epokio agent --stop). 맥·리눅스에서도 같은 길을 한 번 시험한다"""
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    agent = AgentProc(tmp_path / "home", [runs])
+    rec = tmp_path / "home" / ".epokio" / "agent.json"
+    assert rec.exists()
+    agent.shutdown_request()
+    agent.proc.wait(timeout=10)
+    assert agent.stop() == 0 and not rec.exists()

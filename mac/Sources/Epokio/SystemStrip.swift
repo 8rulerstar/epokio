@@ -66,7 +66,7 @@ struct Gauge: View {
     }
 }
 
-/// CPU(SoC) 온도. 숫자와 °만 보이고 설명은 툴팁. 90°C 이상이면 주의 색.
+/// SoC(칩) 다이 최고 온도. CPU 코어만의 온도가 아니다(mactemp.py 머리말). 90°C 이상이면 주의 색.
 struct TempChip: View {
     static let settingKey = "showCPUTemp"
     static let hot = 90.0
@@ -88,9 +88,9 @@ struct TempChip: View {
         .animation(reduce ? nil : Motion.hover, value: hot)
         .onHover { h in withAnimation(reduce ? nil : Motion.hover) { hover = h } }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(L("CPU temperature"))
+        .accessibilityLabel(L("SoC temperature"))
         .accessibilityValue(Text(verbatim: "\(Int(celsius.rounded()))°C"))
-        .help(L("CPU temperature"))
+        .help(L("SoC temperature"))
     }
 }
 

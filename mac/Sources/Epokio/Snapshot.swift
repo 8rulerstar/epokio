@@ -112,13 +112,20 @@ extension SnapshotMode {
         if let i = CommandLine.arguments.firstIndex(of: "--section"), i + 1 < CommandLine.arguments.count,
            let sec = Studio.Section(rawValue: CommandLine.arguments[i + 1]) { store.section = sec }     // Studio 안의 화면
         if let i = CommandLine.arguments.firstIndex(of: "--tour"), i + 1 < CommandLine.arguments.count { store.tourStep = Int(CommandLine.arguments[i + 1]) }
-        func arg(_ k: String) -> String? { CommandLine.arguments.firstIndex(of: k).map { CommandLine.arguments[$0 + 1] } }
-        // --select 이름조각 : 목록이 채워진 뒤 그 학습을 고른다
-        if let want = arg("--select") {
+        func arg(_ k: String) -> String? {
+            CommandLine.arguments.firstIndex(of: k).flatMap { $0 + 1 < CommandLine.arguments.count ? CommandLine.arguments[$0 + 1] : nil }
+        }
+        // --select 이름조각 : 목록이 채워지면 그 학습을 고른다.
+        // ★한 번 고르고 멈추면 안 된다. RunsView 가 목록이 채워질 때 첫 줄을 자동으로 고르므로(onAppear·onChange)
+        //   뒤늦게 덮어써 엉뚱한 학습이 찍힌다. 고정 대기 대신 찍기 직전까지 계속 다시 세워 둔다.
+        let want = arg("--select")
+        if let want {
             Task { @MainActor in
-                for _ in 0..<40 {
-                    if let r = store.runs.first(where: { $0.path.contains(want) }) { store.selectedRun = r.id; break }
-                    try? await Task.sleep(for: .milliseconds(100))
+                while !Task.isCancelled {
+                    if let r = store.runs.first(where: { $0.path.contains(want) }), store.selectedRun != r.id {
+                        store.selectedRun = r.id
+                    }
+                    try? await Task.sleep(for: .milliseconds(50))
                 }
             }
         }
@@ -140,6 +147,7 @@ extension SnapshotMode {
         case "onboarding": AnyView(Onboarding())
         case "palette": AnyView(CommandPalette())
         case "detail": AnyView(DetailProbe().frame(width: 820, height: 840))
+        case "labeler": AnyView(LabelerProbe().frame(width: 980, height: 720))
         case "lineage": AnyView(LineageProbe().padding(20).frame(width: 620, height: 260, alignment: .topLeading))       // 학습 상세만, 좁은 폭에서
         case "settings-appearance": AnyView(AppearanceTab().frame(width: 520, height: 460))
         case "settings-notify": AnyView(NotificationsTab().frame(width: 520, height: 420))
@@ -161,6 +169,11 @@ extension SnapshotMode {
         win.orderFrontRegardless()
         let deadline = Date().addingTimeInterval(6 + warmup)  // agent에서 환경·설정표 받을 시간(+ --warmup)
         while Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.1)) }
+        // 고르라고 한 학습이 실제로 골라졌나. 조용히 다른 것을 찍고 "됐다"고 하지 않는다
+        if let want, !(store.selectedRun.flatMap({ id in store.runs.first { $0.id == id } })?.path.contains(want) ?? false) {
+            FileHandle.standardError.write(Data("--select \(want): 목록 \(store.runs.count)개에서 못 찾았다. No snapshot written.\n".utf8))
+            exit(5)
+        }
         host.layoutSubtreeIfNeeded()
         if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
             host.cacheDisplay(in: host.bounds, to: rep)
@@ -218,6 +231,30 @@ struct DetailProbe: View {
             RunDetailView(run: r).onAppear { if CommandLine.arguments.contains("--expand") { UserDefaults.standard.set(true, forKey: "detailExpanded") } }
         }
         else { ProgressView() }
+    }
+}
+
+/// 스냅샷: sheet 로 뜨는 라벨링 뷰어.
+/// ★sheet 는 제 창(부속 NSWindow)에 그려지므로 host.cacheDisplay 로는 절대 안 잡힌다.
+///   팔레트·둘러보기·단축키가 이미 쓰는 수법을 그대로 쓴다: sheet 내용만 뿌리 뷰로 바로 올린다.
+/// ★격리 모드에서만 연다. 라벨링 뷰어는 박스를 건드리면 0.9초 뒤 자동 저장하므로
+///   실제 사용자 폴더로는 절대 열지 않는다. 여는 곳은 격리 홈의 합성 도형 데이터뿐이다.
+struct LabelerProbe: View {
+    @State private var ds = Dataset()
+    @State private var progress = LabelProgress()
+    var body: some View {
+        Group {
+            if let it = ds.items.first {
+                LabelingViewer(ds: ds, progress: progress, items: ds.items, current: it)
+            } else {
+                ProgressView()
+            }
+        }
+        .task {
+            guard SnapshotIsolation.isolated else { return }      // 격리 밖에서는 아무것도 열지 않는다
+            await ds.open(URL(fileURLWithPath: SnapshotIsolation.home + "/datasets/shapes"))
+            if let r = ds.root { progress.open(r) }
+        }
     }
 }
 

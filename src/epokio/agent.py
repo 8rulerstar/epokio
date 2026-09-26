@@ -51,7 +51,8 @@ class Agent(Watcher):
         #   배터리를 보고 saver로 판단해 켠 직후 목록 캐시가 빗나갔다. 처음부터 있게 한다(파일 알림 걸기는 감시 스레드 몫)
         from .pace import Pace
         self.pace = Pace()
-        threading.Thread(target=self._watch, daemon=True).start()
+        self._watch_thread = threading.Thread(target=self._watch, daemon=True)
+        self._watch_thread.start()
         self.queue.on_finish = self._job_event
 
     ROOTS_FILE = Path.home() / ".epokio" / "roots.json"

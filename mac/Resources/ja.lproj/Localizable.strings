@@ -1088,6 +1088,8 @@
 "Images: %lld" = "画像: %lld";
 "Labeled: %lld" = "ラベルあり: %lld";
 "CPU temperature" = "CPU 温度";
+"SoC temperature" = "SoC 温度";
+"Show SoC temperature" = "SoC 温度を表示";
 "Report a problem" = "問題を報告";
 "Close" = "閉じる";
 "Copied" = "コピーしました";

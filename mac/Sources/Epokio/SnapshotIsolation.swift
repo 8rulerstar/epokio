@@ -224,6 +224,16 @@ enum SnapshotIsolation {
         return Data(scrub(s).utf8)
     }
 
+    /// scrub의 역방향. 나가는 요청에만 쓴다.
+    /// ★응답의 홈 경로를 "~"로 바꿔 내보내므로, 앱은 목록에서 받은 "~/runs/x"를 그대로 다시 물어본다
+    ///   (/run?path=~/runs/x). agent는 "~"를 펴지 않아 폴더를 못 찾고 상세가 "불러오지 못했습니다"로 떴다.
+    ///   요청에서만 되돌려 준다. 응답은 여전히 "~"로 나가므로 가리기는 그대로다.
+    static func unscrub(_ s: String) -> String {
+        guard !home.isEmpty else { return s }
+        if s == "~" { return home }
+        return s.replacingOccurrences(of: "~/", with: home + "/")
+    }
+
     /// 화면에 실제 값이 남았나. 남았으면 그 문자열들
     static func leaks(in strings: [String]) -> [String] {
         // ★여기 적는 말 자체가 공개 동기화 금지어에 걸린다(검사 대상 목록이라 내용은 정상): 쪼개서 적는다
@@ -336,8 +346,15 @@ final class SnapshotGuard: URLProtocol, @unchecked Sendable {
             return
         }
         c.host = "127.0.0.1"; c.port = SnapshotIsolation.agentPort          // 실제 8787 대신 격리 agent
+        // 가리기로 "~"가 된 경로를 다시 실제 임시 홈으로 편다(요청만). 안 그러면 agent가 폴더를 못 찾는다
+        if let items = c.queryItems {
+            c.queryItems = items.map { URLQueryItem(name: $0.name, value: $0.value.map(SnapshotIsolation.unscrub)) }
+        }
         let m = (request as NSURLRequest).mutableCopy() as! NSMutableURLRequest
         m.url = c.url
+        if let b = request.httpBody, let s = String(data: b, encoding: .utf8) {
+            m.httpBody = Data(SnapshotIsolation.unscrub(s).utf8)
+        }
         URLProtocol.setProperty(true, forKey: SnapshotGuard.passKey, in: m)
         inner = URLSession(configuration: .ephemeral).dataTask(with: m as URLRequest) { [weak self] d, resp, e in
             guard let self else { return }

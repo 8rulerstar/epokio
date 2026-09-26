@@ -1092,6 +1092,8 @@
 "Images: %lld" = "Imagens: %lld";
 "Labeled: %lld" = "Rotuladas: %lld";
 "CPU temperature" = "Temperatura da CPU";
+"SoC temperature" = "Temperatura do SoC";
+"Show SoC temperature" = "Mostrar temperatura do SoC";
 
 /* Relatar um problema */
 "Report a problem" = "Relatar um problema";

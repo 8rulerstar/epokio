@@ -1,8 +1,17 @@
-"""맥 CPU(SoC) 온도. 관리자 권한 없이, Stats 앱과 같은 길.
+"""맥 SoC(칩) 다이 온도. 관리자 권한 없이, Stats 앱과 같은 길.
+
+★이름 주의: CPU 코어만의 온도가 아니다. M2~M4 에서 실제로 잡히는 센서는 "PMU tdie*"
+  (M4 Pro 실측 42개)뿐이고, tdie 는 다이 위 "위치"별 온도라 기능(CPU·GPU·NPU) 구분이 없다.
+  실측(M4 Pro, 0.4초 간격 20초, 최고점 센서가 누구인지 세어 봄):
+    CPU 부하 12코어 → tdie1 이 100%.  GPU 부하(MPS 행렬곱) → tdie8 60% · tdie1 40%.
+  부하 종류에 따라 최고점이 다른 센서로 옮겨 간다. 즉 센서마다 다른 블록 위에 있고,
+  최댓값을 쓰는 이 함수는 CPU 가 아닌 블록의 온도를 낼 수 있다.
+  그래서 화면 이름표는 "SoC temperature" 다.
+  함수·필드 이름 cpu_temp 는 앱·agent 사이 약속(Snapshot)이라 그대로 둔다.
 
 공식 API가 없어서 IOKit의 비공개 인터페이스 IOHIDEventSystemClient 로 온도 센서
 (PrimaryUsagePage 0xff00, PrimaryUsage 5)를 ctypes 로 읽는다. 칩마다 센서 이름이 달라
-CPU 계열 이름 규칙(CPU_PREFIXES)에 맞는 센서의 최댓값만 쓴다.
+CPU_PREFIXES 에 맞는 센서의 최댓값만 쓴다(칩에서 제일 뜨거운 지점).
 
 비용: 첫 호출에서 센서 목록을 만들고(수십 ms), 뒤로는 고른 센서만 다시 읽는다.
 그래도 한 번에 수십 ms라 CACHE_SEC 동안은 직전 값을 돌려준다.
@@ -27,7 +36,7 @@ _UTF8 = 0x08000100
 
 
 def pick_cpu_temp(readings) -> float | None:
-    """(센서 이름, °C) 목록에서 CPU 계열의 현실적인 값 중 최댓값. 없으면 None."""
+    """(센서 이름, °C) 목록에서 다이 센서의 현실적인 값 중 최댓값. 없으면 None."""
     vals = [v for n, v in readings
             if isinstance(n, str) and n.startswith(CPU_PREFIXES)
             and isinstance(v, (int, float)) and MIN_C < v < MAX_C]
@@ -108,7 +117,7 @@ _state: dict = {"reader": None, "failed": False, "at": 0.0, "value": None}
 
 
 def cpu_temp(now: float | None = None) -> float | None:
-    """°C 또는 None. 예외를 내지 않는다."""
+    """SoC 다이 최고 온도 °C 또는 None. 예외를 내지 않는다."""
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         return None
     now = time.monotonic() if now is None else now

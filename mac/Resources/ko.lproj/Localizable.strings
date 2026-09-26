@@ -1101,6 +1101,8 @@
 "Images: %lld" = "이미지: %lld";
 "Labeled: %lld" = "라벨 있음: %lld";
 "CPU temperature" = "CPU 온도";
+"SoC temperature" = "SoC 온도";
+"Show SoC temperature" = "SoC 온도 표시";
 
 /* Report a problem */
 "Report a problem" = "문제 신고";

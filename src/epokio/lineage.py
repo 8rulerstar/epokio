@@ -52,7 +52,8 @@ def manifest(yaml_path: Path) -> dict:
             for n in names:
                 p = Path(root) / n if d.is_dir() else d
                 ext = p.suffix.lower()
-                rel = unicodedata.normalize("NFC", str(p.relative_to(base)) if d.is_dir() else p.name)
+                # 구분자는 /로 통일. ★윈도우는 labels\\train\\1.txt로 적어, 같은 데이터를 맥·윈도우에서 비교하면 전부 바뀐 것으로 보였다
+                rel = unicodedata.normalize("NFC", p.relative_to(base).as_posix() if d.is_dir() else p.name)
                 try:
                     if ext == ".txt":
                         raw = p.read_bytes()

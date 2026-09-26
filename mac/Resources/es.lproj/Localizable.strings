@@ -1088,6 +1088,8 @@
 "Images: %lld" = "Imágenes: %lld";
 "Labeled: %lld" = "Etiquetadas: %lld";
 "CPU temperature" = "Temperatura de la CPU";
+"SoC temperature" = "Temperatura del SoC";
+"Show SoC temperature" = "Mostrar temperatura del SoC";
 "Report a problem" = "Informar de un problema";
 "Close" = "Cerrar";
 "Copied" = "Copiado";

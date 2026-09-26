@@ -260,6 +260,8 @@
 "Couldn't read the log." = "Log konnte nicht gelesen werden.";
 "Counted from each image's top answer. Below the confidence, the answer counts as \"not sure\"." = "Aus der Top-Antwort jedes Bildes gezählt. Unter der Confidence zählt die Antwort als „unsicher“.";
 "CPU temperature" = "CPU-Temperatur";
+"SoC temperature" = "SoC-Temperatur";
+"Show SoC temperature" = "SoC-Temperatur zeigen";
 "Crashes" = "Abstürze";
 "Create and Use" = "Erstellen und verwenden";
 "Curve" = "Kurve";
