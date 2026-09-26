@@ -20,5 +20,5 @@ Ultralytics/
 # Xcode가 만드는 개인 설정
 mac/.swiftpm/
 
-# Claude Code 에이전트의 격리 작업 공간(worktree). 저장소 내용이 아니다
+# 도구가 만드는 격리 작업 공간(worktree). 저장소 내용이 아니다
 .claude/

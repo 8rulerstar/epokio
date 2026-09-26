@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2 (2026-09-26)
+
+- The Windows `Epokio.exe` has the Epokio icon instead of the default one.
+- README: the web page section lists what it does today (Review, Sweeps and Table tabs included), the wording matches the app, and the Korean section uses the same terms as the app.
+
 ## 0.4.1 (2026-09-26)
 
 Documentation only. No changes to the app or the helper.

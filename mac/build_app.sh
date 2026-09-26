@@ -88,8 +88,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleLocalizations</key><array><string>en</string><string>ko</string><string>ja</string><string>zh-Hans</string><string>zh-Hant</string><string>es</string><string>fr</string><string>de</string><string>pt-BR</string><string>vi</string></array>
   <key>CFBundleIconFile</key><string>Epokio</string>
   <key>CFBundleIconName</key><string>Epokio</string>
-  <key>CFBundleShortVersionString</key><string>0.4.1</string>
-  <key>CFBundleVersion</key><string>5</string>
+  <key>CFBundleShortVersionString</key><string>0.4.2</string>
+  <key>CFBundleVersion</key><string>6</string>
   <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>

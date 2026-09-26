@@ -94,6 +94,11 @@ def main() -> int:
 
     ENTRY.parent.mkdir(parents=True, exist_ok=True)
     ENTRY.write_text(LAUNCHER, encoding="utf-8")
+    # exe 아이콘: README와 같은 앱 아이콘(docs/images/icon.png)에서 .ico를 만든다. ★없어서 PyInstaller 기본 아이콘이었다
+    ico = ENTRY.parent / "Epokio.ico"
+    from PIL import Image
+    Image.open(ROOT / "docs" / "images" / "icon.png").convert("RGBA").save(
+        ico, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 
     cmd = [
         sys.executable, "-m", "PyInstaller",
@@ -101,6 +106,7 @@ def main() -> int:
         "--onefile",
         "--console" if a.console else "--noconsole",
         "--noconfirm",
+        "--icon", str(ico),
         "--distpath", str(ROOT / "dist"),
         "--workpath", str(ROOT / "build" / "pyi"),
         "--specpath", str(ROOT / "build"),
