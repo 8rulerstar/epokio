@@ -78,7 +78,9 @@ class AgentProc:
         raise RuntimeError("agent did not answer /health in 30 s\n" + self._hung())
 
     def _output(self) -> str:
-        self._out.flush()
+        # ★_hung 이 stop() 으로 파일을 닫은 뒤 부른다. 닫힌 파일에 flush 하다 죽어 정작 멈춘 위치가 안 남았다(맥 CI)
+        if not self._out.closed:
+            self._out.flush()
         text = self.out.read_text(encoding="utf-8", errors="replace")
         log = self.home / ".epokio" / "agent.log"
         if log.exists():

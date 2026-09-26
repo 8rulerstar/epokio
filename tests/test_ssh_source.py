@@ -134,6 +134,8 @@ def test_windows_drops_connection_sharing(monkeypatch, tmp_path):
     """윈도우판 OpenSSH 는 ControlMaster 를 못 쓴다: 윈도우에서는 옵션을 빼고, 상태에 이유를 남긴다"""
     monkeypatch.setattr(ssh_source, "CONTROL_DIR", tmp_path / "ctl")
     monkeypatch.setattr(ssh_source, "MIRROR", tmp_path / "mirror")
+    # ★윈도우가 아닌 쪽도 OS 를 못 박는다. 실제 OS 를 따르면 진짜 윈도우 CI 에서 기능이 옳게 옵션을 뺐는데 실패했다
+    monkeypatch.setattr(sys, "platform", "linux")
     assert "ControlMaster=auto" in ssh_source._ssh_cmd("ssh", "h", "{}")
     monkeypatch.setattr(sys, "platform", "win32")
     win = ssh_source._ssh_cmd("ssh", "h", "{}")
