@@ -1,0 +1,278 @@
+"""윈도우 온보딩: 자동 시작 항목과 `epokio setup`.
+
+윈도우 사용자가 포기하는 자리라서, 여기가 조용히 깨지면 아무도 알려 주지 않는다.
+실제 시작프로그램 폴더는 건드리지 않는다. enable/disable 이 폴더를 인자로 받는 건 그래서다.
+"""
+import subprocess
+import sys
+
+import pytest
+
+from epokio import autostart, onboard
+
+
+# ── 자동 시작 ────────────────────────────────────────
+
+def test_it_knows_where_the_entry_goes():
+    f = autostart.folder()
+    assert f.is_absolute()
+    if sys.platform == "win32":
+        assert f.name == "Startup"
+    elif sys.platform == "linux":
+        assert f.name == "autostart"
+
+
+def test_the_launcher_avoids_a_console_window_on_windows():
+    exe, *args = autostart.launcher()
+    assert args == ["-m", "epokio.tray"]
+    if sys.platform == "win32":
+        from pathlib import Path
+        # pythonw 가 있는데도 python 을 고르면 로그인할 때마다 검은 창이 남는다
+        assert not Path(exe).with_name("pythonw.exe").exists() or Path(exe).name == "pythonw.exe"
+
+
+@pytest.mark.skipif(not autostart.supported(), reason="윈도우·리눅스에서만 만든다")
+def test_enable_then_disable_leaves_nothing_behind(tmp_path):
+    where = tmp_path / "Startup"
+    assert not autostart.enabled(where)
+
+    path = autostart.enable(where)
+    assert autostart.enabled(where)
+    assert path.exists() and path.stat().st_size > 0
+
+    autostart.enable(where)                       # 두 번 켜도 하나만 남는다
+    assert len(list(where.iterdir())) == 1
+
+    assert autostart.disable(where) is True
+    assert not autostart.enabled(where)
+    assert list(where.iterdir()) == []
+    assert autostart.disable(where) is False      # 이미 꺼져 있으면 False
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="바로 가기는 윈도우만")
+def test_the_shortcut_really_points_at_the_tray(tmp_path):
+    """.lnk 를 되읽어서 확인한다. 파일이 생겼다는 것만으로는 켜진다는 뜻이 아니다."""
+    path = autostart.enable(tmp_path / "Startup")
+    ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:L);"
+          "$s.TargetPath; $s.Arguments")
+    import os
+    r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                       capture_output=True, text=True, timeout=60,
+                       env={**os.environ, "L": str(path)})
+    if r.returncode != 0:
+        pytest.skip("이 환경에서는 PowerShell 로 바로 가기를 읽을 수 없다")
+    target, args = [x.strip() for x in r.stdout.strip().splitlines()[:2]]
+    assert target.lower().endswith(("python.exe", "pythonw.exe")), target
+    assert args == "-m epokio.tray", args
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason=".desktop 은 리눅스만")
+def test_the_desktop_entry_is_well_formed(tmp_path):
+    path = autostart.enable(tmp_path / "autostart")
+    text = path.read_text(encoding="utf-8")
+    assert text.startswith("[Desktop Entry]")
+    assert "Type=Application" in text and "epokio.tray" in text
+
+
+# ── epokio setup ─────────────────────────────────────
+
+def test_agent_alive_is_false_when_nothing_listens():
+    assert onboard.agent_alive(port=59_999, timeout=0.3) is False
+
+
+def test_lan_ip_is_an_address_or_nothing():
+    ip = onboard.lan_ip()
+    if ip is not None:
+        parts = ip.split(".")
+        assert len(parts) == 4 and all(p.isdigit() for p in parts), ip
+
+
+def test_setup_binds_to_this_machine_only_unless_you_ask_for_lan(monkeypatch, tmp_path):
+    """--lan 없이 0.0.0.0 으로 열면 사용자가 모르는 새 네트워크에 노출된다."""
+    seen = {}
+
+    def fake_start(roots, host, port=onboard.PORT):
+        seen["host"], seen["port"] = host, port
+        return None
+
+    monkeypatch.setattr(onboard, "start_agent", fake_start)
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: False)
+    monkeypatch.setattr(onboard, "wait_for_agent", lambda *a, **k: True)
+
+    onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser"])
+    assert seen["host"] == "127.0.0.1"
+
+    seen.clear()
+    onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser", "--lan"])
+    assert seen["host"] == "0.0.0.0"
+
+
+def test_setup_label_is_remembered_for_the_helper(monkeypatch, tmp_path):
+    """실습실 노트북 20대가 전부 DESKTOP-XXXX로 보였다. setup에서 준 이름을 트레이가 다시 띄우는 agent도 쓴다."""
+    monkeypatch.setattr(onboard, "start_agent", lambda *a, **k: None)
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: False)
+    monkeypatch.setattr(onboard, "wait_for_agent", lambda *a, **k: True)
+    onboard.main(["--root", str(tmp_path), "--no-browser", "--label", " lab-07 "])
+    assert onboard.label_file().read_text(encoding="utf-8") == "lab-07"
+
+
+def test_setup_does_not_touch_autostart_unless_asked(monkeypatch, tmp_path):
+    called = []
+    monkeypatch.setattr(autostart, "enable", lambda *a, **k: called.append(1))
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+
+    onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser"])
+    assert called == []
+
+
+def test_setup_does_not_open_a_browser_when_told_not_to(monkeypatch, tmp_path):
+    import webbrowser
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(webbrowser, "open", lambda *a, **k: pytest.fail("브라우저를 열었다"))
+    assert onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser"]) == 0
+
+
+# ── exe(PyInstaller)로 굳었을 때 ──────────────────────
+
+def test_self_command_uses_the_exe_itself_when_frozen(monkeypatch):
+    """굳은 exe 에 `-m epokio.agent` 를 붙이면 파이썬 인자로 안 먹고 그냥 흘러간다."""
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", r"C:\Program Files\Epokio\Epokio.exe")
+    assert autostart.self_command("agent") == [r"C:\Program Files\Epokio\Epokio.exe", "agent"]
+    assert autostart.self_command("tray") == [r"C:\Program Files\Epokio\Epokio.exe", "tray"]
+    assert "-m" not in autostart.self_command("agent")
+
+
+def test_self_command_uses_python_dash_m_when_not_frozen(monkeypatch):
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    cmd = autostart.self_command("agent")
+    assert cmd[1:] == ["-m", "epokio.agent"]
+
+
+def test_child_env_drops_the_pyinstaller_temp_dir(monkeypatch):
+    """자식이 부모의 임시 압축 해제 폴더를 물려받으면, 부모가 끝날 때 그 폴더가 사라진다.
+
+    실측: 그 상태의 agent 는 /health(코드)는 200인데 /(번들된 index.html)에서 연결이 끊겼다.
+    """
+    monkeypatch.setenv("_MEIPASS2", r"C:\Temp\_MEI12345")
+    monkeypatch.setenv("_PYI_APPLICATION_HOME_DIR", r"C:\Temp\_MEI12345")
+    monkeypatch.setenv("PATH", "keep-me")
+    env = autostart.child_env()
+    assert "_MEIPASS2" not in env
+    assert "_PYI_APPLICATION_HOME_DIR" not in env
+    assert env["PATH"] == "keep-me"          # 나머지 환경은 그대로 물려준다
+
+
+def test_the_helper_is_detached_so_the_terminal_comes_back(monkeypatch, tmp_path):
+    """DETACHED_PROCESS 가 빠지면 도우미가 부모 콘솔을 붙잡아 `epokio setup` 이 안 끝난다."""
+    if sys.platform != "win32":
+        pytest.skip("프로세스 분리 플래그는 윈도우만")
+    seen = {}
+
+    class FakePopen:
+        def __init__(self, cmd, **kw):
+            seen.update(kw)
+
+    monkeypatch.setattr(onboard.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: False)
+    onboard.start_agent([tmp_path], "127.0.0.1", 8798)
+    assert seen["creationflags"] & onboard.subprocess.DETACHED_PROCESS
+    assert "_MEIPASS2" not in seen["env"]
+
+
+def test_a_linux_server_without_a_display_is_headless(monkeypatch):
+    """★SSH_CONNECTION만 봐서 sudo·로컬 콘솔의 서버에서는 브라우저를 띄우려 했고 트레이를 권했다."""
+    monkeypatch.setattr(onboard.os, "name", "posix")
+    monkeypatch.setattr(onboard.sys, "platform", "linux")
+    for k in ("DISPLAY", "WAYLAND_DISPLAY", "SSH_CONNECTION"):
+        monkeypatch.delenv(k, raising=False)
+    assert onboard.headless()
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
+    assert not onboard.headless()
+
+
+def test_headless_autostart_is_a_systemd_service(tmp_path):
+    """화면 없는 서버에 트레이 바로 가기를 만들고 '로그인 때 뜬다'고 했지만 영영 안 떴다."""
+    unit = onboard.systemd_unit([tmp_path / "runs"], "127.0.0.1", 8787)
+    assert "-m epokio agent --port 8787 --host 127.0.0.1" in unit
+    tricky = onboard.systemd_unit(["/data/my runs/exp 50% $HOME"], "127.0.0.1", 8787)
+    assert "\"/data/my runs/exp 50%% $$HOME\"" in tricky          # ★공백·%·$ 경로에서 서비스가 안 떴다
+    assert "Restart=on-failure" in unit and "WantedBy=default.target" in unit
+
+
+def test_rerunning_setup_on_a_server_says_how_to_apply_the_new_settings(monkeypatch, tmp_path, capsys):
+    """★도는 도우미가 바로 그 서비스인데 '먼저 끄라'고만 해서, --lan을 뺀 뒤에도 옛 도우미가 0.0.0.0에 열려 있었다"""
+    from pathlib import Path
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(onboard, "headless", lambda: True)
+    monkeypatch.setattr(autostart, "supported", lambda: True)
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "find_roots", lambda: [])
+    unit = tmp_path / ".config" / "systemd" / "user" / "epokio.service"
+    unit.parent.mkdir(parents=True)
+    unit.write_text("old --host 0.0.0.0", encoding="utf-8")
+    onboard.main(["--autostart", "--no-browser"])
+    out = capsys.readouterr().out
+    assert "systemctl --user daemon-reload && systemctl --user restart epokio" in out
+    assert "Stop it first" not in out and "--host 127.0.0.1" in unit.read_text(encoding="utf-8")
+
+
+def test_autostart_on_a_server_points_to_systemd(monkeypatch, capsys):
+    """★화면 없는 서버에 트레이 바로 가기를 만들고 '로그인 때 뜬다'고 했다"""
+    monkeypatch.setattr(onboard, "headless", lambda: True)
+    monkeypatch.setattr(autostart, "supported", lambda: True)
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(autostart, "enable", lambda *a, **k: pytest.fail("made a tray entry"))
+    assert onboard.autostart_main(["--on"]) == 1
+    assert "epokio setup --autostart" in capsys.readouterr().out
+
+
+def test_desktop_entry_quotes_paths_with_spaces():
+    """★빈칸이 있는 venv 경로가 Exec에서 둘로 갈라져 트레이가 안 떴다"""
+    assert autostart._desktop_quote("/home/lab user/my venv/bin/python") == '"/home/lab user/my venv/bin/python"'
+    assert autostart._desktop_quote("-m") == "-m"
+    assert autostart._desktop_quote('/x/a"b$c') == r'"/x/a\"b\$c"'
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX 권한")
+def test_the_settings_folder_and_files_are_private(tmp_path):
+    """★먼저 생긴 ~/.epokio가 0755로 남아 webhooks.json(비밀 주소)을 다른 사용자가 읽을 수 있었다"""
+    import os
+    from epokio import jsonfile
+    d = tmp_path / ".epokio"
+    d.mkdir(mode=0o755)
+    os.chmod(d, 0o755)
+    jsonfile.write(d / "webhooks.json", {"urls": ["https://hooks.slack.com/secret"]})
+    assert d.stat().st_mode & 0o077 == 0 and (d / "webhooks.json").stat().st_mode & 0o077 == 0
+
+
+def test_setup_restarts_an_older_helper(monkeypatch, tmp_path, capsys):
+    """★pip으로 올려도 '이미 돌고 있다'고만 해서 옛 도우미가 계속 돌았다"""
+    from pathlib import Path
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(onboard, "headless", lambda: False)
+    monkeypatch.setattr(onboard, "find_roots", lambda: [])
+    alive = {"v": True}
+    monkeypatch.setattr(onboard, "agent_health", lambda *a, **k: {"epokio": "0.2.0"} if alive["v"] else None)
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: alive["v"])
+    stopped, started = [], []
+    monkeypatch.setattr(onboard, "stop_agent", lambda *a, **k: (stopped.append(1), alive.update(v=False)) and True)
+    monkeypatch.setattr(onboard, "start_agent", lambda *a, **k: started.append(1))
+    monkeypatch.setattr(onboard, "wait_for_agent", lambda *a, **k: True)
+    assert onboard.main(["--no-browser"]) == 0
+    assert stopped and started and "An older helper (0.2.0)" in capsys.readouterr().out
+
+
+def test_doctor_prints_a_report_without_the_token(monkeypatch, tmp_path, capsys):
+    import json
+    from pathlib import Path
+    from epokio import auth, envs
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(auth, "TOKEN_FILE", tmp_path / ".epokio" / "token")
+    tok = auth.token()
+    monkeypatch.setattr(onboard, "agent_health", lambda *a, **k: None)
+    monkeypatch.setattr(envs, "list_envs", lambda: [])
+    assert onboard.doctor(["--json"]) == 0
+    out = capsys.readouterr().out
+    d = json.loads(out)
+    assert d["helper"]["running"] is False and d["token_file"] is True and tok not in out

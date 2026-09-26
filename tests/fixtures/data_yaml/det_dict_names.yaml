@@ -1,0 +1,11 @@
+# detection, names as an indented {number: name} block
+path: ../datasets/toy # dataset root
+train: images/train # 4 images
+val: images/val
+test: # optional
+
+names:
+  0: person
+  1: bicycle
+  2: 'traffic light'
+  3: "fire hydrant"

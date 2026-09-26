@@ -1,0 +1,98 @@
+"""윈도우·리눅스 CPU·메모리를 psutil 없이 OS에 직접 묻는다. sysinfo._generic_cpu_mem의 폴백.
+sysinfo가 이 이름들을 다시 내보낸다(sysinfo._cpu_delta 등 기존 호출·monkeypatch가 그대로 된다).
+윈도우는 winstats가 먼저, 여기 _windows_cpu_mem은 그게 실패할 때의 두 번째 길이다."""
+from __future__ import annotations
+
+import re
+
+_cpu_prev: dict[str, tuple[float, float]] = {}
+
+
+def _cpu_delta(who: str, busy: float, total: float) -> float | None:
+    """CPU 사용률은 한 순간에 잴 수 없다. 지난번에 읽은 값과의 차이로 낸다.
+
+    그래서 첫 호출은 None이다(psutil.cpu_percent(interval=None)과 같은 방식).
+    Sampler가 주기적으로 부르므로 두 번째부터 값이 나온다.
+    """
+    prev = _cpu_prev.get(who)
+    _cpu_prev[who] = (busy, total)
+    if prev is None:
+        return None
+    db, dt = busy - prev[0], total - prev[1]
+    if dt <= 0:
+        return None
+    return max(0.0, min(100.0, 100.0 * db / dt))
+
+
+def _windows_cpu_mem():
+    """GetSystemTimes + GlobalMemoryStatusEx. 관리자 권한도, 외부 패키지도 필요 없다."""
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    cpu = None
+    idle, kern, user = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
+    if k32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kern), ctypes.byref(user)):
+        n = lambda t: (t.dwHighDateTime << 32) | t.dwLowDateTime
+        total = n(kern) + n(user)           # kernel 시간에는 idle이 들어 있다
+        cpu = _cpu_delta("win", total - n(idle), total)
+
+    class MEMORYSTATUSEX(ctypes.Structure):
+        _fields_ = [("dwLength", wintypes.DWORD), ("dwMemoryLoad", wintypes.DWORD),
+                    ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+    m = MEMORYSTATUSEX()
+    m.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+    if not k32.GlobalMemoryStatusEx(ctypes.byref(m)):
+        return cpu, None, None
+    return cpu, (m.ullTotalPhys - m.ullAvailPhys) / 2**30, m.ullTotalPhys / 2**30
+
+
+def _linux_cpu_mem():
+    """/proc/stat 과 /proc/meminfo. 리눅스 GPU 서버에 아무것도 안 깔고 쓴다."""
+    cpu = None
+    try:
+        with open("/proc/stat") as f:
+            parts = [float(x) for x in f.readline().split()[1:]]
+        total = sum(parts)
+        cpu = _cpu_delta("linux", total - parts[3], total)      # 4번째가 idle
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        info = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                k, _, v = line.partition(":")
+                info[k] = float(v.split()[0]) * 1024            # kB 로 적혀 있다
+        total, avail = info["MemTotal"], info.get("MemAvailable", info.get("MemFree", 0.0))
+        return cpu, (total - avail) / 2**30, total / 2**30
+    except (OSError, ValueError, KeyError, IndexError):
+        return cpu, None, None
+
+
+# ---- 배터리 출력 파서(명령 출력 문자열만 받는다) ----
+def parse_pmset_batt(out: str) -> tuple[float | None, bool | None]:
+    """맥 `pmset -g batt`: "-InternalBattery-0 ...	87%; charging; ..." 배터리 줄이 없으면 (None, None)."""
+    m = re.search(r"InternalBattery.*?(\d+)%;\s*([^;]+);", out)
+    if not m:
+        return None, None
+    state = m.group(2).strip().lower()
+    if state == "discharging":
+        charging = False
+    else:
+        charging = state in ("charging", "charged", "finishing charge") or "'AC Power'" in out
+    return float(m.group(1)), charging
+
+
+def parse_power_supply(capacity: str | None, status: str | None) -> tuple[float | None, bool | None]:
+    """리눅스 /sys/class/power_supply/BAT*/capacity, status."""
+    try:
+        pct = float(capacity.strip()) if capacity else None
+    except ValueError:
+        pct = None
+    if pct is None:
+        return None, None
+    st = (status or "").strip().lower()
+    return pct, (st in ("charging", "full", "not charging") if st else None)

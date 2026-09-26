@@ -1,0 +1,50 @@
+[project]
+name = "epokio"
+dynamic = ["version"]                        # src/epokio/__init__.py 의 __version__
+readme = { file = "PYPI.md", content-type = "text/markdown" }   # README는 그림이 상대 경로라 PyPI에서 깨진다
+description = "Watch, compare, queue and report ML training runs (Ultralytics, Hugging Face, Lightning, Keras, TensorBoard) from a menu bar, tray, terminal or web page."
+authors = [{ name = "8rulerstar" }]
+keywords = ["machine learning", "training", "monitoring", "ultralytics", "yolo", "tensorboard", "experiment tracking"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Monitoring",
+]
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = ["windows-curses; sys_platform == 'win32'"]   # 윈도우 파이썬에는 curses가 없다(epokio watch)
+
+[project.optional-dependencies]
+tray = ["pystray>=0.19", "Pillow>=10.0"]     # 윈도우·리눅스 트레이
+mcp  = ["mcp>=2.2"]                          # AI 도우미 연동 (epokio-mcp)
+yaml = ["PyYAML>=6.0"]                      # data.yaml을 정식 파서로 읽기 (없으면 yamlish 폴백)
+dev  = ["pytest>=7.0"]                       # 시험만. 그 밖의 시험 의존성은 없다(표준 라이브러리 + importorskip)
+
+[project.scripts]
+epokio = "epokio.cli:main"
+epokio-tray = "epokio.tray:main"
+epokio-setup = "epokio.onboard:main"        # 시작 메뉴 바로 가기로 부르기 좋게
+epokio-agent = "epokio.agent:main"
+epokio-mcp = "epokio.mcp_server:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = { attr = "epokio.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+epokio = ["web/*.html", "locales/*.json"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]          # 막 클론한 사람이 설치 없이 pytest 를 바로 돌릴 수 있게

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <!-- 앱 안의 파이썬이 자기 .so 확장 모듈을 불러오게(hardened runtime에서 공증 받을 때). 다른 권한은 요청하지 않는다 -->
+  <key>com.apple.security.cs.disable-library-validation</key><true/>
+</dict></plist>

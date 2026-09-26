@@ -1,0 +1,2 @@
+task: classify
+epochs: 10

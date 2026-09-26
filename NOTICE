@@ -1,0 +1,78 @@
+Epokio
+Copyright (c) 2026 8rulerstar
+Licensed under the MIT License. See LICENSE.
+
+This product includes third party software. The macOS application bundle carries a
+copy of each applicable license in Epokio.app/Contents/Resources/ThirdPartyLicenses/
+and, for the embedded Python, in Contents/Resources/python/lib/python3.12/LICENSE.txt.
+
+
+BUNDLED IN THE macOS APPLICATION
+--------------------------------
+
+Sparkle
+    Automatic update framework. Built from source by Swift Package Manager and copied
+    into Epokio.app/Contents/Frameworks/Sparkle.framework by mac/build_app.sh.
+    https://github.com/sparkle-project/Sparkle
+    MIT License. Sparkle vendors two further components:
+        ed25519, zlib style license, Copyright (c) 2015 Orson Peters. Its license
+            file ships as ThirdPartyLicenses/Sparkle/ed25519-sparkle-LICENSE.txt.
+        bsdiff and bspatch, BSD 2-Clause, Copyright 2003-2005 Colin Percival,
+            together with sais, MIT, Copyright (c) 2008-2010 Yuta Mori. These carry
+            their notice in the source file headers upstream rather than in a separate
+            license file, so the text is reproduced there and not copied into the app.
+    Sparkle's own LICENSE ships as ThirdPartyLicenses/Sparkle/LICENSE.
+
+CPython, standalone build
+    Python 3.12.14 from the Astral python-build-standalone project, downloaded with a
+    pinned version and SHA-256 by mac/build_app.sh and unpacked into
+    Epokio.app/Contents/Resources/python. It runs the Epokio agent so that the app
+    works on a Mac without Python installed.
+    https://github.com/astral-sh/python-build-standalone
+    Python Software Foundation License Version 2 (the build tooling itself is
+    MPL-2.0). License text ships at
+    Contents/Resources/python/lib/python3.12/LICENSE.txt.
+
+    That CPython build statically links several libraries, so their licenses apply to
+    the shipped binary as well. Verified present in the binary we ship:
+
+        OpenSSL 3.5.8       Apache License 2.0
+        SQLite              public domain
+        libedit             BSD 3-Clause
+        Expat               MIT
+        ncurses             MIT style (X11 flavor)
+        libmpdec            BSD 2-Clause
+        bzip2               BSD style (bzip2 license)
+        liblzma / XZ Utils  public domain (0BSD for the current releases)
+
+    The authoritative and complete list for a given distribution, including anything
+    linked but not named above, is published by python-build-standalone with each
+    release. Epokio does not rebuild or patch that distribution.
+
+
+NOT BUNDLED: OPTIONAL PYTHON DEPENDENCIES
+-----------------------------------------
+
+The agent itself uses only the Python standard library. These are installed by the
+user through pip extras and are not redistributed with Epokio. Listed here so the
+license of anything you may end up running alongside Epokio is easy to find.
+
+    windows-curses  [project.dependencies], Windows only   MIT / PSF
+    pystray         extra "tray"                           LGPL-3.0
+    Pillow          extra "tray"                           MIT-CMU
+    PyYAML          extra "yaml"                            MIT
+    mcp             extra "mcp"                             MIT
+    pytest          extra "dev", development only           MIT
+
+Note that pystray is LGPL-3.0. It is imported as a separate installed package and is
+never linked into or shipped with Epokio, which keeps Epokio's MIT license intact. If
+you redistribute a bundle that includes pystray, the LGPL terms apply to that bundle.
+
+
+NOT BUNDLED: TRAINING FRAMEWORKS
+--------------------------------
+
+Epokio reads the output of training frameworks (Ultralytics, Hugging Face, PyTorch
+Lightning, Keras) by parsing the files they leave on disk. None of their code is
+copied into or distributed with Epokio. In particular Ultralytics is AGPL-3.0 and no
+Ultralytics code is included here.

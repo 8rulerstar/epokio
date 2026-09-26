@@ -1,0 +1,2 @@
+task: pose
+epochs: 10

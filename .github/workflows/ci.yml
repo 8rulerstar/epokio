@@ -1,0 +1,123 @@
+# 이 저장소는 맥·윈도우·리눅스에서 같이 돌아야 한다. 한 곳에서만 돌리면 의미가 없다.
+#
+# 2026-09-23에 윈도우에서만 나는 버그 세 개를 손으로 찾았다. 경로 키가 안 맞아 별표·목표가
+# 사라지던 것, CPU·메모리가 늘 비어 있던 것, 맥 알림 함수가 폰 알림을 끊던 것. 전부 맥에서는
+# 안 보이는 것들이라, 매트릭스 CI가 있었으면 커밋 시점에 잡혔다.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false            # 윈도우만 깨졌는지 전부 깨졌는지 한눈에 보여야 한다
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.14"]     # requires-python 의 아래끝과 지금 나온 가장 새 판
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[tray,dev]"
+
+      # 집 규칙(400줄·엠 대시·의미 색·모션 토큰)과 JSON 모양 계약 시험이 전부 pytest 라 이 한 줄이 덮는다
+      # (tests/test_house_rules.py · tests/test_contract.py). 계약 시험의 스위프트 절반은 앱 바이너리가
+      # 없어 여기서는 건너뛴다. 그 절반은 mac-app 잡이 돌린다.
+      - name: Test
+        run: python -m pytest -q
+
+  # 맥 앱(스위프트)도 컴파일만은 매번 확인한다. 윈도우에서 스위프트를 고치면 빌드해 볼 곳이 없다
+  # (2026-09-25, 윈도우에서 고친 AgentClient·QueueView 등이 여기서 처음 컴파일된다)
+  mac-app:
+    name: macOS app builds + contract tests
+    # macOS 26 이미지여야 한다. 앱이 macOS 26 SDK 에만 있는 호출(glassEffect, GlassEffectContainer,
+    # buttonStyle(.glassProminent), Components.swift)을 컴파일한다. `if #available(macOS 26, *)` 는
+    # 실행 시점 검사라 옛 SDK 에서 그 심볼을 컴파일되게 해 주지 않는다.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - name: Show toolchain
+        run: swift --version && xcrun --show-sdk-version
+      - name: Build
+        run: swift build --package-path mac
+      # 스위프트 시험 타깃(mac/Tests)이 없어서 `swift test` 는 없다. 대신 빌드가 열어 주는 게 계약 시험의
+      # 스위프트 절반이다. tests/test_contract.py 가 방금 구운 바이너리(`Epokio --contract`)에 agent 응답을
+      # 먹이고, mac/.build/debug/Epokio 가 없으면 스스로 건너뛴다. 그래서 여기서 돌려야 실제로 돈다.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Test
+        run: python -m pytest -q
+
+  # 구운 Epokio.exe가 실제로 뜨고 웹 화면을 내주는지. ★exe에서만 나는 버그가 세 번 있었다
+  # (_MEIPASS2가 자식에게 새던 것, 구운 exe를 파이썬으로 떠보던 것, 설치 작업이 exe 자신으로 venv를 만들던 것)
+  windows-exe:
+    name: Windows exe builds and starts
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"            # 러너 콘솔은 cp1252라 한국어 출력이 죽는다
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[tray]" pyinstaller
+          python tools/build_windows.py
+      - name: Start the helper and ask it
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\Epokio.exe -ArgumentList "agent","--port","8799" -PassThru
+          $ok = $false
+          foreach ($i in 1..40) {
+            Start-Sleep 2
+            try { if ((Invoke-RestMethod http://127.0.0.1:8799/health).ok) { $ok = $true; break } } catch {}
+          }
+          if (-not $ok) { throw "Epokio.exe agent did not answer /health" }
+          $page = (Invoke-WebRequest http://127.0.0.1:8799/ -UseBasicParsing).Content
+          if ($page -notmatch "<title>Epokio</title>") { throw "the web page is missing from the exe" }
+          Stop-Process -Name Epokio -Force      # onefile exe는 프로세스가 둘이다(풀어 주는 쪽과 도는 쪽)
+
+  # pip으로 깔았을 때(편집 설치가 아닐 때)도 웹 화면 파일이 들어 있는지
+  package:
+    name: wheel contains the web page and locales
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Build and install the wheel
+        run: |
+          python -m pip install build
+          python -m build --wheel
+          python -m venv /tmp/v
+          /tmp/v/bin/pip install dist/*.whl
+          cd /tmp && /tmp/v/bin/python -c "import importlib.resources as r; assert '<title>Epokio</title>' in (r.files('epokio') / 'web' / 'index.html').read_text(encoding='utf-8'); assert (r.files('epokio') / 'locales' / 'en.json').is_file()"

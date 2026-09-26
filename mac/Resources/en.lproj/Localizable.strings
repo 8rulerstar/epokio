@@ -1,0 +1,35 @@
+/* English is the source language. */
+"CPU temperature" = "CPU temperature";
+"Battery" = "Battery";
+"CPU" = "CPU";
+"Charging" = "Charging";
+"Disk free" = "Disk free";
+"Memory" = "Memory";
+"Network" = "Network";
+"Watch the folder where your training results are saved" = "Watch the folder where your training results are saved";
+"Temperature" = "Temperature";
+"%@ with Command-Z" = "%@ with Command-Z";
+"Failed: %@" = "Failed: %@";
+"Marks it as read" = "Marks it as read";
+"Open run #%@ (%@): %@" = "Open run #%@ (%@): %@";
+"Opens the results of this run" = "Opens the results of this run";
+
+/* 다시 학습: 원래 설정 전체·재개 */
+"(model size picker)" = "(model size picker)";
+"Cancel resume" = "Cancel resume";
+"Don't use" = "Don't use";
+"Fine-tunes from %@ as a new run (epochs and optimizer start over). Change anything, then start." = "Fine-tunes from %@ as a new run (epochs and optimizer start over). Change anything, then start.";
+"Not carried over: %@" = "Not carried over: %@";
+"Resumes %@ from last.pt in its own folder. Optimizer and epoch pick up where it stopped." = "Resumes %@ from last.pt in its own folder. Optimizer and epoch pick up where it stopped.";
+"Show settings" = "Show settings";
+"The original model %@ is not on this Mac. Pick a model size, then start." = "The original model %@ is not on this Mac. Pick a model size, then start.";
+"The original model %@ is not on this Mac. Use Train Again in Studio to pick one." = "The original model %@ is not on this Mac. Use Train Again in Studio to pick one.";
+"Uses %d original settings from %@" = "Uses %d original settings from %@";
+
+/* Resume and Train Again rail buttons */
+"Resume" = "Resume";
+"Start a new run with the same settings" = "Start a new run with the same settings";
+"Pick up where it stopped, in the same folder" = "Pick up where it stopped, in the same folder";
+"Only for runs that stopped before finishing" = "Only for runs that stopped before finishing";
+"This run already finished" = "This run already finished";
+"No last.pt in this run folder" = "No last.pt in this run folder";

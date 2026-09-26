@@ -1,0 +1,62 @@
+name: Bug report
+description: Something does not work the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not report security problems here. See SECURITY.md for the private
+        reporting form.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Point Epokio at a runs folder
+        2. Start a run
+        3. Open the menu bar popover
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Epokio version
+      description: Menu bar icon, then Settings, then General. Or `epokio agent --help`.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Which part
+      options:
+        - macOS app
+        - Agent (Python)
+        - Terminal view (epokio watch)
+        - Web page
+        - Windows or Linux tray
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: OS and version, Python version, and the training framework if it matters.
+      placeholder: macOS 15.2, Python 3.13, Ultralytics
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: >
+        Agent output, or the error card text. Please check that paths and machine names
+        in what you paste are ones you are happy to make public.
+      render: text

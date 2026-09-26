@@ -1,0 +1,16 @@
+path: toy
+train: images/train
+validation: images/val
+names:
+    0: a#b
+    1: c
+download: |
+  import os
+  print("hi")
+extra:
+  deep:
+    list:
+    - 1
+    - 2.5
+    - null
+    - true

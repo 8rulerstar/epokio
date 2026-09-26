@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.DS_Store
+mac/.build/
+mac/build/
+mac/Resources/AppIcon.iconset/
+
+# 개인 인계 메모(기록에 남기지 않는다)
+*.local.md
+mac/build.noindex/
+mac/.cache/
+
+# ultralytics가 만드는 사용자 설정(기계 경로·uuid)
+Ultralytics/
+
+# Xcode가 만드는 개인 설정
+mac/.swiftpm/
+
+# Claude Code 에이전트의 격리 작업 공간(worktree). 저장소 내용이 아니다
+.claude/

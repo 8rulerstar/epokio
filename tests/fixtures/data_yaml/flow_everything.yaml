@@ -1,0 +1,4 @@
+path: 'toy dir'
+train: [images/a, images/b]
+val: "images/val"
+names: {0: cat, 1: dog, 2: 'hot dog'}

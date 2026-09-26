@@ -1,0 +1,146 @@
+{
+ "all_args": {
+  "epochs": "str",
+  "task": "str"
+ },
+ "args": {
+  "*": "str"
+ },
+ "column_info": {
+  "*": {
+   "head": "NoneType",
+   "higher": "bool",
+   "kind": "str",
+   "name": "str",
+   "side": "NoneType"
+  }
+ },
+ "columns": {
+  "*": [
+   "num"
+  ]
+ },
+ "env": {},
+ "explain": {
+  "jev_request": {
+   "model": "str",
+   "questions": {
+    "s0": {
+     "criteria": {
+      "false": "str",
+      "true": "str"
+     },
+     "instructions": {
+      "question": "str",
+      "sentence": "str"
+     },
+     "type": "str"
+    },
+    "s1": {
+     "criteria": {
+      "false": "str",
+      "true": "str"
+     },
+     "instructions": {
+      "question": "str",
+      "sentence": "str"
+     },
+     "type": "str"
+    },
+    "s2": {
+     "criteria": {
+      "false": "str",
+      "true": "str"
+     },
+     "instructions": {
+      "question": "str",
+      "sentence": "str"
+     },
+     "type": "str"
+    }
+   },
+   "state": {
+    "sentences": [
+     "str"
+    ],
+    "summary": {
+     "kind": "str",
+     "lang": "str",
+     "score": {
+      "best_epoch": "num",
+      "epochs": "num",
+      "metric": "str",
+      "value": "num"
+     },
+     "settings": {},
+     "status": "str"
+    }
+   }
+  },
+  "kind": "str",
+  "next": "NoneType",
+  "score": {
+   "best_epoch": "num",
+   "epochs": "num",
+   "metric": "str",
+   "value": "num"
+  },
+  "sentences": [
+   "str"
+  ],
+  "status": "str",
+  "text": "str"
+ },
+ "format_warnings": [],
+ "framework": "str",
+ "heads": [
+  {
+   "best_epoch": "num",
+   "f1": "num",
+   "head": "str",
+   "map50": "num",
+   "map5095": "num",
+   "precision": "num",
+   "recall": "num"
+  }
+ ],
+ "images": [],
+ "last": "NoneType",
+ "lineage": {
+  "ancestors": [],
+  "children": [],
+  "parent": "NoneType",
+  "pretrained": "bool",
+  "weights": "NoneType"
+ },
+ "name": "str",
+ "notes": [
+  {
+   "next": "NoneType",
+   "observation": "str",
+   "try": "str"
+  }
+ ],
+ "path": "str",
+ "repro": {
+  "code": {},
+  "created": "str",
+  "data": {},
+  "note": "str",
+  "partial": "bool",
+  "python": {},
+  "schema": "num",
+  "seed": {},
+  "system": {
+   "chip": "str",
+   "machine": "str",
+   "os": "str",
+   "os_release": "str",
+   "os_version": "str"
+  }
+ },
+ "stage": "str",
+ "versions": {},
+ "weights": "NoneType",
+ "weights_mb": "NoneType"
+}

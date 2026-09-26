@@ -1,0 +1,133 @@
+# 태그(v0.3.0 등)를 올리면 배포물을 전부 굽고 GitHub 릴리스와 PyPI에 올린다.
+#
+#   git tag v0.3.0 && git push origin v0.3.0
+#
+# 한 번만 해 둘 것(저장소 주인):
+#   PyPI > Your projects(처음이면 Publishing) > Add a trusted publisher
+#     owner 8rulerstar · repository epokio · workflow release.yml · environment pypi
+#   GitHub > Settings > Environments > pypi 만들기(원하면 승인자 지정)
+# 토큰을 저장소 비밀로 두지 않는다(신뢰 게시, OIDC).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  # 태그와 코드의 판 번호가 다르면 아무것도 굽지 않는다. ★판 번호는 __init__.py·build_app.sh 두 곳에 있다
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tag matches the version in the code
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          py=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/epokio/__init__.py)
+          mac=$(sed -n 's/.*CFBundleShortVersionString<\/key><string>\([^<]*\).*/\1/p' mac/build_app.sh)
+          echo "tag=$tag python=$py mac=$mac"
+          [ "$tag" = "$py" ] && [ "$tag" = "$mac" ]
+          grep -q "^## $tag" CHANGELOG.md || { echo "CHANGELOG.md has no '## $tag' section"; exit 1; }
+
+  python:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Test
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest build twine
+          python -m pytest -q
+      - name: Build
+        run: |
+          python -m build
+          python -m twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+
+  windows-exe:
+    needs: check
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[tray]" pyinstaller
+          python tools/build_windows.py
+      - name: Start the helper and ask it
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\Epokio.exe -ArgumentList "agent","--port","8799" -PassThru
+          $ok = $false
+          foreach ($i in 1..40) {
+            Start-Sleep 2
+            try { if ((Invoke-RestMethod http://127.0.0.1:8799/health).ok) { $ok = $true; break } } catch {}
+          }
+          if (-not $ok) { throw "Epokio.exe agent did not answer /health" }
+          Stop-Process -Name Epokio -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: dist/Epokio.exe
+
+  mac-dmg:
+    needs: check
+    # ★앱이 glassEffect 등 macOS 26 SDK를 요구한다(if #available은 실행 때 검사라 옛 SDK에선 컴파일이 안 된다).
+    #   ci.yml의 mac-app과 같은 러너로 둬서, 깨지면 태그 때가 아니라 평소 CI에서 먼저 보이게
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build
+        run: cd mac && bash build_app.sh --dmg      # 윈도우에서 올리면 실행 비트가 빠진다
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: mac/build/Epokio-*.dmg
+
+  github-release:
+    needs: [python, windows-exe, mac-dmg]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          path: out
+          merge-multiple: true
+      - name: Release notes from CHANGELOG.md
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '$0 ~ "^## "v {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
+          cat notes.md
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "Epokio ${GITHUB_REF_NAME#v}" --notes-file notes.md out/*
+
+  pypi:
+    needs: github-release
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: python-dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1

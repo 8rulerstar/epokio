@@ -1,0 +1,10 @@
+path: toy-voc
+train: # several folders
+  - images/train2012
+  - images/train2007
+val:
+  - images/test2007
+test:
+names:
+  0: aeroplane
+  1: bicycle

@@ -1,0 +1,35 @@
+{
+ "label": "str",
+ "roots": [
+  "str"
+ ],
+ "runs": [
+  {
+   "best": "num",
+   "best_epoch": "num",
+   "display": "str",
+   "elapsed": "num",
+   "epoch": "num",
+   "eta": "num",
+   "format_warnings": [],
+   "framework": "str",
+   "history": [
+    "num"
+   ],
+   "idle": "num",
+   "lower": "bool",
+   "meta": {},
+   "metric": "num",
+   "metric_higher": "bool",
+   "metric_name": "str",
+   "name": "str",
+   "path": "str",
+   "source": "str",
+   "state": "str",
+   "total": "num",
+   "updated": "num"
+  }
+ ],
+ "scan_mode": "str",
+ "slow_roots": []
+}

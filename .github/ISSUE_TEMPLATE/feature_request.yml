@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest something Epokio should do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: >
+        Describe the situation, not the solution. What were you doing when you wished
+        Epokio did this?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: Optional. A rough sketch is fine.
+  - type: dropdown
+    id: where
+    attributes:
+      label: Which part
+      options:
+        - macOS app
+        - Agent (Python)
+        - New training framework support
+        - Terminal view or web page
+        - Windows or Linux
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How you work around it today
+      description: >
+        Optional, but useful. If a script or another tool covers it now, say which.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Would you like to implement it?
+      options:
+        - label: I am willing to open a pull request for this

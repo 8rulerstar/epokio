@@ -1,0 +1,47 @@
+/* ★자동 생성: design/tokens.json → tools/design_tokens.py. 손으로 고치지 말 것 (규칙: docs/DESIGN.md) */
+:root {
+  --brand: #6D5BF5;
+  --brand2: #0EA5C0;
+  --good: #1F9D57;
+  --warn: #D97A12;
+  --bad: #E0403F;
+  --mixup: #9B4DE0;
+  --gold: #C99400;
+  --info: #2F7CF6;
+  --t-hero: 44px;
+  --t-display: 28px;
+  --t-title: 22px;
+  --t-headline: 15px;
+  --t-body: 13px;
+  --t-callout: 12.5px;
+  --t-caption: 11.5px;
+  --t-badge: 10px;
+  --s-xs: 4px;
+  --s-s: 8px;
+  --s-m: 12px;
+  --s-l: 16px;
+  --s-xl: 24px;
+  --r-chip: 6px;
+  --r-control: 10px;
+  --r-card: 14px;
+  --r-sheet: 20px;
+  --m-tap: 0.12s cubic-bezier(.2,.8,.2,1);
+  --m-hover: 0.15s cubic-bezier(.2,.8,.2,1);
+  --m-change: 0.3s cubic-bezier(.4,0,.2,1);
+  --m-progress: 0.6s cubic-bezier(.4,0,.2,1);
+  --m-appear: 0.4s cubic-bezier(.34,1.3,.64,1);
+  --m-celebrate: 0.45s cubic-bezier(.34,1.56,.64,1);
+  --grad-brand: linear-gradient(90deg, var(--brand), var(--brand2));
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand: #8C7DFF;
+    --brand2: #22D3EE;
+    --good: #34C77B;
+    --warn: #FFA94D;
+    --bad: #FF6369;
+    --mixup: #C084FC;
+    --gold: #F5C542;
+    --info: #5AA2FF;
+  }
+}

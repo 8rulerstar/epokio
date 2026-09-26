@@ -1,0 +1,201 @@
+{
+ "_source": "Column names of the public results.csv output written by Ultralytics 8.4.150, per task. Header strings only (no code), not produced by a real training run.",
+ "detect": {
+  "task": "detect",
+  "header": [
+   "epoch",
+   "time",
+   "train/box_loss",
+   "train/cls_loss",
+   "train/dfl_loss",
+   "metrics/precision(B)",
+   "metrics/recall(B)",
+   "metrics/mAP50(B)",
+   "metrics/mAP50-95(B)",
+   "val/box_loss",
+   "val/cls_loss",
+   "val/dfl_loss",
+   "lr/pg0",
+   "lr/pg1",
+   "lr/pg2"
+  ]
+ },
+ "detect_yolo26_nodfl": {
+  "task": "detect",
+  "header": [
+   "epoch",
+   "time",
+   "train/box_loss",
+   "train/cls_loss",
+   "train/l1_loss",
+   "metrics/precision(B)",
+   "metrics/recall(B)",
+   "metrics/mAP50(B)",
+   "metrics/mAP50-95(B)",
+   "val/box_loss",
+   "val/cls_loss",
+   "val/l1_loss",
+   "lr/pg0",
+   "lr/pg1",
+   "lr/pg2"
+  ]
+ },
+ "segment": {
+  "task": "segment",
+  "header": [
+   "epoch",
+   "time",
+   "train/box_loss",
+   "train/seg_loss",
+   "train/cls_loss",
+   "train/dfl_loss",
+   "train/sem_loss",
+   "metrics/precision(B)",
+   "metrics/recall(B)",
+   "metrics/mAP50(B)",
+   "metrics/mAP50-95(B)",
+   "metrics/precision(M)",
+   "metrics/recall(M)",
+   "metrics/mAP50(M)",
+   "metrics/mAP50-95(M)",
+   "val/box_loss",
+   "val/seg_loss",
+   "val/cls_loss",
+   "val/dfl_loss",
+   "val/sem_loss",
+   "lr/pg0",
+   "lr/pg1",
+   "lr/pg2"
+  ]
+ },
+ "pose": {
+  "task": "pose",
+  "header": [
+   "epoch",
+   "time",
+   "train/box_loss",
+   "train/pose_loss",
+   "train/kobj_loss",
+   "train/cls_loss",
+   "train/dfl_loss",
+   "metrics/precision(B)",
+   "metrics/recall(B)",
+   "metrics/mAP50(B)",
+   "metrics/mAP50-95(B)",
+   "metrics/precision(P)",
+   "metrics/recall(P)",
+   "metrics/mAP50(P)",
+   "metrics/mAP50-95(P)",
+   "val/box_loss",
+   "val/pose_loss",
+   "val/kobj_loss",
+   "val/cls_loss",
+   "val/dfl_loss",
+   "lr/pg0",
+   "lr/pg1",
+   "lr/pg2"
+  ]
+ },
+ "pose_yolo26_rle": {
+  "task": "pose",
+  "header": [
+   "epoch",
+   "time",
+   "train/box_loss",
+   "train/pose_loss",
+   "train/kobj_loss",
+   "train/cls_loss",
+   "train/l1_loss",
+   "train/rle_loss",
+   "metrics/precision(B)",
+   "metrics/recall(B)",
+   "metrics/mAP50(B)",
+   "metrics/mAP50-95(B)",
+   "metrics/precision(P)",
+   "metrics/recall(P)",
+   "metrics/mAP50(P)",
+   "metrics/mAP50-95(P)",
+   "val/box_loss",
+   "val/pose_loss",
+   "val/kobj_loss",
+   "val/cls_loss",
+   "val/l1_loss",
+   "val/rle_loss",
+   "lr/pg0",
+   "lr/pg1",
+   "lr/pg2"
+  ]
+ },
+ "classify": {
+  "task": "classify",
+  "header": [
+   "epoch",
+   "time",
+   "train/loss",
+   "metrics/accuracy_top1",
+   "metrics/accuracy_top5",
+   "val/loss",
+   "lr/pg0",
+   "lr/pg1",
+   "lr/pg2"
+  ]
+ },
+ "obb": {
+  "task": "obb",
+  "header": [
+   "epoch",
+   "time",
+   "train/box_loss",
+   "train/cls_loss",
+   "train/dfl_loss",
+   "train/angle_loss",
+   "metrics/precision(B)",
+   "metrics/recall(B)",
+   "metrics/mAP50(B)",
+   "metrics/mAP50-95(B)",
+   "val/box_loss",
+   "val/cls_loss",
+   "val/dfl_loss",
+   "val/angle_loss",
+   "lr/pg0",
+   "lr/pg1",
+   "lr/pg2"
+  ]
+ },
+ "semantic": {
+  "task": "semantic",
+  "header": [
+   "epoch",
+   "time",
+   "train/ce_loss",
+   "train/dice_loss",
+   "train/aux_loss",
+   "metrics/mIoU",
+   "metrics/pixel_acc",
+   "val/ce_loss",
+   "val/dice_loss",
+   "val/aux_loss",
+   "lr/pg0",
+   "lr/pg1",
+   "lr/pg2"
+  ]
+ },
+ "depth": {
+  "task": "depth",
+  "header": [
+   "epoch",
+   "time",
+   "train/dlog_loss",
+   "train/dgrad_loss",
+   "metrics/delta1",
+   "metrics/delta2",
+   "metrics/delta3",
+   "metrics/abs_rel",
+   "metrics/rmse",
+   "metrics/silog",
+   "val/dlog_loss",
+   "val/dgrad_loss",
+   "lr/pg0"
+  ]
+ }
+}

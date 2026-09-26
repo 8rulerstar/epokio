@@ -1,0 +1,2 @@
+task: segment
+epochs: 10
