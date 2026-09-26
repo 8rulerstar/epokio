@@ -490,3 +490,17 @@ def test_images_get_the_cookie_and_forgetting_the_token_clears_it_here():
     assert 'fetch("login", { method: "POST", headers: { Authorization: "Bearer " + S.token } })' in js
     assert "await login();" in js and "delete LS.epokioToken" in js
     assert "document.cookie" not in js                              # HttpOnly라 읽을 수도 없다. 읽으려 하지 않는다
+
+
+def test_the_package_ships_every_file_the_page_loads():
+    """★package-data가 web/*.html만 담아, pip으로 설치한 웹 화면이 js·css 없이 빈 페이지였다(0.4.0~0.4.2)"""
+    import fnmatch
+    import re
+    root = PAGE.parents[3]
+    line = re.search(r'^epokio = (\[.*?\])', (root / "pyproject.toml").read_text(encoding="utf-8"), re.M).group(1)   # 3.10엔 tomllib이 없다
+    pats = re.findall(r'"([^"]+)"', line)
+    html = PAGE.read_text(encoding="utf-8")
+    refs = re.findall(r'(?:src|href)="web/([^"]+)"', html)
+    assert refs
+    missing = [f for f in refs if not any(fnmatch.fnmatch("web/" + f, p) for p in pats)]
+    assert not missing, missing

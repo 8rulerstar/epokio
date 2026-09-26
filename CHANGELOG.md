@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3 (2026-09-26)
+
+- **Fix:** the web page installed with `pip install epokio` 0.4.0 to 0.4.2 was blank, because the package left out its scripts and styles. The Windows `Epokio.exe` and the Mac app were not affected.
+- Practice mode no longer freezes on Windows when the helper reads its results at the same moment it writes them.
+
 ## 0.4.2 (2026-09-26)
 
 - The Windows `Epokio.exe` has the Epokio icon instead of the default one.

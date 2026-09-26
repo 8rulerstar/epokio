@@ -48,12 +48,18 @@ def _write_live(d: Path, n: int, sec: float, stop: threading.Event):
     for e in range(1, n + 1):
         if stop.wait(sec):
             return
-        try:
-            tmp = d / "results.csv.tmp"
-            tmp.write_text("\n".join(lines[:e + 1]) + "\n", encoding="utf-8")
-            tmp.replace(d / "results.csv")
-        except OSError:                                    # 폴더가 지워졌다
-            return
+        for _ in range(50):
+            try:
+                tmp = d / "results.csv.tmp"
+                tmp.write_text("\n".join(lines[:e + 1]) + "\n", encoding="utf-8")
+                tmp.replace(d / "results.csv")
+                break
+            except PermissionError:
+                # 윈도우는 읽는 쪽이 파일을 연 순간 바꿔치기를 거절한다. ★폴더가 지워진 것으로 보고 멈춰, 연습 학습이 그 자리에 섰다
+                if stop.wait(0.02):
+                    return
+            except OSError:                                # 폴더가 지워졌다
+                return
 
 
 def start_live(n: int | None = None, sec: float | None = None) -> str:

@@ -44,7 +44,7 @@ version = { attr = "epokio.__version__" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-epokio = ["web/*.html", "locales/*.json"]
+epokio = ["web/*", "locales/*.json"]   # 웹 화면은 html·js·css 여러 파일이다. ★*.html만 담아 pip 설치판 웹 화면이 빈 페이지였다(0.4.0~0.4.2)
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]          # 막 클론한 사람이 설치 없이 pytest 를 바로 돌릴 수 있게

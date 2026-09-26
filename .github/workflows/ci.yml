@@ -121,3 +121,5 @@ jobs:
           python -m venv /tmp/v
           /tmp/v/bin/pip install dist/*.whl
           cd /tmp && /tmp/v/bin/python -c "import importlib.resources as r; assert '<title>Epokio</title>' in (r.files('epokio') / 'web' / 'index.html').read_text(encoding='utf-8'); assert (r.files('epokio') / 'locales' / 'en.json').is_file()"
+          # 페이지가 부르는 js·css가 전부 들어 있는지. ★index.html만 확인해 빈 페이지가 세 판 나갔다
+          cd /tmp && /tmp/v/bin/python -c "import importlib.resources as r, re; w = r.files('epokio') / 'web'; h = (w / 'index.html').read_text(encoding='utf-8'); refs = re.findall(r'(?:src|href)=\"web/([^\"]+)\"', h); missing = [f for f in refs if not (w / f).is_file()]; assert refs and not missing, missing"
