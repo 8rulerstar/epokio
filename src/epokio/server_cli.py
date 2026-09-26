@@ -5,6 +5,18 @@ import argparse
 import socket
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import socketserver
+
+
+class QuietServer(ThreadingHTTPServer):
+    """http.server 의 server_bind 는 이름을 알아내려고 socket.getfqdn(역방향 DNS)을 부른다.
+    ★맥 CI 러너에서 이 조회(mDNS)가 답하지 않아 agent 가 시작에서 30초 넘게 멈췄다. 사용자 맥에서도 오프라인·로그인
+      페이지 뒤·느린 VPN 이면 같은 일이 난다. 이 서버는 이름을 쓸 데가 없으니(요청 Host 는 따로 검사) 주소만 적는다"""
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name, self.server_port = str(host), port
 from pathlib import Path
 
 from . import auth, config, tokens
@@ -142,7 +154,7 @@ def bind_first(host: str, want: int | None):
     if want is None and rec and port.probe(port.url_for(rec["port"])) == "epokio":
         raise SystemExit(f"An Epokio agent is already running at {port.url_for(rec['port'])}")
     try:
-        srv, actual = port.bind(lambda h, p: ThreadingHTTPServer((h, p), BaseHTTPRequestHandler), host, want)
+        srv, actual = port.bind(lambda h, p: QuietServer((h, p), BaseHTTPRequestHandler), host, want)
     except OSError as e:
         print(f"! Port {want or port.DEFAULT_PORT} is in use ({e}). Is another Epokio helper running? `epokio doctor` shows it.", flush=True)
         raise SystemExit(1)

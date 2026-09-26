@@ -6,6 +6,8 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
+from epokio.server_cli import QuietServer
+
 import pytest
 
 from epokio import auth, server, tokens
@@ -86,7 +88,7 @@ def srv():
     made = []
 
     def go(reads):
-        h = ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(Stub(), reads_need_token=reads))
+        h = QuietServer(("127.0.0.1", 0), server.make_handler(Stub(), reads_need_token=reads))
         threading.Thread(target=h.serve_forever, daemon=True).start()
         made.append(h)
         return f"http://127.0.0.1:{h.server_port}"

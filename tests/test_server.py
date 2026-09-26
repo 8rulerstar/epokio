@@ -9,6 +9,8 @@ import urllib.parse
 import urllib.request
 from http.server import ThreadingHTTPServer
 
+from epokio.server_cli import QuietServer
+
 import pytest
 
 from epokio import auth
@@ -45,7 +47,7 @@ def agent_url(tmp_path, monkeypatch):
 
     agent = Agent([root], "test")
     AGENTS.append(agent)
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(agent))
+    srv = QuietServer(("127.0.0.1", 0), make_handler(agent))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
         yield f"http://127.0.0.1:{srv.server_address[1]}", root
@@ -325,3 +327,16 @@ def test_the_helper_stops_only_with_the_token(agent_url):
     time.sleep(1.0)
     with pytest.raises(OSError):
         urllib.request.urlopen(base + "/health", timeout=2)
+
+
+def test_agent_server_never_does_reverse_dns(monkeypatch):
+    """★http.server 의 server_bind 가 getfqdn(역방향 DNS)을 불러, 맥 CI 에서 agent 가 시작에서 30초 넘게 멈췄다"""
+    import socket
+    from epokio.server_cli import QuietServer
+    from http.server import BaseHTTPRequestHandler
+    monkeypatch.setattr(socket, "getfqdn", lambda *a, **k: (_ for _ in ()).throw(AssertionError("reverse DNS at bind")))
+    srv = QuietServer(("127.0.0.1", 0), BaseHTTPRequestHandler)
+    try:
+        assert srv.server_name == "127.0.0.1" and srv.server_port == srv.server_address[1] > 0
+    finally:
+        srv.server_close()

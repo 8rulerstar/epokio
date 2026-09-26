@@ -5,6 +5,8 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
+from epokio.server_cli import QuietServer
+
 import pytest
 
 from epokio import aiuse, auth, server
@@ -128,7 +130,7 @@ def test_writing_needs_the_token(tmp_path, monkeypatch):
         def file(self, p):
             return None
 
-    h = ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(Stub(), reads_need_token=False))
+    h = QuietServer(("127.0.0.1", 0), server.make_handler(Stub(), reads_need_token=False))
     threading.Thread(target=h.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{h.server_port}"
     try:

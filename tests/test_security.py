@@ -5,6 +5,8 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
+from epokio.server_cli import QuietServer
+
 import pytest
 
 from epokio import auth, server
@@ -26,7 +28,7 @@ def srv(tmp_path, monkeypatch):
     monkeypatch.setattr(auth, "TOKEN_FILE", tmp_path / "token")
     tok = auth.token()
     def start(reads):
-        h = ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(Stub(), reads_need_token=reads))
+        h = QuietServer(("127.0.0.1", 0), server.make_handler(Stub(), reads_need_token=reads))
         threading.Thread(target=h.serve_forever, daemon=True).start()
         return f"http://127.0.0.1:{h.server_port}", h
     made = []

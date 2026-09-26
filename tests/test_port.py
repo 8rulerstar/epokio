@@ -4,6 +4,8 @@ import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from epokio.server_cli import QuietServer
+
 import pytest
 
 from epokio import port
@@ -19,7 +21,7 @@ def serve(body: bytes, code: int = 200):
 
         def log_message(self, *a):
             pass
-    h = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    h = QuietServer(("127.0.0.1", 0), H)
     threading.Thread(target=h.serve_forever, daemon=True).start()
     return h, h.server_address[1]
 
@@ -40,7 +42,7 @@ def home(tmp_path, monkeypatch):
 
 
 def make(h, p):
-    return ThreadingHTTPServer((h, p), BaseHTTPRequestHandler)
+    return QuietServer((h, p), BaseHTTPRequestHandler)
 
 
 def test_probe_tells_epokio_from_other():

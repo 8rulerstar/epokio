@@ -6,6 +6,8 @@ import threading
 import types
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from epokio.server_cli import QuietServer
+
 import pytest
 
 
@@ -48,7 +50,7 @@ def _serve(routes):
         def log_message(self, *a):
             pass
 
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    srv = QuietServer(("127.0.0.1", 0), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv, seen
 

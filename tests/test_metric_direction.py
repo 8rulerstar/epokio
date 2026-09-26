@@ -11,6 +11,7 @@
 """
 import json
 import os
+import time
 from pathlib import Path
 
 from epokio import adapters, scan
@@ -110,10 +111,14 @@ def test_hf_midepoch_eval_is_not_done(tmp_path):
     # 시간 열 없는 HF는 경과 시간을 폴더 생성 시각(없으면 가장 이른 파일 mtime)으로 어림한다.
     # 리눅스·윈도우(py<3.12)엔 st_birthtime이 없어 파일 하나뿐이면 경과 0초가 되어 eta가 늘 None이다.
     # 학습 시작 때 쓰인 파일을 하나 두어 어느 OS에서든 경과 시간(10분)이 있게 한다
+    # ★폴더 생성 시각이 있는 OS(macOS, 윈도우 py3.12+)에서는 그 시각이 기준이라, 폴더를 만든 직후 쓴 기록 파일과의
+    #   차가 0에 가까웠다. 윈도우 py3.14에서 시계 틱에 따라 정확히 0이 되어 가끔 실패했다(공개 CI).
+    #   기록 파일을 폴더 생성보다 10분 뒤로 두어, 어느 기준으로 재든 경과 시간이 있게 한다
+    now = time.time()
     cfg = d / "config.json"
     cfg.write_text("{}", encoding="utf-8")
-    old = (d / "trainer_state.json").stat().st_mtime - 600
-    os.utime(cfg, (old, old))
+    os.utime(cfg, (now - 600, now - 600))
+    os.utime(d / "trainer_state.json", (now + 600, now + 600))
     assert adapters.load(d).rows[-1]["epoch"] == "19.33"            # 곡선 점은 평가 시점(dev), 끝낸 에폭은 아래 19
     r = scan.read_run(d)
     assert r.epoch == 19 and r.total == 20

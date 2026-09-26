@@ -1,4 +1,5 @@
 """웹 화면이 패키지에 들어 있고, 외부 주소를 부르지 않는지(오프라인 LAN에서도 되어야 한다). ntfy 판별."""
+from epokio.server_cli import QuietServer
 import re
 from pathlib import Path
 
@@ -144,7 +145,7 @@ def _serve(tmp_path, monkeypatch):
     monkeypatch.setattr(Agent, "ROOTS_FILE", tmp_path / "roots.json")
     a = Agent.__new__(Agent)
     a.roots, a.label, a.queue = [], "t", Queue(tmp_path / "jobs.json")
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(a))
+    srv = QuietServer(("127.0.0.1", 0), make_handler(a))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv, a
 

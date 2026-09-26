@@ -2,6 +2,8 @@
 import threading
 from http.server import ThreadingHTTPServer
 
+from epokio.server_cli import QuietServer
+
 from epokio import auth, sweep, sweep_remote
 from epokio.agent import Agent
 from epokio.jobs import Queue
@@ -15,7 +17,7 @@ def _remote(tmp_path, monkeypatch):
     a = Agent.__new__(Agent)
     a.roots, a.label, a.queue = [tmp_path / "remote_runs"], "gpu", Queue(tmp_path / "remote_jobs.json")
     (tmp_path / "remote_runs").mkdir()
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(a))
+    srv = QuietServer(("127.0.0.1", 0), make_handler(a))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv, a, f"http://127.0.0.1:{srv.server_port}"
 
