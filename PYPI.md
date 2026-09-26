@@ -12,7 +12,7 @@ to add, no account and no cloud.
   tray, or as a phone push (ntfy, Slack, Discord, Telegram).
 * **Compare runs**: only the settings that differ, a settings table for a whole sweep next to each run's
   main score, CSV export and Markdown reports.
-* **Start and queue runs** (Ultralytics YOLO) from the web page, one at a time, with a data check before
+* **Start and queue runs** (Ultralytics YOLO) from the web page, one at a time on each GPU, with a data check before
   starting, a one-button Python setup (CUDA PyTorch on NVIDIA machines), resume from `weights/last.pt`,
   and failure causes in plain words.
 * **AI assistants** can read and queue runs through the MCP server (`pip install "epokio[mcp]"`).

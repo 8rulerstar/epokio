@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 (2026-09-26)
+
+Documentation only. No changes to the app or the helper.
+- The README and the PyPI page now match 0.4.0: one queue per GPU, the label editor, the languages the app speaks, SSH watching with nothing installed, view-only tokens, practice mode and keyboard shortcuts.
+- Building from source needs Xcode 26 or later. Automatic updates are off in current releases (they are not signed with an update key yet).
+- New screenshots of a run's page and of Compare.
+
 ## 0.4.0 (2026-09-26)
 
 **Mac app**

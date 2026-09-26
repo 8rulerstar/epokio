@@ -61,7 +61,7 @@ and Increase Contrast.
 * **"Loss became NaN overnight."** Epokio flags diverged runs (NaN loss) and runs that stopped updating, so you do not find out in the morning.
 * **"Which run was better?"** Compare Ultralytics, Hugging Face, PyTorch Lightning, Keras or TensorBoard-logged runs on one chart and in one table.
 * **"Where does my model get it wrong?"** Rank validation images by score and review the worst ones, with labels and predictions drawn on top.
-* **"I have to watch a GPU server over SSH."** `epokio watch` in the terminal, or open the web page from any laptop or phone.
+* **"I have to watch a GPU server over SSH."** Add the server in the Mac app with nothing installed on it, run `epokio watch` in the terminal, or open the web page from any laptop or phone.
 
 ## What it does
 
@@ -72,13 +72,13 @@ and Increase Contrast.
 * A notification when a run **finishes**, **fails** (loss became NaN), **stalls**, or **stops before its last epoch**
 * A calm resting view when nothing is training
 * **Just finished** card at the top: one click to the results
-* **Characters that run at your training's speed**, like RunCat: a cat, a runner, a rocket, a neural net and six more. They stop when training stalls. Or upload your own GIF or frames
-* **⌥⌘E** opens the Studio window from any app
+* **Characters that run at your training's speed**, like RunCat: a cat, a runner, a rocket, a neural net and six more. They stop when training stalls. Or upload your own GIF or frames. With nothing training, they can run with your CPU, GPU or AI tool use instead (Settings → Appearance)
+* **⌥⌘E** opens the Studio window from any app, and **⌘K** jumps to anything in it. Almost every action has a keyboard shortcut
 
 ### Results
 
 <p align="center">
-  <img src="docs/images/studio-home.png" width="620" alt="Home: what is running, what needs attention, recent results">
+  <img src="docs/images/studio-run-detail.png" width="620" alt="A run's page: score, curves and a plain-language note on what to try next">
 </p>
 
 Click any run to see what happened, in one place:
@@ -87,11 +87,20 @@ Click any run to see what happened, in one place:
 * **Curves** for loss and scores, live while training runs
 * **What stands out:** plain-language notes with a next step, such as *"Recall is much higher than precision. It finds most objects but raises many false alarms."*
 * **Result images** your framework saved (curves, confusion matrix, predictions next to your labels), also from remote machines
+* **How it was run:** for runs started from Epokio, the Python, PyTorch, Ultralytics and CUDA versions, the GPU, the git commit and the seed, so you can run it again the same way
 * **Next steps:** try this model, review its mistakes, train again with the same settings, or resume a stopped run from `weights/last.pt`
 
 **Compare** up to eight runs on one chart and in one table, with a list of only the settings that differed. **Sweeps** try several settings and rank them, with a parallel coordinates chart that shows which values led to the best score. **Notifications** stay in the bell at the top right, so a run that finished overnight is still there in the morning.
 
+<p align="center">
+  <img src="docs/images/studio-compare.png" width="620" alt="Compare: one chart for several runs, their scores, and only the settings that differed">
+</p>
+
 ### Studio window
+
+<p align="center">
+  <img src="docs/images/studio-home.png" width="620" alt="Home: what is running, what needs attention, recent results">
+</p>
 
 <p align="center">
   <img src="docs/images/studio-train.png" width="620" alt="Studio, new training">
@@ -105,9 +114,10 @@ version, with its description. The list is generated from Ultralytics' own confi
 current when Ultralytics updates.
 
 * **Try it:** drop an image and see what your model finds, with class names and confidence. Uses the CPU while a training run is using the GPU.
-* **Datasets:** see your images with their YOLO boxes and pose keypoints drawn on top. Filter by class, find images with no label, flip through with the arrow keys. No separate labeling tool needed.
+* **Datasets:** see your images with their YOLO boxes and pose keypoints drawn on top, and fix them: draw and move boxes, zoom and pan, pick classes from the keyboard (a searchable list when there are more than ten), and every change saves as you go. Boxes a model made are marked apart from the ones you checked. Filter by class, find images with no label, flip through with the arrow keys.
 * **Review:** find your best and worst images. Labels are drawn in green, predictions in red, so you see at once what the model missed or invented. Mark each one as *model wrong*, *label wrong* or *not sure* with one key, and get a CSV for fixing labels or retraining.
-* **Queue:** runs one job at a time (one GPU), survives restarts, reorder and cancel, live logs
+* **Queue:** one job at a time on each GPU (a machine with several NVIDIA GPUs runs one per GPU; not yet tried on real multi-GPU hardware), survives restarts, reorder and cancel, live logs
+* **Practice:** a pretend training run to learn the screens with no GPU and no data, and a short tour for your first real run. Neither starts real training by itself.
 * **Auto-label:** pick a model and a folder of images. Labels are written to a separate `labels_auto/`
   folder, so your existing labels are never overwritten. You get a summary of what to review.
 * **Reports:** a Markdown report with a leaderboard, precision, recall, F1 and mAP per head,
@@ -149,8 +159,8 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 cd mac && ./build_app.sh --dmg        # build/Epokio.app and build/Epokio-x.y.z.dmg
 ```
 
-Requires macOS 15 or later and Xcode command line tools. Training itself needs a Python
-environment with `ultralytics` and `torch`. Epokio finds your environments automatically.
+Building needs Xcode 26 or later (the app uses the macOS 26 SDK); the built app runs on macOS 15 or later.
+Training itself needs a Python environment with `ultralytics` and `torch`. Epokio finds your environments automatically.
 
 ## Built with Claude Code
 
@@ -172,6 +182,11 @@ token to paste into the Mac app, and opens the page. `--lan` lets other machines
 reach it; `--autostart` brings the tray back when you log in. Run it again any time, it changes
 nothing that is already right.
 
+**Nothing to install on the server?** In the Mac app, open **Settings → Machines → Over SSH** and pick a host
+from your `~/.ssh/config`. Epokio uses your SSH keys to copy the small log files (`results.csv` and similar)
+every 15 seconds, never images or weights. The server only needs `python3`. This is view only: to start
+training there, install the agent as above.
+
 Without `--lan` the helper listens on this machine only, which is what you want if you just came
 for the web page and the tray.
 
@@ -189,6 +204,9 @@ virtual environment is the safe choice if you would rather not touch the Python 
 * Watching on this machine needs no token: runs, scores, curves, notes and result images. Result
   images are served only from the folders the agent watches.
 * An agent opened to the network (`--lan`) asks for the token to view as well, not only to start things.
+* Give someone view-only access with a token of their own: `epokio agent --add-token alex --scope read`.
+  It is shown once and stored hashed; `--list-tokens` and `--revoke-token alex` manage them. A read token
+  can watch but cannot start or stop anything.
 * **Everything else needs the token**, including requests that only look like reading: listing your
   Python environments, reading a training log, and checking a dataset folder all run a process or
   read outside the watched folders.
@@ -240,7 +258,7 @@ use the network: tick **Private networks** and click **Allow**, or your phone ca
 `epokio autostart --off`, or from the tray menu (*Start when I log in*). The entry is an ordinary
 shortcut in your Startup folder, so you can also just delete it.
 
-Review, auto-labelling and the label viewer are in the Mac app only. Everything else here works
+Review, auto-labelling and the label editor are in the Mac app only. Everything else here works
 without one:
 
 **Your own training loop.** Not using Ultralytics, Hugging Face, Lightning or Keras? Two lines make it show up like any other run:
@@ -341,7 +359,7 @@ Nothing leaves your machines unless you turn it on. The app talks only to agents
 | Assistant (plain-word commands) | Your sentence, names of up to 12 recent runs | TypeSafe, with your own API key |
 | Result explanations, polished | Status, task, scores, setting numbers, language, the draft sentences | TypeSafe, only when the Assistant is on |
 | Explanations written on this Mac (macOS 26+) | Nothing | Stays on the Mac |
-| Update check (Sparkle) | App and macOS version | The project's GitHub releases |
+| Update check (Sparkle), off in current releases until they are signed with an update key | App and macOS version | The project's GitHub releases |
 
 Webhooks must be `https`. The TypeSafe key lives in your Keychain and both features are off until you
 turn them on. Error logs stay in `~/.epokio/logs` and are never sent anywhere.
@@ -367,7 +385,7 @@ Starting runs, auto-labeling and reviewing are Ultralytics only; the other frame
 Bug reports and ideas are welcome as issues. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a
 pull request, and [docs/DESIGN.md](docs/DESIGN.md) for how the pieces fit together.
 
-The app and the web page speak English and Korean. The app follows your Mac's language (or pick one in Settings → General); the web page follows your browser, with a language button at the top. More languages are on the way as machine drafts, and corrections will be very welcome as issues.
+The Mac app speaks English, Korean, Japanese, Chinese (Simplified and Traditional), Spanish, French, German, Portuguese (Brazil) and Vietnamese. All but English and Korean are machine drafts, and corrections are very welcome as issues. It follows your Mac's language (or pick one in Settings → General). The web page speaks English and Korean and follows your browser, with a language button at the top.
 
 License: [MIT](LICENSE).
 
@@ -381,17 +399,22 @@ Screenshots on this page use the sample runs the app can create for you, not com
 
 회사에서 YOLO를 학습시키면서 터미널을 계속 열어 "아직 살아 있나, 몇 에폭 남았나"를 확인하던 일이 싫어서 만들었습니다.
 
-* **메뉴바에서 한눈에**: 모든 학습의 진행률·남은 시간·최고 점수, GPU·CPU·메모리. 캐릭터가 학습 속도에 맞춰 뛰고, 멈추면 같이 멈춥니다. 완료·실패(NaN)·멈춤·조기 종료 알림
+* **메뉴바에서 한눈에**: 모든 학습의 진행률·남은 시간·최고 점수, GPU·CPU·메모리. 캐릭터가 학습 속도에 맞춰 뛰고, 멈추면 같이 멈춥니다. 학습이 없을 때는 CPU·GPU·AI 도구 사용량을 따라 달리게 할 수 있습니다(설정 → 모양). 완료·실패(NaN)·멈춤·조기 종료 알림
 * **끝나면 이유를 말해 줍니다**: "최고 mAP50-95는 40에폭 중 7에폭의 0.662입니다. 정밀도 0.86이 재현율 0.73보다 훨씬 높습니다. 잘못 찾는 것보다 놓치는 것이 많습니다. 신뢰도 문턱을 낮추거나 놓친 경우의 예시를 더하세요." 계산은 이 기계 안에서 합니다
-* **Studio 창**: 초보자는 `data.yaml`을 끌어다 놓고 시작 버튼만 누르면 됩니다. 전문가는 ultralytics 설정 전부를 설명과 함께 볼 수 있습니다
-* **대기열**: 한 번에 하나씩, 껐다 켜도 이어집니다
+* **Studio 창**: 초보자는 `data.yaml`을 끌어다 놓고 시작 버튼만 누르면 됩니다. 전문가는 ultralytics 설정 전부를 설명과 함께 볼 수 있습니다. 거의 모든 동작에 단축키가 있고, **⌘K**로 무엇이든 찾아갑니다
+* **어떻게 돌렸나**: Epokio로 시작한 학습은 파이썬·PyTorch·Ultralytics·CUDA 판, GPU, git 커밋, seed를 남겨 같은 조건으로 다시 돌릴 수 있습니다
+* **라벨 고치기**: 이미지 위에 YOLO 박스를 보여 주고 바로 고칩니다. 박스 그리기·옮기기, 확대·이동, 키보드로 클래스 고르기(열 개가 넘으면 검색), 고치는 대로 저절로 저장. 모델이 만든 박스와 내가 확인한 박스를 구분해 보여 줍니다
+* **연습 모드**: GPU도 데이터도 없이 가짜 학습을 돌려 화면을 익히고, 첫 진짜 학습은 짧은 안내를 따라 합니다. 어느 쪽도 진짜 학습을 멋대로 시작하지 않습니다
+* **대기열**: GPU마다 한 번에 하나씩(NVIDIA GPU가 여러 장이면 장마다 하나, 실제 다중 GPU 기계에서는 아직 시험 전), 껐다 켜도 이어집니다
 * **오토라벨링**: 결과는 `labels_auto/`에 따로 씁니다. 기존 라벨을 덮어쓰지 않습니다
 * **보고서**: 리더보드, Box·Pose별 P·R·F1·mAP, 자동 해설
-* **원격 GPU**: 서버에 아무것도 설치하지 않고 SSH로 보거나(설정 → 기계 → SSH로 보기), 윈도우·리눅스 학습 PC에서 `epokio setup --lan`(자동 시작·토큰 안내까지)으로 도우미를 띄워 맥에서 봅니다. 네트워크에 연 도우미는 보는 것도 토큰이 필요하고, 통신은 암호화되지 않으므로 SSH 터널이나 Tailscale을 권합니다
+* **원격 GPU**: 서버에 아무것도 설치하지 않고 SSH로 보거나(설정 → 기계 → SSH로 보기), 윈도우·리눅스 학습 PC에서 `epokio setup --lan`(자동 시작·토큰 안내까지)으로 도우미를 띄워 맥에서 봅니다. 네트워크에 연 도우미는 보는 것도 토큰이 필요하고, 통신은 암호화되지 않으므로 SSH 터널이나 Tailscale을 권합니다. 다른 사람에게 보기만 허락하려면 `epokio agent --add-token 이름 --scope read`로 그 사람 몫의 읽기 전용 토큰을 만드세요(한 번만 보여 주고 해시로 저장, `--revoke-token`으로 취소)
 * **맥↔윈도우 한글 파일명**: NFD·NFC가 달라도 같은 파일로 찾아갑니다
+* **언어**: 맥 앱은 한국어·영어·일본어·중국어(간체·번체)·스페인어·프랑스어·독일어·포르투갈어(브라질)·베트남어. 한국어·영어 말고는 기계 번역 초안이라 고칠 곳을 이슈로 알려 주시면 반영합니다. 웹 화면은 한국어·영어
 
 설치: macOS 15 이상. [릴리스](https://github.com/8rulerstar/epokio/releases/latest)에서 `.dmg`를 받아 응용 프로그램 폴더로 끌어다 놓고 열면 끝입니다. 도우미(agent)와 작은 파이썬이 앱 안에 들어 있어 맥에서는 `pip install`이 필요 없습니다. 학습을 시작하려면 ultralytics와 torch가 든 파이썬 환경이 따로 필요합니다.
 윈도우는 같은 곳의 `Epokio.exe`를 받아 두 번 누르면 됩니다(보기만 할 때는 파이썬이 필요 없습니다).
+소스에서 직접 빌드하려면 Xcode 26 이상이 필요합니다(빌드한 앱은 macOS 15에서도 돕니다).
 
 처음 열 때: 아직 공증(notarization)을 받지 않아 macOS가 막습니다. 한 번 열어 경고를 닫은 뒤 **시스템 설정 → 개인정보 보호 및 보안**에서 아래로 내려 Epokio 옆 **그래도 열기**를 누르고 암호로 확인하세요. macOS 15부터는 우클릭 → 열기로 넘어가지지 않습니다.
 
@@ -409,7 +432,7 @@ Screenshots on this page use the sample runs the app can create for you, not com
 | 끝났을 때 알림 | 맥 알림 | **폰 푸시**(ntfy·Slack·Discord·텔레그램), 윈도우·리눅스 트레이 알림 |
 | GPU·CPU·메모리 | 있음 | **있음** |
 | 학습 시작·대기열 | 있음 | **있음** (웹, 기계 토큰을 한 번 붙여 넣으면). 파이썬 자동 설치(NVIDIA면 CUDA), 출발 전 데이터 점검, 실패 원인·고칠 방법, 남은 시간, 다시 학습 |
-| 검수·오토라벨링·라벨 보기 | 있음 | 없음 (맥 앱 전용) |
+| 검수·오토라벨링·라벨 고치기 | 있음 | 없음 (맥 앱 전용) |
 
 ```bash
 pip install "epokio[tray]"
