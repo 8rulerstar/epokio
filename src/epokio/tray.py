@@ -35,7 +35,7 @@ INFOS = ["pct", "eta", "clock", "epoch", "best", "gpu"]
 # 알림 제목은 i18n 키로(★영어로만 박혀 있어 한국어 윈도우에서도 'Training finished'였다)
 TITLES = {"finished": "notify.done", "failed": "notify.failed", "stalled": "notify.stalled",
           "stopped_early": "notify.stopped_early", "job_done": "notify.job_done", "job_failed": "notify.job_failed",
-          "goal": "notify.goal", "disk_low": "notify.disk_low", "gpu_hot": "notify.gpu_hot", "gpu_mem": "notify.gpu_mem",
+          "goal": "notify.goal", "disk_low": "notify.disk_low", "gpu_hot": "notify.gpu_hot", "gpu_mem": "notify.gpu_mem", "fan_max": "notify.fan_max",
           "started": "notify.started", "recovered": "notify.recovered"}
 
 

@@ -13,7 +13,7 @@ from .monitor import Monitor
 from .sources import LocalSource
 
 DEFAULT_HOOK_KINDS = ["finished", "failed", "stalled", "stopped_early", "job_done", "job_failed", "goal",
-                      "disk_low", "gpu_hot", "gpu_mem"]
+                      "disk_low", "gpu_hot", "gpu_mem", "fan_max"]
 _PUSH_LOCK = threading.Lock()
 
 
@@ -195,3 +195,23 @@ class Watcher:
             if g.mem_used and g.mem_total and g.mem_used / g.mem_total * 100 >= cfg["gpu_mem_pct"]:
                 self._warn("gpu_mem", tr("{gpu} memory {used} of {total} GB", gpu=g.name,
                                          used=f"{g.mem_used:.1f}", total=f"{g.mem_total:.1f}"))
+        self._check_fan(s)
+
+    FAN_FULL_PCT, FAN_FULL_SEC = 90, 300
+
+    def _check_fan(self, s, now: float | None = None):
+        """학습 중 팬이 최대 가까이(90%+) 5분 넘게 붙어 있으면 한 번 알린다. 칩이 열 때문에 느려지기 직전이다.
+        잠깐 치솟는 건 흔해서(에폭 시작·검증) 이어진 시간을 잰다. 학습이 없으면 재지 않는다(다른 앱 탓이다)"""
+        import time
+        from .msg import tr
+        now = time.time() if now is None else now
+        live = any(r.state == "running" for r in getattr(getattr(self, "_mon", None), "runs", []) or []) or \
+            any(j.state == "running" for j in getattr(getattr(self, "queue", None), "jobs", []) or [])
+        if not (live and getattr(s, "fan", None) is not None and s.fan >= self.FAN_FULL_PCT):
+            self._fan_since = None
+            return
+        since = getattr(self, "_fan_since", None) or now
+        self._fan_since = since
+        if now - since >= self.FAN_FULL_SEC:
+            self._warn("fan_max", tr("Fans at {pct}% ({rpm} rpm) for {min} min. The chip may slow down to cool off.",
+                                     pct=f"{s.fan:.0f}", rpm=s.fan_rpm or "?", min=int((now - since) // 60)))

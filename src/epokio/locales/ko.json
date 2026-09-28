@@ -159,5 +159,7 @@
  "Time left": "남은 시간",
  "Finish time": "끝날 시각",
  "Best score": "최고 점수",
- "GPU %": "GPU %"
+ "GPU %": "GPU %",
+ "Fans at full speed": "팬이 최고 속도로 돎",
+ "Fans at {pct}% ({rpm} rpm) for {min} min. The chip may slow down to cool off.": "팬이 {min}분째 {pct}%({rpm} rpm)로 돌고 있습니다. 칩이 열을 식히려고 느려질 수 있습니다."
 }

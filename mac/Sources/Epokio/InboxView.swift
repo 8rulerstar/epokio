@@ -86,7 +86,7 @@ struct InboxRow: View {
         switch item.kind {
         case "finished", "job_done": .good
         case "failed", "job_failed": .bad
-        case "stalled", "stopped_early", "disk_low", "gpu_hot", "gpu_mem": .warn
+        case "stalled", "stopped_early", "disk_low", "gpu_hot", "gpu_mem", "fan_max": .warn
         default: .brand
         }
     }

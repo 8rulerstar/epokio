@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.4 (2026-09-28)
+
+- **Fan speed** on Macs with a fan: the menu bar popover and the web page show how fast the fastest fan spins, as a share of its maximum (rpm on hover). Turn it off in Settings → General. Macs without a fan show nothing.
+- New machine warning: the fans stayed at 90% or more for 5 minutes while training. It goes to your Mac and, if set up, your phone, like the GPU and disk warnings.
+- `epokio setup --root <folder>` now remembers the folder. Before, running setup again without `--root`, or restarting the helper, lost it.
+- The address `epokio setup` prints now opens the Train and Queue tabs unlocked on this machine, like the page it opens for you. Over SSH it still prints the plain address.
+- A run copied from another machine, with no time column in its log, no longer shows "0s/epoch · 0s left" or "took 0s". The time is shown as unknown.
+- PyPI links to the GitHub repository, issues and changelog.
+
 ## 0.4.3 (2026-09-26)
 
 - **Fix:** the web page installed with `pip install epokio` 0.4.0 to 0.4.2 was blank, because the package left out its scripts and styles. The Windows `Epokio.exe` and the Mac app were not affected.

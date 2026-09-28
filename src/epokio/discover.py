@@ -67,3 +67,31 @@ def find_roots() -> list[Path]:
                 seen.add(key)
                 hits.append(f)
     return hits[:5]
+
+
+def saved_roots(path: Path | None = None, quiet: bool = False) -> list[Path]:
+    """사용자가 더해 둔 폴더(roots.json). quiet면 못 읽어도 빈 목록"""
+    from . import jsonfile
+    from .agent import Agent
+    try:
+        return [Path(r) for r in jsonfile.read(path or Agent.ROOTS_FILE, [])]
+    except (OSError, ValueError, TypeError):
+        if quiet:
+            return []
+        raise
+
+
+def remember_roots(roots: list[Path]) -> None:
+    """setup에 준 폴더를 '+ 폴더'와 같은 roots.json에 남긴다. 다시 준 폴더는 뺀 목록에서도 지운다.
+    ★--root는 이번 도우미에만 넘어가서, setup을 다시 돌리거나 도우미가 재시작하면 폴더를 잃었다"""
+    from . import jsonfile
+    from .agent import Agent
+    try:
+        saved, removed = saved_roots(Agent.ROOTS_FILE), saved_roots(Agent.REMOVED_FILE)
+    except (OSError, ValueError, TypeError) as e:
+        print(f"  ! Could not read the saved folders ({e}). They are used this time only.\n")
+        return
+    Agent.ROOTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    jsonfile.write(Agent.ROOTS_FILE, [str(r) for r in saved + [r for r in roots if r not in saved]])
+    if any(r in removed for r in roots):
+        jsonfile.write(Agent.REMOVED_FILE, [str(r) for r in removed if r not in roots])

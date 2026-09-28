@@ -63,6 +63,8 @@ struct Snapshot: Codable {
     let mem_total: Double?
     let gpus: [GPUInfo]
     var cpu_temp: Double? = nil      // °C, 애플 실리콘 맥만. 없으면 칸을 숨긴다
+    var fan: Double? = nil           // % 가장 빠른 팬의 최대 대비. 팬 있는 애플 실리콘 맥만(macfan.py)
+    var fan_rpm: Int? = nil
     var disk_free: Double? = nil     // GB (sysinfo). 쉬는 모드 카드가 쓴다
     var net_up: Double? = nil        // B/s
     var net_down: Double? = nil
@@ -206,6 +208,7 @@ struct InboxItem: Codable, Identifiable, Hashable {
         case "disk_low": L("Disk almost full")
         case "gpu_hot": L("GPU is very hot")
         case "gpu_mem": L("GPU memory is full")
+        case "fan_max": L("Fans at full speed")
         default: L("Training resumed")
         }
     }
@@ -220,10 +223,11 @@ struct InboxItem: Codable, Identifiable, Hashable {
         case "disk_low": "externaldrive.badge.exclamationmark"
         case "gpu_hot": "thermometer.high"
         case "gpu_mem": "memorychip"
+        case "fan_max": "fan.fill"
         default: "arrow.clockwise.circle.fill"
         }
     }
-    var isMachine: Bool { ["disk_low", "gpu_hot", "gpu_mem"].contains(kind) }
+    var isMachine: Bool { ["disk_low", "gpu_hot", "gpu_mem", "fan_max"].contains(kind) }
     var isResult: Bool { ["finished", "failed", "stopped_early", "goal"].contains(kind) }
 }
 

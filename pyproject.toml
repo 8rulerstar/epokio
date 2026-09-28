@@ -20,6 +20,11 @@ requires-python = ">=3.10"
 license = "MIT"
 dependencies = ["windows-curses; sys_platform == 'win32'"]   # 윈도우 파이썬에는 curses가 없다(epokio watch)
 
+[project.urls]
+Homepage = "https://github.com/8rulerstar/epokio"
+Issues = "https://github.com/8rulerstar/epokio/issues"
+Changelog = "https://github.com/8rulerstar/epokio/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 tray = ["pystray>=0.19", "Pillow>=10.0"]     # 윈도우·리눅스 트레이
 mcp  = ["mcp>=2.2"]                          # AI 도우미 연동 (epokio-mcp)

@@ -62,7 +62,7 @@ const KO = {
   // 알림
   "Training finished": "학습 완료", "Training failed": "학습 실패", "Training may have stopped": "학습이 멈춘 것 같음",
   "Stopped before the last epoch": "마지막 에폭 전에 끝남", "Training started": "학습 시작", "Job finished": "작업 완료", "Job failed": "작업 실패",
-  "Goal reached": "목표 점수 달성", "Disk almost full": "디스크 공간 부족", "GPU is very hot": "GPU가 매우 뜨거움",
+  "Goal reached": "목표 점수 달성", "Disk almost full": "디스크 공간 부족", "GPU is very hot": "GPU가 매우 뜨거움", "Fans at full speed": "팬이 최고 속도로 돎", "Fan": "팬", "Fan speed": "팬 속도",
   "GPU memory is full": "GPU 메모리가 가득 참", "Training resumed": "학습이 다시 진행 중",
   "On: sends to {hosts}.": "켜짐 · 받는 곳: {hosts}", "Off.": "꺼짐.", "Phone alerts": "폰 알림",
   "Easiest: install the free <b>ntfy</b> app on your phone, subscribe to a topic with a long random name, and paste <code>https://ntfy.sh/your-topic</code> here. Slack, Discord and Telegram webhook addresses work too. Anyone who knows the topic can read it, so make it hard to guess.":

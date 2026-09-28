@@ -25,7 +25,7 @@ import urllib.request
 from pathlib import Path
 
 from . import auth, autostart
-from .discover import find_roots
+from .discover import find_roots, remember_roots, saved_roots
 
 PORT = 8787
 
@@ -166,10 +166,13 @@ def main(argv: list[str] | None = None) -> int:
     # ★찾은 폴더를 --root로 넘기면 도우미의 5분마다 다시 찾기가 꺼져, 나중에 생긴 runs 폴더가 영영 안 보였다
     #   (systemd 서비스에도 박혀 영구히). 뺀 폴더도 재시작 때마다 --root로 되살아났다
     roots = [Path(r).expanduser().resolve() for r in (a.root or [])]
+    if roots:
+        remember_roots(roots)
     shown = roots
     if not roots:
         print("  Looking for training folders...")
-        shown = find_roots()
+        saved = saved_roots(quiet=True)             # ★저장해 둔 폴더가 있는데도 'No training folders found'라고 했다
+        shown = saved + [r for r in find_roots() if r not in saved]
     if shown:
         for r in shown[:6]:
             print(f"    found  {r}")
@@ -241,7 +244,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # 4. 어디서 보나
     url = f"http://127.0.0.1:{a.port}/"
-    print(f"\n  Open  {url}")
+    # ★브라우저엔 토큰 실은 주소를 열고 화면엔 맨 주소를 찍어, 그걸로 연 사람은 학습 탭이 잠겨 있었다.
+    #   SSH 세션에는 싣지 않는다(터미널 기록에 남는다)
+    print(f"\n  Open  {url if headless() else auth.page_url(url)}")
     if a.lan:
         ip = lan_ip()
         print(f"        http://{ip or '<this machine>'}:{a.port}/   from your phone or another computer")

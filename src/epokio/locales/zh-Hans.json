@@ -159,5 +159,7 @@
  "Time left": "Time left",
  "Finish time": "Finish time",
  "Best score": "Best score",
- "GPU %": "GPU %"
+ "GPU %": "GPU %",
+ "Fans at full speed": "风扇全速运转",
+ "Fans at {pct}% ({rpm} rpm) for {min} min. The chip may slow down to cool off.": "风扇已以 {pct}%({rpm} rpm)运转 {min} 分钟。芯片可能会降速散热。"
 }

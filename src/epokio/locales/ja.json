@@ -159,5 +159,7 @@
  "Time left": "Time left",
  "Finish time": "Finish time",
  "Best score": "Best score",
- "GPU %": "GPU %"
+ "GPU %": "GPU %",
+ "Fans at full speed": "ファンが全開です",
+ "Fans at {pct}% ({rpm} rpm) for {min} min. The chip may slow down to cool off.": "ファンが {min} 分間 {pct}%({rpm} rpm)で回っています。チップが冷却のため速度を落とす可能性があります。"
 }

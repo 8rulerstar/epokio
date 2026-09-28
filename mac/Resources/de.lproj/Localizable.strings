@@ -1327,3 +1327,7 @@
 "Your code" = "Eigener Code";
 "about %@ left, done around %@" = "noch etwa %@, fertig gegen %@";
 "macOS is blocking Epokio's notifications." = "macOS blockiert die Mitteilungen von Epokio.";
+"Fan speed" = "Lüfterdrehzahl";
+"Show fan speed" = "Lüfterdrehzahl zeigen";
+"Fans at full speed" = "Lüfter auf Höchstdrehzahl";
+"Only on Macs with a fan. Epokio warns when the fans stay near full speed during training." = "Nur auf Macs mit Lüfter. Epokio warnt, wenn die Lüfter beim Training lange nahe der Höchstdrehzahl laufen.";

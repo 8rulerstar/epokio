@@ -159,5 +159,7 @@
  "Time left": "Time left",
  "Finish time": "Finish time",
  "Best score": "Best score",
- "GPU %": "GPU %"
+ "GPU %": "GPU %",
+ "Fans at full speed": "Fans at full speed",
+ "Fans at {pct}% ({rpm} rpm) for {min} min. The chip may slow down to cool off.": "Fans at {pct}% ({rpm} rpm) for {min} min. The chip may slow down to cool off."
 }

@@ -1327,3 +1327,7 @@
 "Your code" = "自分のコード";
 "about %@ left, done around %@" = "残り約 %@、%@ ごろ完了";
 "macOS is blocking Epokio's notifications." = "macOS が Epokio の通知をブロックしています。";
+"Fan speed" = "ファン速度";
+"Show fan speed" = "ファン速度を表示";
+"Fans at full speed" = "ファンが全開です";
+"Only on Macs with a fan. Epokio warns when the fans stay near full speed during training." = "ファンのある Mac のみ。学習中にファンが全開に近い状態が続くと知らせます。";

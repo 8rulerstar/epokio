@@ -132,6 +132,32 @@ def test_setup_does_not_open_a_browser_when_told_not_to(monkeypatch, tmp_path):
     assert onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser"]) == 0
 
 
+
+def test_setup_remembers_the_folders_you_gave_it(monkeypatch, tmp_path):
+    """--root가 이번 도우미에만 넘어가, setup을 --root 없이 다시 돌리면 폴더를 잃었다. 뺀 폴더를 다시 주면 되살린다."""
+    from epokio import jsonfile
+    from epokio.agent import Agent
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir(); b.mkdir()
+    jsonfile.write(Agent.REMOVED_FILE, [str(b.resolve())])
+    onboard.main(["--root", str(a), "--no-browser"])
+    onboard.main(["--root", str(a), "--root", str(b), "--no-browser"])
+    assert jsonfile.read(Agent.ROOTS_FILE, []) == [str(a.resolve()), str(b.resolve())]
+    assert jsonfile.read(Agent.REMOVED_FILE, []) == []
+
+
+def test_setup_prints_the_address_that_unlocks_the_page(monkeypatch, tmp_path, capsys):
+    """브라우저엔 토큰 실은 주소를 열면서 화면엔 맨 주소를 찍어, 그걸로 연 사람은 학습 탭이 잠겨 있었다."""
+    from epokio import auth
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "headless", lambda: False)
+    onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser"])
+    assert "#t=" + auth.token() in capsys.readouterr().out
+    monkeypatch.setattr(onboard, "headless", lambda: True)       # SSH 세션: 터미널 기록에 토큰을 남기지 않는다
+    onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser"])
+    assert "#t=" not in capsys.readouterr().out
+
 # ── exe(PyInstaller)로 굳었을 때 ──────────────────────
 
 def test_self_command_uses_the_exe_itself_when_frozen(monkeypatch):

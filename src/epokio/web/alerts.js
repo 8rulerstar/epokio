@@ -3,7 +3,7 @@
 const EV = { finished: [t("Training finished"), "var(--green)", "✓"], failed: [t("Training failed"), "var(--red)", "✕"], stalled: [t("Training may have stopped"), "var(--orange)", "‖"],
              stopped_early: [t("Stopped before the last epoch"), "var(--orange)", "■"], started: [t("Training started"), "var(--accent)", "▶"],
              job_done: [t("Job finished"), "var(--green)", "✓"], job_failed: [t("Job failed"), "var(--red)", "✕"], goal: [t("Goal reached"), "var(--green)", "◎"],
-             disk_low: [t("Disk almost full"), "var(--orange)", "!"], gpu_hot: [t("GPU is very hot"), "var(--orange)", "!"], gpu_mem: [t("GPU memory is full"), "var(--orange)", "!"], recovered: [t("Training resumed"), "var(--accent)", "↻"],
+             disk_low: [t("Disk almost full"), "var(--orange)", "!"], gpu_hot: [t("GPU is very hot"), "var(--orange)", "!"], gpu_mem: [t("GPU memory is full"), "var(--orange)", "!"], fan_max: [t("Fans at full speed"), "var(--orange)", "!"], recovered: [t("Training resumed"), "var(--accent)", "↻"],
              pruned: [t("Sweep stopped a run that fell behind"), "var(--purple)", "✂"] };
 /// 폰 알림(ntfy·Slack·Discord·Telegram 웹후크). 학습 기계의 agent가 직접 보낸다(맥이 꺼져 있어도 온다).
 /// ★예전엔 맥 앱 설정에만 있어서 윈도우·폰만 쓰는 사람은 켤 방법이 없었다

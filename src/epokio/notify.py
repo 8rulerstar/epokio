@@ -26,11 +26,12 @@ KINDS = {
     "disk_low": "notify.disk_low",
     "gpu_hot": "notify.gpu_hot",
     "gpu_mem": "notify.gpu_mem",
+    "fan_max": "notify.fan_max",
     "job_done": "notify.job_done",
     "job_failed": "notify.job_failed",
 }
 URGENT = {"failed", "stalled", "job_failed"}             # ntfy 우선순위 높음
-MACHINE_KINDS = {"disk_low", "gpu_hot", "gpu_mem"}      # 학습이 아니라 기계 상태 경고
+MACHINE_KINDS = {"disk_low", "gpu_hot", "gpu_mem", "fan_max"}      # 학습이 아니라 기계 상태 경고
 
 
 def title(kind: str) -> str:

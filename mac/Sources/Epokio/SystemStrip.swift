@@ -7,6 +7,7 @@ struct SystemStrip: View {
     @Environment(Store.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduce
     @AppStorage(TempChip.settingKey) private var showTemp = true
+    @AppStorage(FanGauge.settingKey) private var showFan = true
 
     var body: some View {
         ForEach(store.system.keys.sorted(), id: \.self) { key in
@@ -17,6 +18,10 @@ struct SystemStrip: View {
                     Gauge(label: "MEM", value: memPct(s), tint: .brand2)
                     if showTemp, let t = s.cpu_temp {
                         TempChip(celsius: t)
+                            .transition(.opacity.combined(with: .move(edge: .leading)))
+                    }
+                    if showFan, let f = s.fan {
+                        FanGauge(pct: f, rpm: s.fan_rpm)
                             .transition(.opacity.combined(with: .move(edge: .leading)))
                     }
                     VStack(alignment: .leading, spacing: 2) {
@@ -31,6 +36,7 @@ struct SystemStrip: View {
                 }
                 .padding(10)
                 .animation(reduce ? nil : .smooth, value: showTemp && s.cpu_temp != nil)
+                .animation(reduce ? nil : .smooth, value: showFan && s.fan != nil)
                 .background(.primary.opacity(0.04), in: .rect(cornerRadius: Radius.card, style: .continuous))
             }
         }
@@ -91,6 +97,30 @@ struct TempChip: View {
         .accessibilityLabel(L("SoC temperature"))
         .accessibilityValue(Text(verbatim: "\(Int(celsius.rounded()))°C"))
         .help(L("SoC temperature"))
+    }
+}
+
+/// 가장 빠른 팬의 최대 대비 %. 팬 없는 맥은 값이 없어 칸이 안 생긴다. 90% 이상이면 주의 색(watcher의 fan_max 문턱과 같다)
+struct FanGauge: View {
+    static let settingKey = "showFan"
+    static let full = 90.0
+    @Environment(\.accessibilityReduceMotion) private var reduce
+    let pct: Double
+    let rpm: Int?
+    @State private var hover = false
+
+    var body: some View {
+        let full = pct >= Self.full
+        let tip = L("Fan speed") + (rpm.map { " · \($0) rpm" } ?? "")
+        Gauge(label: "FAN", value: pct, tint: full ? .warn : .secondary)
+            .background(Circle().fill(Color.secondary.opacity(hover ? 0.12 : 0)))
+            .scaleEffect(hover && !reduce ? 1.06 : 1)
+            .animation(reduce ? nil : Motion.hover, value: full)
+            .onHover { h in withAnimation(reduce ? nil : Motion.hover) { hover = h } }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L("Fan speed"))
+            .accessibilityValue(Text(verbatim: "\(Int(pct.rounded()))%" + (rpm.map { ", \($0) rpm" } ?? "")))
+            .help(tip)
     }
 }
 

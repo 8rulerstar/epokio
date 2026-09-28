@@ -147,7 +147,7 @@ def sys_line(s: dict | None) -> str:
 
 def detail_lines(r: Run, d: dict | None, curve: int, width: int) -> list[str]:
     _, state = STATE.get(r.state, ("?", r.state))
-    out = [display_name(r), f"{state} · epoch {r.epoch}/{r.total or '?'} · took {dur(r.elapsed)} · {r.source}", ""]
+    out = [display_name(r), f"{state} · epoch {r.epoch}/{r.total or '?'}" + (f" · took {dur(r.elapsed)}" if r.elapsed else "") + f" · {r.source}", ""]
     if not d:
         return out + ["(no details)"]
     head_name = schema.HEADS

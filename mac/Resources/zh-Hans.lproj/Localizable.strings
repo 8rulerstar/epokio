@@ -1333,3 +1333,7 @@
 "Your code" = "自己的代码";
 "about %@ left, done around %@" = "约剩 %@，约 %@ 完成";
 "macOS is blocking Epokio's notifications." = "macOS 正在阻止 Epokio 的通知。";
+"Fan speed" = "风扇转速";
+"Show fan speed" = "显示风扇转速";
+"Fans at full speed" = "风扇全速运转";
+"Only on Macs with a fan. Epokio warns when the fans stay near full speed during training." = "仅限有风扇的 Mac。训练时风扇持续接近全速会提醒你。";

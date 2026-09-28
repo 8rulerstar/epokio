@@ -62,7 +62,7 @@ final class Notifier {
         //   알림 설정 스위치가 아무 효과가 없었다
         let raw = UserDefaults.standard.string(forKey: "notify") ?? "finished,failed,stalled,stopped_early,job_done,job_failed"
         let on = raw.split(separator: ",").map(String.init)
-        return ["goal", "pruned", "disk_low", "gpu_hot", "gpu_mem"].contains(kind) || on.contains(kind)   // 사람이 건 목표·기계 경고는 항상
+        return ["goal", "pruned", "disk_low", "gpu_hot", "gpu_mem", "fan_max"].contains(kind) || on.contains(kind)   // 사람이 건 목표·기계 경고는 항상
     }
 
     /// 조용한 시간(설정 → 알림). 23→7처럼 자정을 넘어도 된다
@@ -109,16 +109,17 @@ final class Notifier {
         case "disk_low": String(localized: "Disk almost full")
         case "gpu_hot": String(localized: "GPU is very hot")
         case "gpu_mem": String(localized: "GPU memory is full")
+        case "fan_max": String(localized: "Fans at full speed")
         default: String(localized: "Training resumed")
         }
         let ep: String = e.run.total.map { "\(e.run.epoch)/\($0)" } ?? "\(e.run.epoch)"   // ★계획을 모르면 "3/?"로 보였다
-        let plain = e.kind.hasPrefix("job_") || ["disk_low", "gpu_hot", "gpu_mem"].contains(e.kind)
+        let plain = e.kind.hasPrefix("job_") || ["disk_low", "gpu_hot", "gpu_mem", "fan_max"].contains(e.kind)
         var body = plain ? e.run.name : e.run.name + " · " + L("epoch %@", ep)
         if let b = e.run.best { body += " · " + L("best %@", String(format: "%.4f", b)) }
         if machine != "local" { body += " · \(machine)" }
         c.body = why.map { body + "\n" + $0 } ?? body
         c.userInfo = ["run": "\(machine)|\(e.run.path)"]      // 누르면 그 학습의 상세 화면으로
-        if !["disk_low", "gpu_hot", "gpu_mem"].contains(e.kind) {
+        if !["disk_low", "gpu_hot", "gpu_mem", "fan_max"].contains(e.kind) {
             c.categoryIdentifier = e.kind == "finished" || e.kind == "goal" ? "done" : ["stalled", "started"].contains(e.kind) ? "problem" : "run"
         }
         let bad = ["failed", "stalled", "job_failed"].contains(e.kind)

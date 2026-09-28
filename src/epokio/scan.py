@@ -11,6 +11,7 @@ from pathlib import Path
 from . import adapters, schema
 
 STALE_SEC = 180       # 이 시간 넘게 안 변하면 진행 중이 아니다
+MIN_EPOCH_SEC = 1.0   # 시간 열 없이 폴더 시각으로 잰 에폭이 이보다 빠르면 잰 게 아니라 복사된 것이다
 ENDED_SEC = 30 * 60   # 이 시간 넘으면 '멎은 것'이 아니라 '끝난 것'
 #   ⚠둘을 나눈 이유: 조기종료(patience)로 끝난 run은 total보다 적은 에폭에서 멈춘다.
 #   시간 기준이 없으면 몇 달 전에 정상 종료된 학습까지 전부 "멈춤 경고"로 뜬다.
@@ -273,6 +274,9 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
             parsed.elapsed = max(st.st_mtime - born, 0.0)
         except (OSError, ValueError):
             pass
+        # ★다른 기계에서 복사해 온 폴더는 모든 파일이 한 순간에 생겨 에폭당 0초·남은 시간 0초로 보였다. 모름으로 둔다
+        if parsed.epoch and parsed.elapsed < parsed.epoch * MIN_EPOCH_SEC:
+            parsed.elapsed = 0.0
     # args.yaml은 학습 중에 안 바뀐다. 기록 파일이 바뀔 때만 다시 읽는다(★예전엔 폴링마다 전부 다시 읽었다)
     meta = _Meta(csv_path, loaded.framework, _read_total_epochs(run_dir) or loaded.total, st.st_mtime)
     _cache[run_dir] = (csv_path, key, parsed, meta)

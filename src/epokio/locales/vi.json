@@ -159,5 +159,7 @@
  "Time left": "Time left",
  "Finish time": "Finish time",
  "Best score": "Best score",
- "GPU %": "GPU %"
+ "GPU %": "GPU %",
+ "Fans at full speed": "Quạt chạy hết tốc độ",
+ "Fans at {pct}% ({rpm} rpm) for {min} min. The chip may slow down to cool off.": "Quạt đã chạy ở {pct}% ({rpm} vòng/phút) trong {min} phút. Chip có thể chạy chậm lại để hạ nhiệt."
 }

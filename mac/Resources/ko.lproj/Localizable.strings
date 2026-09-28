@@ -1336,3 +1336,7 @@
 
 /* 윈도우 갈래 합치기 나머지 */
 "CSV" = "CSV";
+"Fan speed" = "팬 속도";
+"Show fan speed" = "팬 속도 표시";
+"Fans at full speed" = "팬이 최고 속도로 돎";
+"Only on Macs with a fan. Epokio warns when the fans stay near full speed during training." = "팬이 있는 맥에서만 보입니다. 학습 중 팬이 최고 속도 가까이 계속 돌면 알려 줍니다.";

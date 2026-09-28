@@ -18,7 +18,7 @@ PHRASES = {
     "notify.goal": "Goal reached", "notify.pruned": "Sweep stopped a run that fell behind",
     "notify.job_done": "Job finished", "notify.job_failed": "Job failed",
     "notify.disk_low": "Disk almost full", "notify.gpu_hot": "GPU is very hot",
-    "notify.gpu_mem": "GPU memory is full", "menu.notify": "Notifications",
+    "notify.gpu_mem": "GPU memory is full", "notify.fan_max": "Fans at full speed", "menu.notify": "Notifications",
     "epoch": "epoch", "best": "best",
     "menu.quit": "Quit Epokio", "notify.done": "Training finished",
     "notify.failed": "Training failed", "tray.training": "Epokio · {n} training",

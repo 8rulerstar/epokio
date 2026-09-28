@@ -15,6 +15,7 @@ struct GeneralTab: View {
     @Environment(Store.self) private var store
     @AppStorage("achievements") private var achievements = false
     @AppStorage(TempChip.settingKey) private var showCPUTemp = true
+    @AppStorage(FanGauge.settingKey) private var showFan = true
 
     var body: some View {
         Form {
@@ -52,6 +53,8 @@ struct GeneralTab: View {
             ScanModeRow()
             UpdateSettingsRow()
             Toggle(L("Show SoC temperature"), isOn: $showCPUTemp)
+            Toggle(L("Show fan speed"), isOn: $showFan)
+                .help(L("Only on Macs with a fan. Epokio warns when the fans stay near full speed during training."))
             Toggle("Achievements", isOn: $achievements)
                 .help("Badges for things like your first finished run. Adds an Achievements screen to the sidebar.")
                 // 켜는 즉시 채점한다. 안 그러면 다음 새로고침까지 이미 딴 업적이 잠긴 것처럼 보인다(아이콘 갤러리의 자물쇠)

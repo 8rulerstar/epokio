@@ -9,6 +9,7 @@
   리눅스   : /proc/stat + /proc/meminfo
   NVIDIA   : nvidia-smi --query-gpu                          (원격 agent가 읽어 보낸다)
   맥 온도 : IOHIDEventSystemClient 온도 센서 (mactemp.py, 5초 캐시, 다시 읽기 30~70ms)
+  맥 팬   : AppleSMC FNum·F{n}Ac·F{n}Mx (macfan.py, 5초 캐시, 약 1ms)
   ⚠powermetrics는 sudo가 필요해서 쓰지 않는다.
 한 번 읽는 데 35ms쯤 든다. 60fps 화면을 막지 않게 Sampler가 별도 스레드에서 읽는다.
 """
@@ -25,9 +26,9 @@ import time
 from collections import deque
 from dataclasses import asdict, dataclass, field
 
-from . import aiuse, maccpu, mactemp
+from . import aiuse, macfan, maccpu, mactemp
 from .sysinfo_os import (_cpu_delta, _cpu_prev, _linux_cpu_mem, _windows_cpu_mem,  # noqa: F401  다시 내보낸다
-                         parse_pmset_batt, parse_power_supply)
+                         parse_pmset_batt, parse_power_supply, parse_proc_net_dev)
 
 
 @dataclass
@@ -54,6 +55,8 @@ class Snapshot:
     battery: float | None = None       # % (배터리 없는 기기는 None)
     charging: bool | None = None
     cpu_temp: float | None = None      # °C (애플 실리콘 맥만, mactemp.py)
+    fan: float | None = None           # % 가장 빠른 팬의 최대 대비 (팬 있는 애플 실리콘 맥만, macfan.py)
+    fan_rpm: int | None = None
     ai: float | None = None            # % AI 도구 사용량 (aiuse.py). 메뉴바 캐릭터 속도용
     ai_from: str | None = None         # 그 값이 어디서 왔나: "reported" · "process" · "none"
 
@@ -236,26 +239,6 @@ def parse_netstat_ib(out: str) -> tuple[int, int] | None:
     return (rx, tx) if found else None
 
 
-def parse_proc_net_dev(out: str) -> tuple[int, int] | None:
-    """리눅스 /proc/net/dev: 받은 바이트 = 콜론 뒤 1번째, 보낸 바이트 = 9번째. lo 제외."""
-    rx = tx = 0
-    found = False
-    for line in out.splitlines():
-        if ":" not in line:
-            continue
-        name, rest = line.split(":", 1)
-        f = rest.split()
-        if name.strip() == "lo" or len(f) < 9:
-            continue
-        try:
-            rx += int(f[0])
-            tx += int(f[8])
-            found = True
-        except ValueError:
-            continue
-    return (rx, tx) if found else None
-
-
 def _read(path):
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
@@ -345,7 +328,7 @@ def sample(host: str | None = None, path: str | None = None) -> Snapshot:
         gpus = _nvidia() or _mac_gpu()
         cpu, ai = _mac_cpu_ai()
         snap = Snapshot(host, cpu, used, total, gpus, time.time())
-        snap.cpu_temp = mactemp.cpu_temp()
+        snap.cpu_temp, (snap.fan, snap.fan_rpm) = mactemp.cpu_temp(), macfan.fan() or (None, None)
         snap.ai, snap.ai_from = aiuse.combine(ai)
         return _extras(snap, path)
     cpu, used, total = _generic_cpu_mem()

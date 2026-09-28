@@ -213,3 +213,14 @@ def test_collections_are_saved_like_tags(tmp_path, monkeypatch):
     m = runmeta.update(str(tmp_path / "run"), {"collections": ["배포 후보", " 배포 후보 ", "", "헬멧 실험"]})
     assert m["collections"] == ["배포 후보", "헬멧 실험"]
     assert "collections" not in runmeta.update(str(tmp_path / "run"), {"collections": []})
+
+
+def test_a_copied_run_without_a_time_column_has_no_pace(tmp_path):
+    """시간 열이 없으면 폴더 시각으로 잰다. 복사해 온 폴더는 파일이 한 순간에 생겨 '0s/epoch · 0s left'로 보였다."""
+    from epokio.scan import read_run
+    d = tmp_path / "train"
+    d.mkdir()
+    (d / "args.yaml").write_text("epochs: 40\n")
+    (d / "results.csv").write_text("epoch,metrics/mAP50-95(B)\n" + "".join(f"{i},0.{i}\n" for i in range(1, 10)))
+    r = read_run(d)
+    assert r.state == "running" and r.elapsed == 0 and r.eta is None

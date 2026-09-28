@@ -200,7 +200,7 @@ function drawSys() {
   const s = S.sys; if (!s || S.down) { $("#sys").innerHTML = ""; return; }      // 끊기면 옛 수치를 지운다
   const g = (s.gpus || [])[0] || {}; const mem = s.mem_total ? s.mem_used / s.mem_total * 100 : null;
   const p = (v) => v == null ? "–" : Math.round(v) + "%";
-  $("#sys").innerHTML = `<span>GPU <b>${p(g.util)}</b></span><span>CPU <b>${p(s.cpu)}</b></span><span>${t("MEM")} <b>${p(mem)}</b></span><span>${esc(g.name || s.host)}</span>`;
+  $("#sys").innerHTML = `<span>GPU <b>${p(g.util)}</b></span><span>CPU <b>${p(s.cpu)}</b></span><span>${t("MEM")} <b>${p(mem)}</b></span>${s.fan != null ? `<span title="${esc(t("Fan speed"))} · ${s.fan_rpm ?? "?"} rpm">${t("Fan")} <b>${p(s.fan)}</b></span>` : ""}<span>${esc(g.name || s.host)}</span>`;   // 팬: 팬 있는 맥만(macfan.py)
 }
 function drawBadge() {
   // 알림 탭에 그리는 것 전부(시작·다시 돎은 빼고). ★디스크·GPU 경고가 빠져 있어 '디스크 거의 참'이 와도 표시가 안 켜졌다
@@ -360,7 +360,7 @@ function queueNext(r, d, change) {
 function detailHTML(r, d) {
   const [st, c] = STATE[r.state] || [esc(r.state), "var(--soft)"];
   let h = `<div style="display:flex;gap:12px;align-items:flex-start"><div style="flex:1;min-width:0"><h2>${esc(display(r))}</h2>
-    <div class="meta"><span class="pill" style="--c:${c}">${st}</span> · ${t("epoch {e}/{n}", { e: r.epoch, n: r.total ?? "?" })} · ${t("took {d}", { d: dur(r.elapsed) })} · ${esc(r.source)}</div>${paceHTML(r)}</div>
+    <div class="meta"><span class="pill" style="--c:${c}">${st}</span> · ${t("epoch {e}/{n}", { e: r.epoch, n: r.total ?? "?" })}${r.elapsed ? " · " + t("took {d}", { d: dur(r.elapsed) }) : ""} · ${esc(r.source)}</div>${paceHTML(r)}</div>
     ${r.best != null ? `<div style="text-align:right"><div class="big">${r.best.toFixed(4)}</div><div class="hint" title="${esc(r.metric_name)}">${t("Score")} · ${esc(pretty(r.metric_name, d))}</div></div>` : ""}</div>`;
   if (!d) return h + `<p class="hint">${t("No details for this run.")}</p>`;
   // 대표 점수를 고른다(W&B의 요약 지표처럼). ★손실·오류율이 대표여야 하는 학습도 '높을수록 좋은 첫 열'로만 골랐다

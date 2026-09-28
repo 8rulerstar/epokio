@@ -90,6 +90,25 @@ def test_machine_warnings_once(tmp_path, monkeypatch):
     assert "91" in pushed[1][1]
 
 
+
+def test_fans_near_full_warn_only_when_it_lasts_during_training(tmp_path, monkeypatch):
+    """잠깐 치솟는 건 흔하다(에폭 시작·검증). 학습 중 5분 넘게 이어질 때만, 학습이 없으면 다른 앱 탓이라 알리지 않는다."""
+    from types import SimpleNamespace
+    a = _agent(tmp_path, monkeypatch)
+    pushed = []
+    a._push = lambda kind, before, run: pushed.append((kind, run["name"]))
+    hot, calm = SimpleNamespace(fan=96.0, fan_rpm=7500), SimpleNamespace(fan=40.0, fan_rpm=3100)
+    a._mon = SimpleNamespace(runs=[])
+    a._check_fan(hot, now=0); a._check_fan(hot, now=400)
+    assert pushed == []                                    # 학습이 없다
+    a._mon.runs = [SimpleNamespace(state="running")]
+    a._check_fan(hot, now=1000); a._check_fan(calm, now=1100); a._check_fan(hot, now=1200)
+    a._check_fan(hot, now=1200 + a.FAN_FULL_SEC - 1)
+    assert pushed == []                                    # 중간에 식어서 다시 잰다
+    a._check_fan(hot, now=1200 + a.FAN_FULL_SEC)
+    assert [k for k, _ in pushed] == ["fan_max"] and "7500" in pushed[0][1] and "96" in pushed[0][1]
+    a._check_fan(SimpleNamespace(), now=9000)             # 팬 없는 맥(옛 표본)도 죽지 않는다
+
 @pytest.mark.skipif(not _can_symlink(), reason="심링크를 만들 수 없는 환경(윈도우 개발자 모드 꺼짐)")
 def test_remove_root_matches_resolved_path(tmp_path, monkeypatch):
     a = _agent(tmp_path, monkeypatch)

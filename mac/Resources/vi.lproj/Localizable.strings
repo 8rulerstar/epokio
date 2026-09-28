@@ -1327,3 +1327,7 @@
 "Your code" = "Mã của bạn";
 "about %@ left, done around %@" = "còn khoảng %@, xong khoảng %@";
 "macOS is blocking Epokio's notifications." = "macOS đang chặn thông báo của Epokio.";
+"Fan speed" = "Tốc độ quạt";
+"Show fan speed" = "Hiện tốc độ quạt";
+"Fans at full speed" = "Quạt chạy hết tốc độ";
+"Only on Macs with a fan. Epokio warns when the fans stay near full speed during training." = "Chỉ trên Mac có quạt. Epokio báo khi quạt chạy gần tối đa liên tục trong lúc huấn luyện.";

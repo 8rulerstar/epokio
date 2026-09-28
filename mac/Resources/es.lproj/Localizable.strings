@@ -1327,3 +1327,7 @@
 "Your code" = "Tu código";
 "about %@ left, done around %@" = "quedan unos %@, termina hacia las %@";
 "macOS is blocking Epokio's notifications." = "macOS está bloqueando las notificaciones de Epokio.";
+"Fan speed" = "Velocidad del ventilador";
+"Show fan speed" = "Mostrar velocidad del ventilador";
+"Fans at full speed" = "Ventiladores al máximo";
+"Only on Macs with a fan. Epokio warns when the fans stay near full speed during training." = "Solo en Mac con ventilador. Epokio avisa si los ventiladores siguen cerca del máximo durante el entrenamiento.";

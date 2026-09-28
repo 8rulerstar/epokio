@@ -123,7 +123,7 @@ struct NotificationsTab: View {
             return
         }
         // 목표 점수·기계 경고는 스위치가 없어도 폰으로 간다(★예전엔 저장할 때 빠져서 영영 안 왔다)
-        let kinds = Array(on.union(["goal", "disk_low", "gpu_hot", "gpu_mem"])).sorted()
+        let kinds = Array(on.union(["goal", "disk_low", "gpu_hot", "gpu_mem", "fan_max"])).sorted()
         do {
             let r = try await AgentClient.local.post("webhooks", ["urls": urls, "kinds": kinds])
             let n = r["count"] as? Int ?? 0

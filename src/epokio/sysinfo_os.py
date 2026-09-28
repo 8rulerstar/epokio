@@ -96,3 +96,23 @@ def parse_power_supply(capacity: str | None, status: str | None) -> tuple[float 
         return None, None
     st = (status or "").strip().lower()
     return pct, (st in ("charging", "full", "not charging") if st else None)
+
+
+def parse_proc_net_dev(out: str) -> tuple[int, int] | None:
+    """리눅스 /proc/net/dev: 받은 바이트 = 콜론 뒤 1번째, 보낸 바이트 = 9번째. lo 제외."""
+    rx = tx = 0
+    found = False
+    for line in out.splitlines():
+        if ":" not in line:
+            continue
+        name, rest = line.split(":", 1)
+        f = rest.split()
+        if name.strip() == "lo" or len(f) < 9:
+            continue
+        try:
+            rx += int(f[0])
+            tx += int(f[8])
+            found = True
+        except ValueError:
+            continue
+    return (rx, tx) if found else None
