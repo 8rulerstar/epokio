@@ -6,6 +6,7 @@
 
 <p align="center">
   See your model training from the macOS menu bar, or from a web page on Windows, Linux and your phone.<br>
+  No code changes and no account: point it at the folder your runs already write to.<br>
   Start runs, queue them, review mistakes, and get a plain-language read of every result.
 </p>
 
@@ -324,19 +325,20 @@ Epokio reads the files your framework already writes. No logging code to add.
 | PyTorch Lightning | `CSVLogger` `metrics.csv`, `hparams.yaml` | ✅ | script | |
 | Keras | `CSVLogger` file (`training.log`, `history.csv`) | ✅ | script | |
 | TensorBoard logs | `events.out.tfevents.*` scalars (Lightning's default logger, Hugging Face `runs/`), read without TensorFlow | ✅ | script | |
+| Your own training loop | any CSV whose first column is `epoch` and that has a loss column (`train_log.csv`, `log.csv`, ...) | ✅ | script | |
 
 Adding another framework is one small adapter class in `src/epokio/adapters.py`.
 
 ## How it compares
 
-| | Epokio | Cloud trackers (W&B, Comet) | Self-hosted trackers (MLflow, ClearML, Aim) | Ultralytics Platform |
-|---|---|---|---|---|
-| Code changes in your training script | **None** | Add logging calls | Add logging calls | Train on their platform |
-| Account or server | **None** | Account | Your own server | Account |
-| Where your data goes | **Stays on your machines** | Their cloud | Your server | Their cloud |
-| Always visible | **Menu bar, terminal, web page** | Browser tab, phone app | Browser tab | Browser tab |
-| Runs you started last week | **Shown right away** | Only if they were logged | Only if they were logged | Only if trained there |
-| Price (as of Aug 2026) | **Free** | W&B Pro from $60/month | Free software, you pay for the server (ClearML hosted Pro $15/user/month) | Free tier, Pro $29/seat/month, GPUs by the hour |
+| | Epokio | Cloud trackers (W&B, Comet) | Self-hosted trackers (MLflow, ClearML, Aim) | Ultralytics Platform | Trackio |
+|---|---|---|---|---|---|
+| Code changes in your training script | **None** | Add logging calls | Add logging calls | Train on their platform | Add `trackio.init` and `log` calls |
+| Account or server | **None** | Account | Your own server | Account | None |
+| Where your data goes | **Stays on your machines** | Their cloud | Your server | Their cloud | Your machine (or a Hugging Face Space you choose) |
+| Always visible | **Menu bar, terminal, web page** | Browser tab, phone app | Browser tab | Browser tab | Browser tab |
+| Runs you started last week | **Shown right away** | Only if they were logged | Only if they were logged or converted | Only if trained there | Only if logged, or imported by hand from CSV or TensorBoard files |
+| Price (as of Aug 2026) | **Free** | W&B Pro from $60/month | Free software, you pay for the server (ClearML hosted Pro $15/user/month) | Free tier, Pro $29/seat/month, GPUs by the hour | Free |
 
 Epokio also suggests the next run from what it sees in the curves (for example "still improving: train 2× longer from best.pt"),
 using simple rules on your machine rather than a cloud AI. Coming from Neptune, whose hosted service closed in March 2026?
@@ -397,7 +399,7 @@ Screenshots on this page use the sample runs the app can create for you.
 
 ## 한국어
 
-**Epokio**는 학습 진행 상황을 맥 메뉴바에서 바로 보는 앱입니다. 브라우저를 열 필요도, 학습 코드를 고칠 필요도 없습니다.
+**Epokio**는 학습 진행 상황을 맥 메뉴바에서 바로 보는 앱입니다. 학습 코드를 고칠 필요도, 계정도 없습니다. 학습이 이미 기록하고 있는 폴더만 알려 주면 됩니다.
 
 회사에서 YOLO를 학습시키면서 터미널을 계속 열어 "아직 살아 있나, 몇 에폭 남았나"를 확인하던 일이 싫어서 만들었습니다.
 

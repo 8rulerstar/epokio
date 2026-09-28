@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2 (2026-09-28)
+
+- README: says up front that no code changes or account are needed, lists your own training loop's CSV among the supported formats, and compares with Trackio.
+
 ## 0.5.1 (2026-09-28)
 
 - **Your own training loop shows up without changes.** Any CSV whose first column is `epoch` and that has a loss column (`train_log.csv`, `log.csv`, ...) is read as a run of your code. Keras logs saved with a byte order mark (Windows, Excel, pandas `utf-8-sig`) are no longer missed.
