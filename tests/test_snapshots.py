@@ -2,6 +2,7 @@
 import json
 import sys
 import types
+from pathlib import Path
 from types import SimpleNamespace
 
 from epokio import rundetail
@@ -25,7 +26,7 @@ def _fakes(monkeypatch, calls):
     cv2 = types.ModuleType("cv2")
     cv2.IMWRITE_JPEG_QUALITY = 1
     cv2.resize = lambda im, size: SimpleNamespace(shape=(size[1], size[0], 3))
-    cv2.imwrite = lambda path, im, *a: calls.append(("write", path.rsplit("/", 1)[-1], im.shape[:2]))
+    cv2.imwrite = lambda path, im, *a: calls.append(("write", Path(path).name, im.shape[:2]))   # ★윈도우 경로는 \\
     for name, m in (("ultralytics", u), ("ultralytics.utils", uu), ("cv2", cv2)):
         monkeypatch.setitem(sys.modules, name, m)
 

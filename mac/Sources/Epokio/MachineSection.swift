@@ -24,16 +24,11 @@ struct MachineSection: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionTitle("Machine while training", hint: L("Recorded every 15 seconds while this run trained. Averages below.")
                          + (system.shared ? " " + L("Other runs trained at the same time, so these are shared numbers.") : ""))
-            Chart {
-                ForEach(series.filter { system.columns[$0.key] != nil }, id: \.key) { s in
-                    ForEach(Array(zip(system.minutes, system.columns[s.key] ?? []).enumerated()), id: \.offset) { _, p in
-                        if let y = p.1 {
-                            LineMark(x: .value(L("minutes"), p.0), y: .value(verbatim("%"), shown ? y : 0))
-                                .foregroundStyle(by: .value(verbatim("Series"), s.name))
-                                .interpolationMethod(.monotone)
-                        }
-                    }
-                }
+            // ★중첩 ForEach·zip·if 를 한 식에 두어 CI(느린 러너)의 컴파일러가 타입 추론 시간 초과로 멈췄다. 점을 미리 편다
+            Chart(points) { p in
+                LineMark(x: .value(L("minutes"), p.minute), y: .value(verbatim("%"), shown ? p.value : 0), series: .value(verbatim("Series"), p.name))
+                    .foregroundStyle(by: .value(verbatim("Series"), p.name))
+                    .interpolationMethod(.monotone)
             }
             .chartYScale(domain: 0...100)
             .chartXAxisLabel(L("minutes"))
@@ -52,6 +47,19 @@ struct MachineSection: View {
             }
         }
         .onAppear { shown = true }
+    }
+
+    private struct Point: Identifiable { let id: Int; let name: String; let minute: Double; let value: Double }
+
+    private var points: [Point] {
+        var out: [Point] = []
+        for s in series {
+            guard let col = system.columns[s.key] else { continue }
+            for (i, m) in system.minutes.enumerated() where i < col.count {
+                if let v = col[i] { out.append(Point(id: out.count, name: s.name, minute: m, value: v)) }
+            }
+        }
+        return out
     }
 
     private var avgTiles: [(String, String)] {
