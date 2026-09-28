@@ -86,6 +86,7 @@ def _write(fp: str, y: Path):
             tmp.write_text(json.dumps({"fingerprint": fp, "yaml": str(y), "recorded": time.time(), "files": manifest(y)},
                                       ensure_ascii=False), encoding="utf-8")
             tmp.replace(f)
+            _index_add(fp, y)
     except OSError:
         pass
     finally:
@@ -109,6 +110,53 @@ def record(yaml_path: str | Path, background: bool = False) -> str | None:
         _pending.add(fp)
     threading.Thread(target=_write, args=(fp, y), daemon=True).start()
     return fp
+
+
+def _index() -> dict:
+    """{지문: {"yaml", "recorded"}}. 목록 파일(수만 줄)을 다 읽지 않고 버전 번호를 매기려고 따로 둔다.
+    없으면(이 기능 전에 적힌 목록들) 한 번 목록들을 읽어 만든다"""
+    f = DATA_DIR / "index.json"
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    idx = {}
+    for m in (DATA_DIR.glob("*.json") if DATA_DIR.is_dir() else []):
+        if m.name == "index.json":
+            continue
+        try:
+            d = json.loads(m.read_text(encoding="utf-8"))
+            idx[d["fingerprint"]] = {"yaml": d.get("yaml"), "recorded": d.get("recorded", 0)}
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    _save_index(idx)
+    return idx
+
+
+def _save_index(idx: dict):
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = DATA_DIR / "index.tmp"
+        tmp.write_text(json.dumps(idx), encoding="utf-8")
+        tmp.replace(DATA_DIR / "index.json")
+    except OSError:
+        pass
+
+
+def _index_add(fp: str, y: Path):
+    with _lock:
+        idx = _index()
+        idx.setdefault(fp, {"yaml": str(y), "recorded": time.time()})
+        _save_index(idx)
+
+
+def data_version(fp: str | None) -> dict | None:
+    """같은 data.yaml의 몇 번째 버전인가: {"n": 3, "of": 4}. 처음 본 순서(목록을 적은 시각)로 센다"""
+    e = _index().get(fp or "")
+    if not e:
+        return None
+    same = sorted((v.get("recorded") or 0, k) for k, v in _index().items() if v.get("yaml") == e.get("yaml"))
+    return {"n": [k for _, k in same].index(fp) + 1, "of": len(same)}
 
 
 def recording(fp: str) -> bool:

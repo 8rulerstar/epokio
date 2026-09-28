@@ -29,6 +29,12 @@ def _responses(tmp_path, monkeypatch) -> dict:
         os.utime(f)                     # ★복사본은 옛 시각을 가져가 '멈춘 학습'이 되고 eta가 None으로 바뀐다(날마다 깨짐)
     monkeypatch.setattr(Agent, "ROOTS_FILE", tmp_path / "roots.json")
     monkeypatch.setattr("epokio.runmeta.FILE", tmp_path / "meta.json", raising=False)
+    from types import SimpleNamespace
+    from epokio import sysrec                       # 학습하는 동안의 기계 기록도 계약에 싣는다(앱이 읽을 수 있어야 한다)
+    snap = SimpleNamespace(gpus=[SimpleNamespace(util=40.0, mem_used=2.0, mem_total=8.0, temp=None)], cpu=30.0,
+                           mem_used=8.0, mem_total=16.0, cpu_temp=61.5, fan=35.0)
+    for i in range(3):
+        sysrec.record([root / "pose"], snap, now=1000.0 + i * 20)
     a = Agent.__new__(Agent)
     a.roots, a.label = [root], "t"
     runs = a.get("/runs", {})

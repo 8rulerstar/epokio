@@ -9,6 +9,7 @@ struct CompareView: View {
     @Environment(Store.self) private var store
     @Environment(\.ink) private var ink
     @State private var details: [String: RunDetail] = [:]
+    @State private var dataDiff: LineageCard.DiffKey?
     @State private var key = ""
 
     private var keys: [String] {
@@ -53,9 +54,16 @@ struct CompareView: View {
                     .padding(12)
                     .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 12))
                     if dataDiffers {
-                        Label("These runs used different data, so their scores are not directly comparable.", systemImage: "exclamationmark.triangle.fill")
-                            .font(.ui(12.5)).foregroundStyle(.warn)
-                            .transition(.opacity)
+                        HStack(spacing: 10) {
+                            Label("These runs used different data, so their scores are not directly comparable.", systemImage: "exclamationmark.triangle.fill")
+                                .font(.ui(12.5)).foregroundStyle(.warn)
+                            let fps = runs.compactMap { details[$0.id]?.versions?.data }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+                            if fps.count > 1 {
+                                Button("What changed in the data") { dataDiff = LineageCard.DiffKey(a: fps[0], b: fps[1]) }
+                                    .buttonStyle(BrandLink()).font(.ui(12.5, weight: .medium))
+                            }
+                        }
+                        .transition(.opacity)
                     }
                     ScrollView(.horizontal, showsIndicators: false) { table }      // 좁은 창: 8칸 표가 창 밖으로 잘렸다
                     if runs.allSatisfy({ details[$0.id] != nil }) {       // 다 받기 전엔 "모두 같다"로 잘못 보인다
@@ -70,6 +78,7 @@ struct CompareView: View {
                 .padding(24)
             }
             .task(id: runs.map(\.id)) { await load() }
+            .sheet(item: $dataDiff) { k in DataDiffSheet(a: k.a, b: k.b).frame(minWidth: 560, minHeight: 480) }
         }
     }
 

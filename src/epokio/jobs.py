@@ -41,7 +41,7 @@ _NO_WINDOW = NO_WINDOW
 @dataclass
 class Job:
     id: str
-    kind: str                     # train | autolabel | evaluate | export | setup | script | practice
+    kind: str                     # train | autolabel | evaluate | export | setup | script | practice | classes
     name: str
     python: str                   # 실행할 파이썬
     params: dict = field(default_factory=dict)
@@ -85,7 +85,7 @@ def build_command(job: Job) -> list[str]:
     if job.kind == "script":
         return [job.python, *job.params.get("args", [])]
     params = dict(job.params)
-    if job.kind in ("train", "evaluate"):
+    if job.kind in ("train", "evaluate", "classes"):
         from . import gpus
         why = gpus.fix_device(params, job.gpu, job.gpu_index, bool(gpus.listed()))
         if why:                                       # 로그 첫머리에 남겨 왜 바뀌었는지 보이게
@@ -112,6 +112,11 @@ def build_command(job: Job) -> list[str]:
         params.setdefault("name", job.name)
         job.output = str(Path(params["project"]) / params["name"])
         src = EVAL_TEMPLATE.format(params=json.dumps(params))       # 원자료만 모은다. 채점은 review.py
+    elif job.kind == "classes":                          # 끝난 학습의 클래스별 성능: 결과는 그 학습 폴더에(jobs_templates.write_classes)
+        from .jobs_templates import CLASSES_TEMPLATE
+        params.setdefault("tmp", str(HOME / "evals" / f"classes_{job.id}"))
+        job.output = str(params["run"])
+        src = ENV_HELPERS + CLASSES_TEMPLATE.format(params=json.dumps(params))
     elif job.kind == "autolabel":
         # ★기존 라벨을 절대 덮어쓰지 않는다. 결과는 항상 별도 폴더
         params.setdefault("project", str(Path(params["source"]).parent / "labels_auto"))

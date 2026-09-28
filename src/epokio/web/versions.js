@@ -12,6 +12,9 @@ function versionsHTML(r, d) {
   if (lin.pretrained && lin.weights) h += `<span class="node" style="cursor:default">📦 ${esc(lin.weights.split(/[\\/]/).pop())}</span> ›`;
   for (const a of chain) h += `<button class="node" data-go="${esc(a.path)}">${esc(a.name)}</button> ›`;
   h += `<span class="node me">${esc(display(r))}</span></div>`;
+  const v = d.versions || {};
+  if (v.data) h += `<p style="margin:8px 0 0"><span class="pill" style="--c:var(--accent)" title="${esc(v.data)}">${esc(dataLabel(v))}</span>`
+    + (v.data_now ? ` <button class="btn small" id="vnow" data-a="${esc(v.data)}" data-b="${esc(v.data_now)}">⚠ ${t("The data changed after this run trained")}</button>` : "") + `</p>`;
   const p = lin.parent, mine = d.versions?.data;
   if (p && p.data && mine) h += p.data !== mine
     ? `<p style="margin:8px 0 0"><button class="btn" id="vdiff" data-a="${esc(p.data)}" data-b="${esc(mine)}">⎇ Data changed since ${esc(p.name)}</button></p>`
@@ -27,9 +30,15 @@ function versionsHTML(r, d) {
   return h;
 }
 
+/// "데이터 v3 / 4" (같은 data.yaml의 몇 번째 버전). 번호를 모르면 지문
+function dataLabel(v) {
+  return v.data_version ? t("Data v{n} of {of}", { n: v.data_version.n, of: v.data_version.of }) : t("Data {fp}", { fp: v.data });
+}
+
 function bindVersions(r, d) {
   document.querySelectorAll("[data-go]").forEach((b) => b.onclick = () => { S.sel = b.dataset.go; drawRuns(); scrollTo({ top: 0, behavior: "smooth" }); });
   const diff = $("#vdiff"); if (diff) diff.onclick = () => dataDiff(diff.dataset.a, diff.dataset.b);
+  const now = $("#vnow"); if (now) now.onclick = () => dataDiff(now.dataset.a, now.dataset.b);
   const set = $("#vset");
   if (set) set.onchange = () => act(set, () => apiPost("meta", { path: r.path, stage: set.value }), () => { d.stage = set.value; paintStage(set.value); return "Stage saved"; })
     .then((ok) => { if (ok === undefined) set.value = d.stage || ""; });   // ★저장 못 했는데(토큰 없음) 선택 상자는 바꾼 값을 보였다

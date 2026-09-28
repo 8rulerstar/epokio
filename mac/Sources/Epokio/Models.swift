@@ -117,6 +117,10 @@ struct RunDetail: Codable, Hashable {
     var versions: Versions?
     var lineage: Lineage?
     var stage: String?              // candidate · production · archived (runmeta)
+    var classes: RunClasses?        // 클래스별 성능(classes.py). 없으면 계산 버튼. 옛 agent엔 없다
+    var snapshots: RunSnapshots?    // 에폭별 예측 사진(켠 학습만)
+    var system: RunSystem?          // 학습하는 동안의 기계(sysrec.py). 옛 학습·옛 agent엔 없다
+    var framework: String?
 
     /// 계보: 시작 가중치를 준 학습(부모)·조상 사슬·이 학습에서 시작한 학습들
     struct Lineage: Codable, Hashable {
@@ -155,7 +159,14 @@ struct RunDetail: Codable, Hashable {
         let data: String?
         let model: String?
         let same_data: [Other]?
+        var data_version: DataVersion?          // 같은 data.yaml의 몇 번째 버전(lineage.data_version)
+        var data_now: String?                   // 학습 뒤 데이터가 바뀌었으면 지금 지문
         struct Other: Codable, Hashable { let path: String; let name: String }
+        struct DataVersion: Codable, Hashable { let n: Int; let of: Int }
+        var dataLabel: String? {
+            guard let d = data else { return nil }
+            return data_version.map { L("Data v%d of %d", $0.n, $0.of) } ?? L("Data %@", d)
+        }
     }
 
     struct Head: Codable, Hashable {

@@ -6,6 +6,30 @@
  "args": {
   "*": "str"
  },
+ "classes": {
+  "at": "num",
+  "heads": [
+   {
+    "head": "str",
+    "main": "str",
+    "mean": "num",
+    "rows": [
+     {
+      "few": "bool",
+      "images": "num",
+      "instances": "num",
+      "mAP50": "num",
+      "mAP50-95": "num",
+      "name": "str",
+      "precision": "num",
+      "recall": "num",
+      "weak": "bool"
+     }
+    ]
+   }
+  ],
+  "source": "str"
+ },
  "column_info": {
   "*": {
    "head": "NoneType",
@@ -137,7 +161,28 @@
    "os_release": "str"
   }
  },
+ "snapshots": "NoneType",
  "stage": "str",
+ "system": {
+  "avg": {
+   "cpu": "num",
+   "fan": "num",
+   "gmem": "num",
+   "gpu": "num",
+   "mem": "num",
+   "temp": "num"
+  },
+  "columns": {
+   "*": [
+    "num"
+   ]
+  },
+  "minutes": [
+   "num"
+  ],
+  "samples": "num",
+  "shared": "bool"
+ },
  "versions": {},
  "weights": "NoneType",
  "weights_mb": "NoneType"

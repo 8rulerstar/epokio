@@ -1,0 +1,42 @@
+{
+ "source": "train",
+ "at": 1790000000.0,
+ "keys": [
+  "metrics/precision(B)",
+  "metrics/recall(B)",
+  "metrics/mAP50(B)",
+  "metrics/mAP50-95(B)",
+  "metrics/precision(P)",
+  "metrics/recall(P)",
+  "metrics/mAP50(P)",
+  "metrics/mAP50-95(P)"
+ ],
+ "rows": [
+  {
+   "name": "person",
+   "instances": 250,
+   "images": 60,
+   "metrics/precision(B)": 0.8,
+   "metrics/recall(B)": 0.7,
+   "metrics/mAP50(B)": 0.75,
+   "metrics/mAP50-95(B)": 0.52,
+   "metrics/precision(P)": 0.78,
+   "metrics/recall(P)": 0.66,
+   "metrics/mAP50(P)": 0.7,
+   "metrics/mAP50-95(P)": 0.45
+  },
+  {
+   "name": "rider",
+   "instances": 6,
+   "images": 4,
+   "metrics/precision(B)": 0.5,
+   "metrics/recall(B)": 0.4,
+   "metrics/mAP50(B)": 0.35,
+   "metrics/mAP50-95(B)": 0.2,
+   "metrics/precision(P)": 0.4,
+   "metrics/recall(P)": 0.3,
+   "metrics/mAP50(P)": 0.25,
+   "metrics/mAP50-95(P)": 0.12
+  }
+ ]
+}

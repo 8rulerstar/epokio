@@ -112,6 +112,7 @@ extension TrainView {
         let picked = "yolo11\(size)\(task == "detect" ? "" : "-" + (task == "segment" ? "seg" : task == "classify" ? "cls" : "pose")).pt"
         params["data"] = dataArg; params["model"] = inheritedModel ?? picked; params["epochs"] = Int(epochs); params["task"] = task
         for (k, v) in overrides { params[k] = typed(v) }
+        if snapshots { params["epokio_snapshots"] = 5 }        // 학습 틀이 빼서 쓴다(ultralytics에는 안 넘어간다)
         // 기본 이름 = 데이터 폴더 이름. 윈도우 경로의 \ 도 나눈다(맥 URL은 \ 를 글자로 본다)
         let parts = dataArg.split(whereSeparator: { $0 == "/" || $0 == "\\" }).map(String.init)
         let base = name.isEmpty ? (dataArg == "coco8.yaml" ? "sample" : (parts.count >= 2 ? parts[parts.count - 2] : "train")) : name

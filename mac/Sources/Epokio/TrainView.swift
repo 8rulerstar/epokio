@@ -13,6 +13,7 @@ struct TrainView: View {
     @AppStorage("trainTask") var task = "detect"          // 마지막에 쓴 값을 기억해 다음 학습 기본값으로
     @AppStorage("trainSize") var size = "n"
     @AppStorage("trainEpochs") var epochs = 50.0
+    @AppStorage("trainSnapshots") var snapshots = false  // 에폭별 예측 사진(jobs_templates.add_snapshots). 기본은 끔
     @State var name = ""
     @State var expert = false
     @State var fields: [Field] = []
@@ -291,6 +292,11 @@ struct TrainView: View {
                 }
                 .toggleStyle(.switch)
                 if expert { expertPanel.transition(.opacity.combined(with: .move(edge: .top))) }
+                Toggle(isOn: $snapshots.animation(.smooth)) {
+                    Label("Save predictions every 5 epochs", systemImage: "photo.stack")
+                }
+                .toggleStyle(.switch)
+                .help(L("Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time."))
                 Toggle(isOn: $sweep.animation(.smooth)) {
                     Label("Try several values (sweep)", systemImage: "square.stack.3d.forward.dottedline")
                 }

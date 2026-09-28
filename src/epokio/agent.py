@@ -53,6 +53,8 @@ class Agent(Watcher):
         self.pace = Pace()
         self._watch_thread = threading.Thread(target=self._watch, daemon=True)
         self._watch_thread.start()
+        from . import sysrec                              # 학습별 기계 기록. 폴더 훑기와 따로 15초마다(sysrec.loop)
+        threading.Thread(target=sysrec.loop, args=(self,), daemon=True).start()
         self.queue.on_finish = self._job_event
 
     ROOTS_FILE = Path.home() / ".epokio" / "roots.json"

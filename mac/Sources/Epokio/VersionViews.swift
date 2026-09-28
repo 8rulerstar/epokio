@@ -43,6 +43,18 @@ struct LineageCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 SectionTitle("Where it came from", hint: L("Which weights this run started from, and which runs started from this one."))
                 chain(lin)
+                if let v = detail.versions, let label = v.dataLabel {
+                    HStack(spacing: 8) {
+                        Text(verbatim: label).font(.ui(11.5, weight: .semibold)).padding(.horizontal, 8).padding(.vertical, 2)
+                            .background(Color.brand.opacity(0.14), in: .capsule).foregroundStyle(.brand).help(v.data ?? "")
+                        if let d = v.data, let now = v.data_now {
+                            Button { diff = DiffKey(a: d, b: now) } label: {
+                                Label("The data changed after this run trained", systemImage: "exclamationmark.triangle")
+                            }
+                            .buttonStyle(BrandLink()).font(.ui(12, weight: .medium)).foregroundStyle(.warn)
+                        }
+                    }
+                }
                 if let p = lin.parent, let pd = p.data, let mine = detail.versions?.data {
                     if pd != mine {
                         Button { diff = DiffKey(a: pd, b: mine) } label: {

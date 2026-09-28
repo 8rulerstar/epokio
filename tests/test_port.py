@@ -132,6 +132,9 @@ def test_stale_or_foreign_record(home, monkeypatch):
     f = home / ".epokio" / "agent.json"
     f.parent.mkdir()
     f.write_text(json.dumps({"pid": 1, "port": free_block(1), "host": "127.0.0.1"}))
+    # ★이 기계에서 Epokio 앱이 돌고 있으면 기본 포트에 진짜 agent가 있어(다른 HOME이라 '남의 것') 여기가 깨졌다
+    real = port.probe
+    monkeypatch.setattr(port, "probe", lambda url, **k: None if url == port.url_for(port.DEFAULT_PORT) else real(url, **k))
     assert port.local_url() == port.url_for(port.DEFAULT_PORT)
     port.clear_record()                     # 남의 pid면 지우지 않는다
     assert f.exists()

@@ -21,6 +21,6 @@ def result_file(j, kind: str) -> Path | None:
     return None
 
 
-from . import aiuse, hooks, jobs_post, models, predict, report, retrain, review, roots_api, ssh, sweep_table, sweeps, table  # noqa: E402  (NOT_MINE을 먼저 정의해야 한다)
+from . import aiuse, classes_api, hooks, jobs_post, models, predict, report, retrain, review, roots_api, ssh, sweep_table, sweeps, table  # noqa: E402  (NOT_MINE을 먼저 정의해야 한다)
 
-API = (review, sweeps, sweep_table, models, table, ssh, retrain, report, aiuse, hooks, roots_api, predict, jobs_post)
+API = (review, sweeps, sweep_table, models, table, ssh, retrain, report, aiuse, hooks, roots_api, predict, classes_api, jobs_post)

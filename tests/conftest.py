@@ -27,6 +27,11 @@ def _isolated_home(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(jobs, "SCRIPTS", ep / "scripts")
     monkeypatch.setattr(jobs, "SETUP_DIR", ep / "envs" / "epokio")
     monkeypatch.setattr(Agent, "ROOTS_FILE", ep / "roots.json")
+    from epokio import lineage, sysrec
+    monkeypatch.setattr(lineage, "DATA_DIR", ep / "datasets")    # ★상세를 여는 시험이 진짜 ~/.epokio/datasets에 목록을 썼다
+    monkeypatch.setattr(sysrec, "DIR", ep / "sysrec")
+    monkeypatch.setattr(sysrec, "_last", {})
+    monkeypatch.setattr(sysrec, "_count", {})
     monkeypatch.setattr(Agent, "HOOKS_FILE", ep / "webhooks.json")
     monkeypatch.setattr(Agent, "REMOVED_FILE", ep / "removed_roots.json")
     monkeypatch.setattr(runmeta, "FILE", ep / "runmeta.json")

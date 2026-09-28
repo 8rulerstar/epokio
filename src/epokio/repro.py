@@ -178,6 +178,11 @@ def data_info(data: str | Path | None, full_hash: bool = False) -> dict:
     if p.is_file():
         raw = p.read_bytes()
         out["yaml_sha256"] = _sha(raw)
+        try:                                       # 학습 시작 때의 데이터 버전(lineage). ★상세를 열 때 재서, 학습 뒤 데이터가 바뀌면 옛 학습도 새 데이터로 보였다
+            from . import lineage
+            out["fingerprint"] = lineage.record(p)
+        except Exception:
+            pass
         dirs = _dataset_dirs(p, _read_flat_yaml(p))
     count, size, listing, content = 0, 0, hashlib.sha256(), hashlib.sha256()
     files = sorted(f for d in dirs for f in d.rglob("*") if f.suffix.lower() in IMAGE_EXT and f.is_file())

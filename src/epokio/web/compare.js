@@ -48,6 +48,7 @@ async function drawCompare(periodic) {
   bindCharts();
   const ck = $("#ck"); if (ck) ck.onchange = () => { S.cmpKey = ck.value; drawCompare(); };
   wireSettingsTable(periodic);
+  const cd = $("#cmpdata"); if (cd) cd.onclick = () => dataDiff(cd.dataset.a, cd.dataset.b);
   const q = $("#q");
   q.oninput = () => { S.q = q.value; drawCompare().then(() => { const n = $("#q"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }); };
   $("#csv").onclick = downloadCSV;
@@ -72,14 +73,17 @@ function settingsDiff(runs, ds) {
   const all = ds.map((d) => {
     const a = { ...((d && Object.keys(d.all_args || {}).length ? d.all_args : d?.args) || {}) };
     for (const [k, v] of Object.entries(d?.env || {})) a["env · " + k] = v == null ? "–" : String(v);   // ★null이 "null" 글자로 보였다
+    if (d?.versions?.data) a[t("data version")] = dataLabel(d.versions);      // 같은 data.yaml이라도 안의 파일이 바뀌었을 수 있다
     return a;
   });
+  const fps = [...new Set(ds.map((d) => d?.versions?.data).filter(Boolean))];
+  const dataBtn = fps.length > 1 ? `<p style="margin:8px 0 0"><button class="btn" id="cmpdata" data-a="${esc(fps[0])}" data-b="${esc(fps[1])}">⎇ ${t("What changed in the data")}</button></p>` : "";
   // 옛 agent는 주요 설정 11개만 준다. 한쪽에만 있는 설정은 "다름"이 아니다(★전부 다르다고 70줄이 나왔다). 모두에게 있는 것만 비교
   const common = all.reduce((acc, a) => acc.filter((k) => k in a), Object.keys(all[0] || {}));
   const keys = common.filter((k) => !DIFF_SKIP.has(k) && new Set(all.map((a) => a[k] ?? "–")).size > 1).sort();
-  if (!keys.length) return `<p class="hint" style="margin-top:12px">${t("Same settings in all of them.")}</p>`;
+  if (!keys.length) return `<p class="hint" style="margin-top:12px">${t("Same settings in all of them.")}</p>` + dataBtn;
   return `<h3>${t("Settings that differ")}</h3><table><tr><th>${t("Setting")}</th>${runs.map((r) => `<th>${esc(display(r))}</th>`).join("")}</tr>`
-    + keys.map((k) => `<tr><th>${esc(k)}</th>${all.map((a) => `<td class="num">${esc(a[k] ?? "–")}</td>`).join("")}</tr>`).join("") + `</table>`;
+    + keys.map((k) => `<tr><th>${esc(k)}</th>${all.map((a) => `<td class="num">${esc(a[k] ?? "–")}</td>`).join("")}</tr>`).join("") + `</table>` + dataBtn;
 }
 /// 모든 학습을 표 파일로(엑셀·구글 시트에서 열린다). 이 브라우저에서 만들어 내려받는다
 /// 비교 탭의 거르기. 태그는 #을 붙여 찾는다(★자리 표시가 '#tag'라고 하는데 #을 치면 하나도 안 걸렸다)

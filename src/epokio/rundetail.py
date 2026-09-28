@@ -9,7 +9,7 @@ import unicodedata
 from dataclasses import asdict
 from pathlib import Path
 
-from . import analysis, schema
+from . import analysis, classes, schema, sysrec
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
 # 화면에 먼저 보여 줄 순서. 나머지 그림은 이름순으로 뒤에 붙는다
@@ -97,7 +97,11 @@ def detail(run_dir: Path) -> dict | None:
         "column_info": schema.column_info(cols),        # 화면은 열 이름을 직접 해석하지 않는다
         "heads": [{k: v for k, v in asdict(h).items() if k != "f1_curve"} for h in a.heads] if a else [],
         "notes": _notes_with_next(a, _args(run_dir) or (got.args if got else {}), str(best) if best.exists() else None,
-                                  got.framework if got else "ultralytics"),
+                                  got.framework if got else "ultralytics")
+        + _note_row(classes.note(cls := classes.read(run_dir))) + _note_row(sysrec.note(rec := sysrec.read(run_dir))),
+        "classes": cls,                                   # 클래스별 성능(classes.py). 없으면 None: 화면이 "계산하기"를 보인다
+        "snapshots": snapshots(run_dir),                 # 에폭별 예측 사진(켠 학습만)
+        "system": rec,                                    # 학습하는 동안의 GPU·CPU·메모리·온도·팬(sysrec.py). 옛 학습·남의 기계는 None
         "images": images(run_dir),
         "args": _args(run_dir) or (got.args if got else {}),      # 화면에 보여 줄 주요 설정
         # "다시 학습"이 채울 모든 설정. ★주요 11개만 옮겨서 seed·lrf·mosaic·close_mosaic 등이 기본값으로 돌아갔다
@@ -112,6 +116,22 @@ def detail(run_dir: Path) -> dict | None:
         "explain": _explain(run_dir),
         "repro": _repro(run_dir),
     }
+
+
+def snapshots(run_dir: Path) -> dict | None:
+    """에폭별 예측 사진(jobs_templates.add_snapshots): {"epochs": [5, 10], "files": {"5": [e0005_0.jpg, ...]}}"""
+    d = run_dir / "epokio_snapshots"
+    files: dict[int, list[str]] = {}
+    for p in (d.iterdir() if d.is_dir() else []):
+        if p.suffix == ".jpg" and p.name[:1] == "e" and "_" in p.name and p.name[1:p.name.index("_")].isdigit():
+            files.setdefault(int(p.name[1:p.name.index("_")]), []).append(p.name)
+    if not files:
+        return None
+    return {"epochs": sorted(files), "files": {str(e): sorted(v) for e, v in files.items()}}
+
+
+def _note_row(n) -> list[dict]:
+    return [{"observation": n[0], "try": n[1], "next": None}] if n else []
 
 
 def _repro(run_dir: Path) -> dict | None:
@@ -147,10 +167,14 @@ def _versions(run_dir: Path, best: Path) -> dict:
     out = {}
     if data and data.endswith((".yaml", ".yml")):
         p = Path(data) if Path(data).is_absolute() else run_dir / data
-        from . import lineage
-        fp = lineage.record(p, background=True)    # 지문 + 처음 보면 파일 목록도(데이터셋 차이용, 따로 스레드에서)
-        if fp:
-            out["data"] = fp
+        from . import lineage, repro
+        now = lineage.record(p, background=True)   # 지문 + 처음 보면 파일 목록도(데이터셋 차이용, 따로 스레드에서)
+        start = ((repro.read(run_dir) or {}).get("data") or {}).get("fingerprint")   # Epokio 대기열 학습: 시작 때 잰 것
+        if start or now:
+            out["data"] = start or now
+            out["data_version"] = lineage.data_version(out["data"])
+        if start and now and start != now:
+            out["data_now"] = now                   # 이 학습 뒤로 데이터가 바뀌었다
     if best.exists():
         out["model"] = versions.model_fingerprint(best)
     return out

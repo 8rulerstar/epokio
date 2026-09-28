@@ -1,0 +1,40 @@
+23715 open Bovey0809 Add configurable `val_period` for periodic validation during training
+24137 open itikhono Add AMD ROCm and MIGraphX support
+26211 closed glenn-jocher One-time GitLab banner restoration (do not merge)
+26148 merged glenn-jocher Fix resume, ONNX CUDA fallback, Ray Tune and W&B training crashes
+26216 merged raimbekovm Use matplotlib's cached font list in check_font instead of rescanning system fonts
+26175 merged cainiao33 Preserve an explicit data= override when resuming training
+26244 merged cainiao33 Fix tar dataset extraction returning the datasets root directory
+24171 open ambitious-octopus Add ARM Ethos-U ExecuTorch export support
+25726 merged Rahulbiradar9 docs: add YAML2ModelGraph integration documentation
+26050 merged raimbekovm Hand DDP workers the module the parent trainer prepared
+26047 merged glenn-jocher Refresh EMA attributes from the unwrapped model
+26084 merged raimbekovm Honor the pretrained argument after reset_weights() and in MultiTrainer
+26085 merged glenn-jocher Avoid fork-inherited image decoder deadlocks in Linux data loaders
+25762 merged JESUSROYETH Reset dataloader workers when resuming after mosaic closure
+25905 merged Y-T-G Report progress bar frames as state, not log lines
+25859 merged glenn-jocher Accept existing depth dataset formats
+26017 closed Marchematics Add AFSS training sampler
+25591 closed rudrakumar07 fix: release VideoWriter in solutions to prevent corrupted output
+25934 merged raimbekovm Correct code-guide claims and verify every example against the package
+25224 merged glenn-jocher Stop reporting intentional fuzz rejections
+25731 merged JESUSROYETH Fix predict()/track() kwargs sticking across reused calls on the same model
+25981 merged fcakyon Compute size-specific mAP for custom detection datasets
+25352 merged glenn-jocher Stride-align AutoBatch probe size to true multi-scale maximum
+25536 merged zgh2022 Fix YOLOE-26 prompt-free RKNN export crash
+25405 closed ghost gh pr checkout 25405 - Update format.yml
+22255 open ShuaiLYU Add memory bank prediction for YOLOE
+24996 merged fcakyon Add image-property correlations to analysis
+25569 merged Y-T-G Fix TorchScript GPU inference device mismatch
+25322 merged glenn-jocher Validate effective final training batch
+25344 merged JESUSROYETH Return the validator `correct` matrix with `torch.from_numpy` instead of a device round-trip
+24354 closed tempoo04 Use `torch.from_numpy()` in `AutoBackend.from_numpy` for zero-copy conversion
+25284 merged glenn-jocher Fix GPU training failures from production logs
+25408 closed ghost gh pr checkout 25408 - Update mirror.yml
+25551 merged glenn-jocher Render supported tasks per model family
+25266 merged glenn-jocher Reuse Platform callbacks for managed workers
+24529 closed deependujha Show attached callbacks on initialization
+25232 merged glenn-jocher Document Platform Jetson export targets
+25656 merged cosmo-gb Support optional kpt_oks_sigmas in v8PoseLoss for training
+25141 merged glenn-jocher Reject zero dataset fractions
+25710 closed raimbekovm Run predict and val against a copy of the caller's model instead of fusing it in place

@@ -39,6 +39,9 @@ struct RunDetailView: View {
                         DisclosureGroup(isExpanded: $more.animation(.smooth)) {
                             VStack(alignment: .leading, spacing: 18) {
                                 if !d.heads.isEmpty { scores(d) } else if !d.scoreKeys.isEmpty { genericScores(d) }
+                                if d.classes != nil || (d.weights != nil && d.framework == "ultralytics") { PerClassSection(run: run, classes: d.classes) }
+                                if let s = d.snapshots { SnapshotsSection(snaps: s, url: imageURL, open: { bigImage = $0 }) }
+                                if let s = d.system { MachineSection(system: s) }
                                 if d.notes.count > 1 { notes(d) }
                                 RunNotes(run: run)
                                 if !d.images.isEmpty { gallery(d) }

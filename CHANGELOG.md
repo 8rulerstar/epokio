@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 (2026-09-28)
+
+- **Notes for Hugging Face, Lightning and Keras runs speak their language.** "Keep the best epoch" now says how in that framework (`load_best_model_at_end`, `ModelCheckpoint`, `restore_best_weights`) instead of `best.pt`, which those runs do not have.
+- New notes for every framework: **the score stopped improving** halfway (with that framework's early stopping), and **training loss blew up** without becoming NaN.
+- **Fix:** when the best score came in the first epochs and then fell, a note could say the score "did not drop".
+- **Data versions.** A run's page names the version of its data (*Data v3 of 4*: the third version of that `data.yaml` Epokio has seen) and warns when the data changed after the run trained, with what changed. Compare offers the same for any two runs trained on different data. Runs started from Epokio keep the data version from the moment they started; before, the version was taken when the page opened, so an old run could show today's data.
+- **Predictions by epoch.** Turn on *Save predictions every 5 epochs* when you start a run, and its page gets a slider through the same four validation images as the model learned. It predicts on the CPU inside the training, a second or two each time. Off by default.
+- **The machine while training.** While a run trains, the helper records GPU, GPU memory, CPU, memory, temperature and fan every 15 seconds for that run. Its page shows the curves and averages afterwards, and a note when the GPU was busy less than half the time (the GPU is probably waiting for data). Only runs that train after this update have it.
+- **Per-class scores.** A run's page shows precision, recall and mAP for each class, weakest first, with the ones well below the class average highlighted and a note naming them. Runs Epokio starts save this at the end of training at no extra cost. For any other Ultralytics run, **Work out per-class scores** runs one validation pass with its `best.pt` from the queue.
+
 ## 0.4.4 (2026-09-28)
 
 - **Fan speed** on Macs with a fan: the menu bar popover and the web page show how fast the fastest fan spins, as a share of its maximum (rpm on hover). Turn it off in Settings → General. Macs without a fan show nothing.

@@ -62,7 +62,14 @@ const KO = {
   // 알림
   "Training finished": "학습 완료", "Training failed": "학습 실패", "Training may have stopped": "학습이 멈춘 것 같음",
   "Stopped before the last epoch": "마지막 에폭 전에 끝남", "Training started": "학습 시작", "Job finished": "작업 완료", "Job failed": "작업 실패",
-  "Goal reached": "목표 점수 달성", "Disk almost full": "디스크 공간 부족", "GPU is very hot": "GPU가 매우 뜨거움", "Fans at full speed": "팬이 최고 속도로 돎", "Fan": "팬", "Fan speed": "팬 속도",
+  "Goal reached": "목표 점수 달성", "Disk almost full": "디스크 공간 부족", "GPU is very hot": "GPU가 매우 뜨거움", "Fans at full speed": "팬이 최고 속도로 돎", "Per class": "클래스별", "Machine while training": "학습하는 동안의 기계", "Predictions by epoch": "에폭별 예측", "data version": "데이터 버전", "What changed in the data": "데이터에서 바뀐 것", "The data changed after this run trained": "이 학습 뒤에 데이터가 바뀌었음", "Data v{n} of {of}": "데이터 v{n} / {of}", "Data {fp}": "데이터 {fp}", "Save predictions every 5 epochs": "5에폭마다 예측 사진 저장", "Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time.": "5에폭마다 검증 이미지 4장을 CPU로 예측해 모델이 배우는 과정을 볼 수 있게 합니다. 한 번에 1~2초 걸립니다.", "The same validation images, predicted as training went on. Drag to compare.": "같은 검증 이미지를 학습이 진행되며 예측한 것입니다. 끌어서 비교하세요.", "GPU memory": "GPU 메모리", "{n} min": "{n}분",
+  "Recorded every 15 seconds while this run trained. Averages below.": "학습하는 동안 15초마다 기록했습니다. 아래는 평균입니다.",
+  "Other runs trained at the same time, so these are shared numbers.": "같은 시간에 다른 학습도 돌아서, 함께 쓴 값입니다.", "GPU temperature": "GPU 온도", "SoC temperature": "SoC 온도", "Class": "클래스", "Examples": "사례", "few": "적음",
+  "Which classes pull the score down. Runs Epokio starts save this at the end; for this one it takes one validation pass with best.pt.": "어느 클래스가 점수를 끌어내리는지 봅니다. Epokio로 시작한 학습은 끝날 때 저장하고, 이 학습은 best.pt로 검증을 한 번 돌리면 됩니다.",
+  "Work out per-class scores": "클래스별 점수 계산", "Start it on the machine that has this run.": "이 학습이 있는 기계에서 시작하세요.",
+  "From a validation pass with best.pt.": "best.pt로 검증한 결과입니다.", "From the last validation of this run.": "이 학습의 마지막 검증 결과입니다.",
+  "Weakest first. Highlighted: well below the class average.": "약한 순서. 강조: 클래스 평균보다 크게 낮음.", "Few examples: the score is shaky": "사례가 적어 점수가 흔들립니다",
+  "Class average": "클래스 평균", "Added to the queue. The table appears here when it finishes.": "대기열에 넣었습니다. 끝나면 여기에 표가 나옵니다.", "Fan": "팬", "Fan speed": "팬 속도",
   "GPU memory is full": "GPU 메모리가 가득 참", "Training resumed": "학습이 다시 진행 중",
   "On: sends to {hosts}.": "켜짐 · 받는 곳: {hosts}", "Off.": "꺼짐.", "Phone alerts": "폰 알림",
   "Easiest: install the free <b>ntfy</b> app on your phone, subscribe to a topic with a long random name, and paste <code>https://ntfy.sh/your-topic</code> here. Slack, Discord and Telegram webhook addresses work too. Anyone who knows the topic can read it, so make it hard to guess.":

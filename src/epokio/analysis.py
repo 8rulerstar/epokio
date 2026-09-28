@@ -180,7 +180,40 @@ def _still_rising(pre: list, up: bool) -> tuple[float, float] | None:
     return (before, after) if gain > abs(before) * 0.01 else None
 
 
-def _notes(rows, heads, args: dict | None = None) -> list[tuple[str, str, dict]]:
+def _keep_best(framework: str) -> str:
+    """"가장 좋은 에폭을 쓰라"를 그 프레임워크의 말로. ★Keras·Lightning 학습에도 'best.pt를 쓰라'고 했다(그런 파일이 없다)"""
+    return {"ultralytics": tr("Keep using best.pt, which is saved by the score, not by the loss."),
+            "huggingface": tr("Set load_best_model_at_end=True and metric_for_best_model to your score, so the saved model is the best epoch, not the last."),
+            "lightning": tr("Save with ModelCheckpoint(monitor=your score, mode=\"max\") and load that checkpoint, not the last one."),
+            "keras": tr("Use ModelCheckpoint(save_best_only=True) or EarlyStopping(restore_best_weights=True), so you keep the best epoch, not the last."),
+            }.get(framework, tr("Keep the checkpoint from the best epoch, not the last one."))
+
+
+def _early_stop(framework: str) -> str:
+    return {"ultralytics": tr("Next time set patience (for example 10) so training stops by itself, or use fewer epochs."),
+            "huggingface": tr("Next time add EarlyStoppingCallback(early_stopping_patience=3) with load_best_model_at_end=True."),
+            "lightning": tr("Next time add the EarlyStopping callback on your score, or use fewer epochs."),
+            "keras": tr("Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs."),
+            }.get(framework, tr("Next time stop earlier, or use fewer epochs."))
+
+
+def _train_loss_blowup(rows) -> tuple[float, int, float] | None:
+    """학습 손실이 바닥을 찍은 뒤 두 배 넘게 불어났다(NaN이 아니어도 학습이 무너진 것). (바닥 값, 바닥 에폭 자리, 끝 값)"""
+    tl = [c for c in rows[0].keys() if c.startswith("train/") and c.endswith("loss")]
+    n = len(rows)
+    if not tl or n < 6:
+        return None
+    s = [sum(v) if all(x is not None for x in v) else None for v in ([_f(r.get(c)) for c in tl] for r in rows)]
+    ok = [k for k in range(n) if s[k] is not None]
+    if len(ok) < 6:
+        return None
+    lo = min(ok, key=lambda k: s[k])
+    tail = [s[k] for k in ok[-3:]]
+    end = sum(tail) / len(tail)
+    return (s[lo], lo, end) if lo < n - 3 and s[lo] > 0 and end > s[lo] * 2 else None
+
+
+def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics") -> list[tuple[str, str, dict]]:
     out = []
     n = len(rows)
     main = heads[0] if heads else None
@@ -207,11 +240,12 @@ def _notes(rows, heads, args: dict | None = None) -> list[tuple[str, str, dict]]
                         + loss_note,
                         tr("Use the best checkpoint, lower epochs, or add augmentation."),
                         {"kind": "overfit", "best_epoch": _epoch(rows, b)}))
-        elif loss_rose:
+        elif loss_rose and not (early and drop > abs(vals[b]) * OVERFIT_DROP):
+            # ★최고점이 너무 이르면 위 과적합 판정을 건너뛰는데, 여기서 점수가 떨어졌는지 다시 보지 않고 "떨어지지 않았다"고 했다
             out.append((tr("Validation loss rose from {a:.3f} (epoch {lo}) to {b:.3f}, but {m} did not drop. "
                            "This alone is not overfitting.", lo=_epoch(rows, lo), a=series[lo], b=last_loss,
                            m=name.split("/", 1)[-1]),
-                        tr("Keep using best.pt, which is saved by the score, not by the loss."), {"kind": "loss_rise"}))
+                        _keep_best(framework), {"kind": "loss_rise"}))
     elif loss_rose:
         # 대표 점수가 없는 기록(손실만): 손실만이 근거다. 그래서 '~일 수 있다'로 말한다
         out.append((tr("Validation loss bottomed at epoch {lo} ({a:.3f}) and rose to {b:.3f} by the end. "
@@ -245,9 +279,23 @@ def _notes(rows, heads, args: dict | None = None) -> list[tuple[str, str, dict]]
                            "so the best score at the end is not only the end-of-training effect.", t=tail, a=alive[0], b=alive[1]),
                         tr("A new run with more epochs will probably score higher. Resuming this one will not help much, "
                            "because its learning rate has already wound down."), {"kind": "still_improving", "epochs": n}))
+    # 4b) 정체: 점수가 중간에 멈췄고(떨어지지도 않았다) 뒤 에폭은 보탠 게 없다. 조기 종료를 그 프레임워크의 말로
+    if sc and n >= 10 and best_ep is not None and max(2, n * 0.15) < best_ep <= n * 0.6:
+        b = _best(sc[1], sc[2])
+        last = next(v for v in reversed(sc[1]) if v is not None)
+        if abs(sc[1][b] - last) <= abs(sc[1][b]) * OVERFIT_DROP:
+            out.append((tr("The score stopped improving after epoch {e} of {n}. The last {k} epochs added nothing.",
+                           e=best_ep, n=n, k=n - best_ep),
+                        _early_stop(framework), {"kind": "plateau", "best_epoch": best_ep}))
     if best_ep is not None and n >= 10 and best_ep <= max(2, n * 0.15):
         out.append((tr("The best score came very early (epoch {e} of {n}).", e=best_ep, n=n),
                     tr("The learning rate may be too high, or the start weights already fit the data."), {"kind": "early_best"}))
+
+    # 5a) 폭주: NaN은 아니지만 학습 손실이 바닥 뒤 두 배 넘게 불어났다(프레임워크 무관)
+    if (blow := _train_loss_blowup(rows)):
+        out.append((tr("Training loss fell to {a:.3f} (epoch {e}) and then grew to {b:.3f}. Training became unstable.",
+                       a=blow[0], e=_epoch(rows, blow[1]), b=blow[2]),
+                    tr("Lower the learning rate, or add gradient clipping or warmup."), {"kind": "diverged"}))
 
     # 5) 발산: 모든 행에서 손실이 처음 NaN이 된 에폭. 끝까지 NaN이면 발산, 뒤에 돌아왔으면 따로 알린다
     first = None
@@ -277,7 +325,9 @@ def analyze(run_dir: Path) -> Analysis | None:
         return None
     heads = [h for h in (head_stats(rows, x) for x in HEADS) if h]
     imgs = {k: run_dir / v for k, v in IMAGE_FILES.items() if (run_dir / v).exists()}
-    found = _notes(rows, heads, read_args(run_dir))
+    from . import adapters
+    got = adapters.load(run_dir)
+    found = _notes(rows, heads, read_args(run_dir), got.framework if got else "ultralytics")
     sc = _score(rows)
     score = None
     if sc:
@@ -295,6 +345,8 @@ def next_run(kind: dict, args: dict, weights: str | None) -> dict | None:
         except (TypeError, ValueError):
             return d
     k = kind.get("kind")
+    if k == "plateau":                                    # 멈춘 뒤로는 헛돈다: 그만큼 줄이고 스스로 멈추게
+        return {"epochs": max(10, round(kind["best_epoch"] * 1.3)), "patience": 10}
     if k == "overfit":
         return {"epochs": max(10, round(kind["best_epoch"] * 1.2))}
     if k == "still_improving" and weights:

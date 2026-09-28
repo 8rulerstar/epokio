@@ -15,10 +15,15 @@ p = json.loads({params!r})
 model = p.pop("model")
 yolo = YOLO(model)
 yolo.add_callback("on_pretrain_routine_start", lambda trainer: write_env(trainer.save_dir, p, {git}))
+every = int(p.pop("epokio_snapshots", 0) or 0)       # 켰으면 몇 에폭마다 검증 이미지 4장을 예측해 남긴다
+if every > 0:
+    add_snapshots(yolo, every)
 yolo.train(**p)
 # 여러 GPU 학습은 판에 따라 콜백이 따로 뜬 프로세스에 안 넘어간다. 끝나고 없으면 그때 쓴다
 if getattr(yolo, "trainer", None) is not None:
     write_env(yolo.trainer.save_dir, p, {git}, only_if_missing=True)
+    # 마지막 검증의 클래스별 성능. 이미 계산된 값을 적기만 한다(GPU를 더 안 쓴다)
+    write_classes(yolo.trainer.save_dir, getattr(getattr(yolo.trainer, "validator", None), "metrics", None), "train")
 '''
 
 # 학습마다 어떤 환경에서 돌았는지 남긴다(epokio_env.json). "왜 14번 학습이 재현이 안 되지"의 답.
@@ -69,6 +74,69 @@ def write_env(save_dir, params=None, git=False, only_if_missing=False):
     except Exception as e:
         print("epokio: could not record the environment:", e, flush=True)
 
+
+def add_snapshots(yolo, every, n=4, side=480):
+    """에폭별 예측 사진(epokio_snapshots/e0005_0.jpg). 같은 검증 이미지 n장을 every 에폭마다 last.pt로 예측해 그린다.
+    학습 프로세스 안에서 CPU로 돈다(GPU 메모리를 건드리지 않는다). last.pt는 이 콜백 직전에 저장된다(trainer._do_train).
+    학습 끝의 마지막 검증도 이 콜백을 부르는데(epoch+1) 그때는 건너뛴다"""
+    picked = []
+
+    def cb(tr):
+        try:
+            from ultralytics.utils import RANK
+            e = tr.epoch + 1
+            if RANK not in (-1, 0) or e > tr.epochs or (e % every and e != tr.epochs):
+                return
+            if not picked:
+                ims = sorted(tr.validator.dataloader.dataset.im_files)
+                picked.extend(ims[i * len(ims) // n] for i in range(min(n, len(ims))))
+            import cv2
+            from pathlib import Path
+            from ultralytics import YOLO
+            out = Path(tr.save_dir, "epokio_snapshots")
+            out.mkdir(exist_ok=True)
+            for i, r in enumerate(YOLO(str(tr.last)).predict(picked, device="cpu", imgsz=tr.args.imgsz, verbose=False)):
+                im = r.plot()
+                h, w = im.shape[:2]
+                if max(h, w) > side:
+                    im = cv2.resize(im, (int(w * side / max(h, w)), int(h * side / max(h, w))))
+                cv2.imwrite(str(out / f"e{e:04d}_{i}.jpg"), im, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        except Exception as ex:
+            print("epokio: prediction snapshot skipped:", ex, flush=True)
+    yolo.add_callback("on_fit_epoch_end", cb)
+
+
+def write_classes(save_dir, m, source):
+    """클래스별 성능(epokio_classes.json). ultralytics는 이걸 로그에 찍기만 하고 파일로 남기지 않는다.
+    값의 이름은 results.csv 열 이름(metrics/mAP50-95(B) 등)과 같다. 머리(box·pose·mask)가 여럿이면 전부"""
+    try:
+        import json, time
+        from pathlib import Path
+        keys, idx = list(getattr(m, "keys", None) or []), list(getattr(m, "ap_class_index", None) if m is not None else [])
+        if not keys or not idx:
+            return
+        nc, ni = getattr(m, "nt_per_class", None), getattr(m, "nt_per_image", None)
+        rows = []
+        for i, c in enumerate(idx):
+            c = int(c)
+            vals = [float(v) for v in m.class_result(i)]
+            rows.append({"name": str(m.names[c]), "instances": int(nc[c]) if nc is not None else None,
+                         "images": int(ni[c]) if ni is not None else None, **dict(zip(keys, vals))})
+        out = {"source": source, "at": time.time(), "keys": keys, "rows": rows}
+        Path(save_dir, "epokio_classes.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
+    except Exception as e:
+        print("epokio: could not save per-class scores:", e, flush=True)
+
+'''
+
+# 이미 끝난 학습(밖에서 돌렸거나 예전 판)의 클래스별 성능: best.pt로 검증을 한 번 돌려 그 학습 폴더에 적는다
+CLASSES_TEMPLATE = '''\
+import json
+from ultralytics import YOLO
+p = json.loads({params!r})
+m = YOLO(p["model"]).val(data=p["data"], split=p.get("split", "val"), plots=False, save_json=False,
+                         project=p["tmp"], name="val", exist_ok=True, verbose=True)
+write_classes(p["run"], m, "val")
 '''
 
 # 평가의 순수 계산 부분(라벨 읽기·IoU·짝짓기). 사용자 파이썬에서 돌아서 epokio를 import할 수 없으니 글자로 붙인다.

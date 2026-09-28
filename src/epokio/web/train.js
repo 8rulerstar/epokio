@@ -207,7 +207,9 @@ async function drawTrain() {
   const machine = esc(S.label || t("this machine"));
   let h = `<div class="card pane"><h2>${t("Train")}</h2><p class="hint">${t("Runs one at a time on {machine}. If something is already training, this waits in the queue.", { machine })}</p>
     <div class="fields"><label class="field wide"><span>Python</span><select class="in" id="py">${opts}</select><small>${esc(env.path)}</small></label>
-    <label class="field wide"><span>${t("Name")}</span><input class="in" id="jobname" spellcheck="false" placeholder="${t("Taken from the data folder if empty")}"><small>${t("Shown in the queue.")}</small></label></div>`;
+    <label class="field wide"><span>${t("Name")}</span><input class="in" id="jobname" spellcheck="false" placeholder="${t("Taken from the data folder if empty")}"><small>${t("Shown in the queue.")}</small></label></div>
+    <label class="hint" style="display:flex;align-items:center;gap:8px;margin:8px 0" title="${esc(t("Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time."))}">
+      <input type="checkbox" id="snapshots"> ${t("Save predictions every 5 epochs")}</label>`;
   if (!env.ready) {
     h += `<div class="msg" style="--c:var(--orange)"><b>${t("This environment cannot train yet.")}</b> ${t("It needs {pkg}.", { pkg: env.ultralytics ? "PyTorch" : "Ultralytics" })}
       ${t("Pick another one, run {cmd}, or let Epokio set one up.", { cmd: `<code>${esc(env.path)} -m pip install ultralytics</code>` })}</div>`;
@@ -331,6 +333,7 @@ async function startTraining(sc, anyway) {
     if (r?.data) params.data = r.data;                                  // 폴더를 적었으면 그 안에서 찾은 data.yaml로
   }
   try {
+    if ($("#snapshots")?.checked) params.epokio_snapshots = 5;         // 학습 틀이 빼서 쓴다(에폭별 예측 사진)
     await api("jobs", "POST", { kind: "train", name, python: S.python, params });
     box.innerHTML = `<div class="msg" style="--c:var(--green)"><b>${t("Added to the queue.")}</b> ${esc(name)}</div>`;
     setTimeout(() => { if (S.tab === "train") tab("queue"); }, 700);

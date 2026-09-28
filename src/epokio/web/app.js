@@ -272,7 +272,7 @@ async function drawRuns(periodic) {
   const big = $(".detail .big"), was = (S.shown ||= {})[r.path];       // 값 변화: 최고 점수가 바뀌면 살짝 튄다
   if (big && was != null && was !== r.best) big.classList.add("bump");
   S.shown[r.path] = r.best;
-  if (d) bindVersions(r, d);                                         // 계보·단계 (versions.js)
+  if (d) { bindVersions(r, d); bindPerClass(r, d); bindSnapshots(r, d); }                                         // 계보·단계 (versions.js)
   document.querySelectorAll("[data-next]").forEach((b) => b.onclick = () => queueNext(r, d, d.notes[+b.dataset.next].next));
   const rs = $("#resume");
   if (rs) rs.onclick = async () => {
@@ -400,6 +400,7 @@ function detailHTML(r, d) {
   }
   if (r.meta?.note || r.meta?.goal != null) h += `<h3>${t("Your notes")}</h3>${r.meta.note ? `<p style="white-space:pre-wrap;margin:4px 0">${esc(r.meta.note)}</p>` : ""}`
     + (r.meta.goal != null ? `<p class="hint">${t("Goal:")} ${esc(r.metric_name)} ${r.lower ? "≤" : "≥"} ${esc(r.meta.goal)} ${r.meta.goal_hit ? `· <b style='color:var(--green)'>${t("reached")}</b>` : ""}</p>` : "");
+  h += perClassHTML(r, d) + snapshotsHTML(r, d) + machineHTML(r, d);                            // 클래스별 성능 (classes.js)
   if (d.notes.length) h += `<h3>${t("What stands out")}</h3>` + d.notes.map((n, i) => `<div class="note" style="animation-delay:${i * 60}ms">💡 ${esc(n.observation)}<p>→ ${esc(n.try)}</p>
       ${n.next && r.source === S.label ? `<button class="chip nextrun" style="--c:var(--brand)" data-next="${i}">▶ ${esc(t("Try: {change}", { change: nextSummary(n.next, d.args) }))}</button>` : ""}</div>`).join("");
   if (d.images.length) h += `<h3>${t("Result images")}</h3><p class="hint">${t("Saved by the framework. Click to enlarge.")}</p><div class="gallery">`
@@ -428,10 +429,11 @@ function chart(series, opt = {}) {
   let [y0, y1] = [Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[1]))];
   if (x0 === x1) x1 = x0 + 1; if (y0 === y1) { y0 -= .5; y1 += .5; }
   const pad = (y1 - y0) * .08; y0 -= pad; y1 += pad;
+  if (opt.range) [y0, y1] = opt.range;                          // 사용률처럼 축이 정해진 값(0~100%)
   const X = (x) => L + (x - x0) / (x1 - x0) * (W - L - R), Y = (y) => T + (1 - (y - y0) / (y1 - y0)) * (H - T - B);
   let g = "";
   for (let i = 0; i <= 4; i++) { const v = y0 + (y1 - y0) * i / 4, y = Y(v); g += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/><text x="${L - 6}" y="${y + 4}" text-anchor="end">${v.toFixed(Math.abs(y1 - y0) < 1 ? 2 : 1)}</text>`; }
-  g += `<text x="${L}" y="${H - 6}">${x0}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">${t("epoch {n}", { n: x1 })}</text>`;
+  g += `<text x="${L}" y="${H - 6}">${x0}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">${opt.xname ? opt.xname(x1) : t("epoch {n}", { n: x1 })}</text>`;
   const m = opt.mark;
   if (m && m.x >= x0 && m.x <= x1) g += `<line class="mark-line" x1="${X(m.x)}" x2="${X(m.x)}" y1="${T}" y2="${H - B}"><title>${esc(m.hint)}</title></line>`;
   const lines = series.map((s) => {
@@ -442,7 +444,7 @@ function chart(series, opt = {}) {
     return `<path class="line" d="${dpath}" stroke="${s.color}" style="--len:${Math.ceil(len) + 2}" ${s.dash ? 'stroke-dasharray="5 3"' : ""}><title>${esc(s.name)}</title></path>`;
   }).join("");
   const xs = [...new Set(pts.map((p) => p[0]))].sort((a, b) => a - b);
-  const id = CHARTS.push({ series, xs, X, Y, W, H, T, B }) - 1;
+  const id = CHARTS.push({ series, xs, X, Y, W, H, T, B, xname: opt.xname, digits: opt.digits }) - 1;
   if (CHARTS.length > 40) CHARTS[CHARTS.length - 41] = null;       // 오래된 그림 자료는 버린다
   return `<div class="chart-wrap" data-chart="${id}"><svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" tabindex="0" role="img"
       aria-label="${t("Curve chart. Use left and right arrow keys to read values by epoch.")}">${g}${lines}<line class="cursor" y1="${T}" y2="${H - B}" hidden/></svg>
@@ -459,8 +461,8 @@ function bindCharts() {
     const show = (i) => {
       k = Math.max(0, Math.min(c.xs.length - 1, i)); const ep = c.xs[k];
       const rows = c.series.map((s) => { const j = s.x.length ? s.x.indexOf(ep) : ep - 1; const v = j >= 0 ? s.y[j] : null;
-        return v == null ? "" : `<div><i style="background:${s.color}"></i>${esc(s.name)} <b>${(+v).toFixed(4)}</b></div>`; }).join("");
-      tip.innerHTML = `<div class="tip-h">${t("Epoch {n}", { n: ep })}</div>${rows || `<div>${t("No value")}</div>`}`;
+        return v == null ? "" : `<div><i style="background:${s.color}"></i>${esc(s.name)} <b>${(+v).toFixed(c.digits ?? 4)}</b></div>`; }).join("");
+      tip.innerHTML = `<div class="tip-h">${c.xname ? c.xname(ep) : t("Epoch {n}", { n: ep })}</div>${rows || `<div>${t("No value")}</div>`}`;
       const vx = c.X(ep); cur.setAttribute("x1", vx); cur.setAttribute("x2", vx); cur.hidden = false;
       const fx = vx / c.W * svg.clientWidth; tip.hidden = false;
       tip.style.left = Math.max(0, Math.min(fx + 12, svg.clientWidth - tip.offsetWidth)) + "px";

@@ -93,3 +93,40 @@ def test_label_content_change_changes_fingerprint_after_cache_window(tmp_path, m
     os.utime(f, (time.time() + 5, time.time() + 5))
     monkeypatch.setattr(versions.time, "time", lambda: time.monotonic() + 10_000_000)   # 캐시 창을 넘긴다
     assert versions.data_fingerprint(y) != a
+
+
+def test_data_versions_are_numbered_per_yaml_in_the_order_seen(tmp_path, monkeypatch):
+    monkeypatch.setattr(lineage, "DATA_DIR", tmp_path / "ds")
+    ds, other = tmp_path / "data", tmp_path / "other"
+    y = _dataset(ds, 2, {"0": "0 .5 .5 .1 .1\n"})
+    z = _dataset(other, 1, {})
+    t = iter(range(100, 200))
+    monkeypatch.setattr(lineage.time, "time", lambda: next(t))
+    a = lineage.record(y)
+    lineage.record(z)                                                # 다른 data.yaml은 따로 센다
+    (ds / "images/train/7.jpg").write_bytes(b"new")
+    monkeypatch.setattr(lineage.versions, "_cache", {})
+    b = lineage.record(y)
+    assert lineage.data_version(a) == {"n": 1, "of": 2} and lineage.data_version(b) == {"n": 2, "of": 2}
+    assert lineage.data_version("deadbeef") is None
+    (tmp_path / "ds" / "index.json").unlink()                        # 이 기능 전에 적힌 목록들: 한 번 읽어 다시 만든다
+    assert lineage.data_version(b) == {"n": 2, "of": 2}
+
+
+def test_a_run_keeps_the_data_it_trained_on(tmp_path, monkeypatch):
+    """상세를 열 때 지문을 재서, 학습 뒤 데이터가 바뀌면 옛 학습도 새 데이터로 학습한 것처럼 보였다"""
+    import json
+    from epokio import repro, rundetail
+    monkeypatch.setattr(lineage, "DATA_DIR", tmp_path / "ds")
+    ds = tmp_path / "data"
+    y = _dataset(ds, 2, {"0": "0 .5 .5 .1 .1\n"})
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "args.yaml").write_text(f"data: {y}\n")
+    start = repro.data_info(y)["fingerprint"]                        # 대기열이 학습 시작 때 적는 값
+    (run / repro.FILE).write_text(json.dumps({"data": {"fingerprint": start}}))
+    assert rundetail.detail_versions(run)["data"] == start and "data_now" not in rundetail.detail_versions(run)
+    (ds / "images/train/7.jpg").write_bytes(b"new")
+    monkeypatch.setattr(lineage.versions, "_cache", {})
+    v = rundetail.detail_versions(run)
+    assert v["data"] == start and v["data_now"] not in (None, start)
