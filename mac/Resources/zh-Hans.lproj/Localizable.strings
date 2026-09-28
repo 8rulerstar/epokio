@@ -1362,3 +1362,5 @@
 "Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time." = "每 5 轮用 CPU 预测 4 张验证图像，让你看到模型的学习过程。每次约一两秒。";
 "Data v%d of %d" = "数据 v%d / %d";
 "The data changed after this run trained" = "本次训练后数据已更改";
+"Ended" = "已结束";
+"Ended at epoch %d. This log does not say how many epochs were planned." = "在第 %d 轮结束。此日志没有记录计划的轮数。";

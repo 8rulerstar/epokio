@@ -181,5 +181,7 @@
  "Next time add EarlyStoppingCallback(early_stopping_patience=3) with load_best_model_at_end=True.": "Lần sau hãy thêm EarlyStoppingCallback(early_stopping_patience=3) cùng load_best_model_at_end=True.",
  "Next time add the EarlyStopping callback on your score, or use fewer epochs.": "Lần sau hãy thêm callback EarlyStopping theo điểm của bạn, hoặc dùng ít epoch hơn.",
  "Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs.": "Lần sau hãy thêm EarlyStopping(patience=5, restore_best_weights=True), hoặc dùng ít epoch hơn.",
- "Next time stop earlier, or use fewer epochs.": "Lần sau hãy dừng sớm hơn, hoặc dùng ít epoch hơn."
+ "Next time stop earlier, or use fewer epochs.": "Lần sau hãy dừng sớm hơn, hoặc dùng ít epoch hơn.",
+ "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "Đã dừng ở epoch {n} trên {p}. Hãy tiếp tục để hoàn thành số epoch đã định.",
+ "A new run with more epochs will probably score higher.": "Huấn luyện lại với nhiều epoch hơn có lẽ sẽ đạt điểm cao hơn."
 }

@@ -181,5 +181,7 @@
  "Next time add EarlyStoppingCallback(early_stopping_patience=3) with load_best_model_at_end=True.": "下次加入 EarlyStoppingCallback(early_stopping_patience=3) 並設定 load_best_model_at_end=True。",
  "Next time add the EarlyStopping callback on your score, or use fewer epochs.": "下次在你的指標上加入 EarlyStopping 回呼，或減少輪數。",
  "Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs.": "下次加入 EarlyStopping(patience=5, restore_best_weights=True)，或減少輪數。",
- "Next time stop earlier, or use fewer epochs.": "下次提早停止，或減少輪數。"
+ "Next time stop earlier, or use fewer epochs.": "下次提早停止，或減少輪數。",
+ "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "在預定的 {p} 個 epoch 中停在第 {n} 個。請繼續訓練，完成預定的 epoch。",
+ "A new run with more epochs will probably score higher.": "增加 epoch 重新訓練，分數很可能會更高。"
 }

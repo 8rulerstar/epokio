@@ -1362,3 +1362,5 @@
 "Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time." = "每 5 輪用 CPU 預測 4 張驗證影像，讓你看到模型的學習過程。每次約一兩秒。";
 "Data v%d of %d" = "資料 v%d / %d";
 "The data changed after this run trained" = "本次訓練後資料已變更";
+"Ended" = "已結束";
+"Ended at epoch %d. This log does not say how many epochs were planned." = "在 epoch %d 結束。此紀錄沒有預定的 epoch 數。";

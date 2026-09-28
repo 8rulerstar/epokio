@@ -1356,3 +1356,5 @@
 "Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time." = "Sagt alle 5 Epochen 4 Validierungsbilder auf der CPU vorher, damit du dem Modell beim Lernen zusehen kannst. Kostet jeweils ein bis zwei Sekunden.";
 "Data v%d of %d" = "Daten v%d von %d";
 "The data changed after this run trained" = "Die Daten haben sich nach diesem Lauf geändert";
+"Ended" = "Beendet";
+"Ended at epoch %d. This log does not say how many epochs were planned." = "Bei Epoche %d beendet. Dieses Protokoll nennt nicht, wie viele Epochen geplant waren.";

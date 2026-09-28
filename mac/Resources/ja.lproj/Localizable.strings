@@ -1356,3 +1356,5 @@
 "Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time." = "5 エポックごとに検証画像 4 枚を CPU で予測し、モデルが学ぶ様子を見られるようにします。1 回 1〜2 秒かかります。";
 "Data v%d of %d" = "データ v%d / %d";
 "The data changed after this run trained" = "この学習の後でデータが変わりました";
+"Ended" = "終了";
+"Ended at epoch %d. This log does not say how many epochs were planned." = "エポック %d で終了しました。このログには予定のエポック数がありません。";

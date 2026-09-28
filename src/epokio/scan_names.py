@@ -5,8 +5,8 @@ import os
 import re
 import unicodedata
 
-_GENERIC = re.compile(r"^(train|exp|val|predict|run|detect|segment|pose|classify)\d*$")
-_SKIP_PARENT = ("runs", "detect", "segment", "pose", "classify", "obb")
+_GENERIC = re.compile(r"^(train|exp|val|predict|run|detect|segment|pose|classify)\d*$|^version_\d+$")   # version_N: Lightning(★여러 학습이 전부 version_0으로 떴다)
+_SKIP_PARENT = ("runs", "detect", "segment", "pose", "classify", "obb", "lightning_logs")
 
 
 def display_name(r) -> str:

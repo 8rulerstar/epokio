@@ -248,6 +248,7 @@ def test_run_row_hides_bar_when_total_unknown():
 const src=require("fs").readFileSync({json.dumps(str(js))},"utf8");
 const start=src.indexOf("function rowHTML"), end=src.indexOf("\\n}}", start)+2;
 global.S={{picks:[],sel:null}}; global.STATE={{}}; global.esc=s=>String(s); global.dur=s=>String(s); global.display=r=>r.name;
+global.stateOf=r=>[r.state,""];
 global.t=(s,v)=>v?s.replace(/\\{{(\\w+)\\}}/g,(m,k)=>String(v[k])):s;
 eval(src.slice(start,end));
 const base={{name:"a",path:"/a",state:"stopped",epoch:100,best:null,idle:5,source:"local",meta:null}};

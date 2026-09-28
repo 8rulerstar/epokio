@@ -181,5 +181,7 @@
  "Next time add EarlyStoppingCallback(early_stopping_patience=3) with load_best_model_at_end=True.": "다음에는 EarlyStoppingCallback(early_stopping_patience=3)과 load_best_model_at_end=True를 넣으세요.",
  "Next time add the EarlyStopping callback on your score, or use fewer epochs.": "다음에는 점수에 EarlyStopping 콜백을 걸거나, 에폭을 줄이세요.",
  "Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs.": "다음에는 EarlyStopping(patience=5, restore_best_weights=True)을 넣거나, 에폭을 줄이세요.",
- "Next time stop earlier, or use fewer epochs.": "다음에는 더 일찍 멈추거나, 에폭을 줄이세요."
+ "Next time stop earlier, or use fewer epochs.": "다음에는 더 일찍 멈추거나, 에폭을 줄이세요.",
+ "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "{p}에폭 중 {n}에폭에서 멈췄습니다. 이어 하기로 계획한 에폭을 마치세요.",
+ "A new run with more epochs will probably score higher.": "에폭을 늘려 새로 학습하면 점수가 더 오를 가능성이 큽니다."
 }

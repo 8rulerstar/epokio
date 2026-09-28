@@ -306,3 +306,56 @@ def test_durations_keep_the_hours_and_follow_the_language():
         assert fmt_dur(172000) == "1일 23시간"
     finally:
         i18n.use("en")
+
+
+def test_keras_bom_header(tmp_path):
+    """★윈도우·엑셀·pandas(utf-8-sig)가 붙인 BOM 때문에 이름이 맞는 Keras 기록도 못 알아봤다"""
+    d = tmp_path / "keras_bom"
+    d.mkdir()
+    (d / "history.csv").write_text("﻿epoch,loss,val_loss\n0,0.5,0.6\n1,0.4,0.5\n", encoding="utf-8")
+    got = adapters.load(d)
+    assert got.framework == "keras" and [r["epoch"] for r in got.rows] == ["1", "2"]
+
+
+def test_custom_epoch_csv_any_name(tmp_path):
+    """직접 짠 루프의 train_log.csv(BOM · 1부터 · 에폭당 초 · best 표시 '*')가 이름 무관하게 잡히는지"""
+    d = tmp_path / "normal100"
+    d.mkdir()
+    (d / "train_log.csv").write_text(
+        "﻿epoch,train_loss,train_acc,val_loss,val_acc,lr,best,sec\n"
+        "1,0.05,0.98,0.03,0.98,3e-04,*,63.1\n2,0.01,0.99,0.02,1.0,2.9e-04,,53.2\n", encoding="utf-8")
+    got = adapters.load(d)
+    assert got.framework == "custom"
+    assert [r["epoch"] for r in got.rows] == ["1", "2"]                  # 1부터 쓴 건 그대로
+    assert got.rows[0]["train/train_loss"] == "0.05" and got.rows[0]["val/val_loss"] == "0.03"
+    assert not any(k.endswith(("sec", "lr", "best")) for k in got.rows[0])   # 시간·학습률·표시는 점수 아님
+
+
+def test_custom_epoch_csv_zero_based_and_not_hijacking(tmp_path):
+    d = tmp_path / "zero"
+    d.mkdir()
+    (d / "log.csv").write_text("epoch,loss\n0,0.9\n1,0.8\n")
+    assert [r["epoch"] for r in adapters.load(d).rows] == ["1", "2"]
+    other = tmp_path / "plain"
+    other.mkdir()
+    (other / "data.csv").write_text("id,label\n1,cat\n")               # 학습 기록 아닌 CSV는 무시
+    (other / "loss_epoch.csv").write_text("step,epoch,loss\n1,0,0.9\n")  # 첫 열이 epoch가 아니면 무시
+    assert adapters.detect(other) is None
+    assert adapters.detect(lightning_run(tmp_path)).name == "lightning"  # Lightning 폴더를 가로채지 않는다
+
+
+def test_lightning_runs_are_named_by_their_project(tmp_path):
+    """★Lightning 학습이 전부 version_0으로 떠 여러 개를 구분할 수 없었다"""
+    from epokio.scan import display_name
+    from types import SimpleNamespace
+    r = SimpleNamespace(name="version_0", path=tmp_path / "cls_exp" / "lightning_logs" / "version_0")
+    assert display_name(r) == "cls_exp/version_0"
+
+
+def test_run_json_has_no_float_noise(tmp_path):
+    from epokio.scan import read_run
+    d = tmp_path / "noise"
+    d.mkdir()
+    (d / "log.csv").write_text("epoch,loss,acc\n1,0.5,0.8200000000000001\n")
+    got = read_run(d).to_dict()
+    assert got["best"] == 0.82 and got["metric"] == 0.82

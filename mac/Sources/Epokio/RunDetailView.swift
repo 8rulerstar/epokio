@@ -146,6 +146,9 @@ struct RunDetailView: View {
             if run.state == "stalled" { return ("pause.circle.fill", .warn, L("No new epoch for a while."), nil) }
             if showTips, let n = d.notes.first { return ("lightbulb.fill", .gold, n.observation, n.try) }
             if run.isLive { return ("bolt.fill", .good, L("Training. Nothing unusual so far."), nil) }
+            if run.state == "stopped" && run.total == nil {   // ★계획 에폭을 모르는 학습(Keras 등)이 끝나도 "마지막 전에 멈춤, last.pt로 다시"라고 했다
+                return ("stop.circle.fill", .secondary, L("Ended at epoch %d. This log does not say how many epochs were planned.", run.epoch), nil)
+            }
             if run.state == "stopped" {                    // ★중단된 학습에도 "끝났습니다, 특별한 점 없음" 초록 체크가 떴다
                 return ("stop.circle.fill", .secondary, L("Stopped at epoch %d before the last one.", run.epoch), L("Train again from last.pt, or start fresh with the same settings."))
             }

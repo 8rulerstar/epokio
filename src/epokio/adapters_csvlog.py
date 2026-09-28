@@ -3,6 +3,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import csv
+import io
+
 from .adapters_base import Adapter, Loaded, _num, _read_csv, _yaml_value, metric_column
 
 
@@ -84,15 +87,17 @@ class Keras(Adapter):
         if not f:
             return False
         try:
-            head = f.open(encoding="utf-8", errors="ignore").readline().lower()
+            return _epoch_loss_header(f, strict=False)
         except OSError:
             return False
-        return head.startswith("epoch") and "loss" in head
 
     def load(self, d):
         f = self._file(d, {p.name for p in d.iterdir()})
         if not f:
             return None
+        return self._load_file(f, offset=1)                        # Keras 에폭은 0부터
+
+    def _load_file(self, f: Path, offset: int):
         raw = _read_csv(f)
         warns = []
         if raw and len(raw[0]) == 1:
@@ -100,7 +105,7 @@ class Keras(Adapter):
         by: dict[int, dict] = {}
         for r in raw:
             try:
-                ep = int(float(r["epoch"])) + 1                    # Keras 에폭은 0부터
+                ep = int(float(r["epoch"])) + offset
             except (KeyError, ValueError):
                 continue
             row = {"epoch": str(ep)}
@@ -113,7 +118,64 @@ class Keras(Adapter):
                     row[("val/" if k.startswith("val_") else "train/") + k] = v
                 elif k in ("lr", "learning_rate"):         # Keras 2는 lr, Keras 3은 learning_rate
                     continue
+                elif k.lower() in _TIME_COLS:                      # 걸린 시간은 점수가 아니다
+                    continue
                 else:
                     row[metric_column(k, k.startswith("val_"))] = v
             by[ep] = row                                           # append 재개로 같은 에폭이 또 나오면 나중 것
         return Loaded(self.name, [by[k] for k in sorted(by)], f, warnings=warns)
+
+
+_TIME_COLS = {"sec", "secs", "seconds", "time", "elapsed", "duration", "epoch_time", "time_s"}
+_OWNED = {"results.csv", "metrics.csv", "epokio_log.csv"}         # 다른 어댑터 몫. 여기서 가로채면 모양이 틀어진다
+_MAX_PROBE = 8                                                     # 폴더마다 첫 줄만 보는 CSV 수(자동 탐색이 Desktop을 훑는다)
+
+
+def _epoch_loss_header(f: Path, strict: bool = True) -> bool:
+    """첫 열이 epoch이고 loss 열이 있는 쉼표 CSV인가. utf-8-sig: 윈도우·엑셀·pandas(encoding="utf-8-sig")가 붙이는
+    BOM 때문에 startswith("epoch")가 실패해 이름이 맞아도 놓쳤다(2026-09-28 EI 학습 train_log.csv).
+    strict=False(Keras 이름 파일): 쉼표가 아닌 구분자(sep=";")도 잡아서 load가 "지원 안 함" 경고를 내게 한다"""
+    with f.open(encoding="utf-8-sig", errors="ignore") as fh:
+        head = fh.readline()
+    if not strict:
+        return head.lower().startswith("epoch") and "loss" in head.lower()
+    cols = [c.strip().lower() for c in next(csv.reader(io.StringIO(head)), [])]
+    return bool(cols) and cols[0] == "epoch" and any("loss" in c for c in cols[1:])
+
+
+class CsvLog(Keras):
+    """직접 짠 학습 루프가 남긴 에폭 CSV(train_log.csv·log.csv 등, 이름 무관). 형식은 Keras CSVLogger와 같다고 보고
+    읽되 에폭은 0부터면 +1, 1부터면 그대로. 다른 어댑터가 다 못 알아본 폴더에서만 마지막으로 본다(ADAPTERS 맨 끝).
+    ★코드 수정 없이 보이게: 예전엔 epokio.start()를 넣거나 파일 이름을 history.csv로 바꿔야만 잡혔다"""
+    name = "custom"
+
+    def _probe(self, f: Path) -> bool:
+        try:
+            return _epoch_loss_header(f)
+        except OSError:
+            return False
+
+    def detect(self, d, names):
+        return self._file(d, names) is not None
+
+    def _file(self, d: Path, names: set[str]) -> Path | None:
+        n_seen = 0
+        for n in sorted(names):
+            if not n.lower().endswith(".csv") or n in _OWNED:
+                continue
+            n_seen += 1
+            if n_seen > _MAX_PROBE:
+                return None
+            if self._probe(d / n):
+                return d / n
+        return None
+
+    def load(self, d):
+        f = self._file(d, {p.name for p in d.iterdir()})
+        if not f:
+            return None
+        try:
+            eps = [int(float(r["epoch"])) for r in _read_csv(f) if _num(r.get("epoch", "")) != ""]
+        except (KeyError, ValueError):
+            eps = []
+        return self._load_file(f, offset=1 if eps and min(eps) == 0 else 0)

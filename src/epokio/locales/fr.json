@@ -181,5 +181,7 @@
  "Next time add EarlyStoppingCallback(early_stopping_patience=3) with load_best_model_at_end=True.": "La prochaine fois, ajoutez EarlyStoppingCallback(early_stopping_patience=3) avec load_best_model_at_end=True.",
  "Next time add the EarlyStopping callback on your score, or use fewer epochs.": "La prochaine fois, ajoutez le callback EarlyStopping sur votre score, ou utilisez moins d’époques.",
  "Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs.": "La prochaine fois, ajoutez EarlyStopping(patience=5, restore_best_weights=True), ou utilisez moins d’époques.",
- "Next time stop earlier, or use fewer epochs.": "La prochaine fois, arrêtez plus tôt, ou utilisez moins d’époques."
+ "Next time stop earlier, or use fewer epochs.": "La prochaine fois, arrêtez plus tôt, ou utilisez moins d’époques.",
+ "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "Il s'est arrêté à l'époque {n} sur {p}. Reprenez-le pour terminer les époques prévues.",
+ "A new run with more epochs will probably score higher.": "Un nouvel entraînement avec plus d'époques obtiendra probablement un meilleur score."
 }

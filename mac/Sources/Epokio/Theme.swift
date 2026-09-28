@@ -11,11 +11,11 @@ extension Run {
 
 /// 학습 이름을 보일 때 한 곳(목록·표·팝오버). 흔한 이름이면 상위 폴더를 붙인다
 func runDisplayName(_ name: String, _ path: String) -> String {
-    let generic = name.range(of: #"^(train|exp|val|predict|run|detect|segment|pose|classify)\d*$"#,
+    let generic = name.range(of: #"^(train|exp|val|predict|run|detect|segment|pose|classify)\d*$|^version_\d+$"#,   // version_N: Lightning
                              options: .regularExpression) != nil
     guard generic else { return name }
     let parts = path.split(whereSeparator: { $0 == "/" || $0 == "\\" }).map(String.init)   // ★윈도우 경로를 못 나눴다
-    let parent = parts.dropLast().last { !["runs", "detect", "segment", "pose", "classify", "obb"].contains($0) }
+    let parent = parts.dropLast().last { !["runs", "detect", "segment", "pose", "classify", "obb", "lightning_logs"].contains($0) }
     return parent.map { "\($0)/\(name)" } ?? name
 }
 
@@ -44,7 +44,8 @@ extension Run {
     var stateText: String {
         switch state {
         case "running": L("Training"); case "starting": L("Starting"); case "stalled": L("Stalled")
-        case "failed": L("Failed"); case "done": L("Done"); default: L("Stopped")
+        case "failed": L("Failed"); case "done": L("Done")
+        default: total == nil ? L("Ended") : L("Stopped")    // 계획 에폭을 모르면 끝남과 멈춤을 구별 못 한다(★끝난 Keras 학습이 '멈춤')
         }
     }
 }

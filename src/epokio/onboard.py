@@ -87,6 +87,22 @@ def agent_health(port: int = PORT, timeout: float = 1.0) -> dict | None:
         return None
 
 
+def add_roots_live(port: int, roots: list[Path]) -> bool:
+    """떠 있는 도우미에 폴더를 더한다(POST /roots, 토큰). 다 받아들였으면 True.
+    ★setup --root를 다시 돌리면 roots.json에만 적고 도는 도우미는 몰라, 껐다 켜기 전까지 목록이 비어 있었다
+      (처음엔 폴더 없이 setup, 그다음 --root는 새 사용자가 가장 흔히 밟는 순서다). 재시작은 대기열 작업을 끊으니 요청으로 넘긴다"""
+    import json
+    ok = True
+    for r in roots:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/roots", data=json.dumps({"path": str(r)}).encode(), method="POST",
+                                     headers={"Authorization": f"Bearer {auth.token()}", "Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req, timeout=5).read()
+        except (OSError, urllib.error.HTTPError):
+            ok = False
+    return ok
+
+
 def stop_agent(port: int = PORT, seconds: float = 10) -> bool:
     """이 기계의 도우미를 끈다(토큰으로). 꺼졌으면 True"""
     req = urllib.request.Request(f"http://127.0.0.1:{port}/shutdown", data=b"{}", method="POST",
@@ -196,6 +212,11 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     if agent_alive(a.port):
         print("  The helper is already running.")
+        if roots and not via_systemd:
+            if add_roots_live(a.port, roots):
+                print("  Added the folder to it.")
+            else:
+                print("  It did not take the folder. Restart it:  epokio agent --stop  then  epokio setup")
     elif via_systemd:
         # ★여기서 띄우고 아래 systemd 서비스도 켜면 같은 포트에 둘이 떠서 서비스가 '실패'로 끝났다. systemd가 띄우게 둔다
         print("  The helper will be started by systemd (see below).")
@@ -274,6 +295,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if headless():                                   # 화면 없는 서버엔 트레이가 없다
         print("\n  Next:  epokio watch    progress in this terminal")
+    elif sys.platform == "darwin":                    # ★맥에서도 트레이를 권했다. 트레이는 윈도우·리눅스용이고 맥은 메뉴바 앱이다
+        print("\n  Next:  the Mac app (menu bar), see the README")
+        print("         epokio watch    progress in this terminal")
     else:
         print("\n  Next:  epokio tray     a tray icon with progress")
         print("         epokio watch    the same thing in a terminal")
@@ -281,78 +305,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def doctor(argv: list[str] | None = None) -> int:
-    """문제 보고용 한눈 보기(`epokio doctor`). 토큰은 싣지 않는다. --json 이면 JSON으로"""
-    import json
-    import platform
-    from . import envs, version
-    from .agent import Agent
-    ap = argparse.ArgumentParser(prog="epokio doctor", description="Print what Epokio sees, for a bug report.")
-    ap.add_argument("--port", type=int, default=PORT)
-    ap.add_argument("--json", action="store_true", help="print JSON instead of text")
-    a = ap.parse_args(argv)
-    h = agent_health(a.port)
-    roots = []
-    try:
-        from . import jsonfile
-        roots = [str(r) for r in jsonfile.read(Agent.ROOTS_FILE, [])]
-    except (OSError, ValueError):
-        pass
-    runs_info = None
-    if h:
-        try:
-            import json as _j
-            with urllib.request.urlopen(f"http://127.0.0.1:{a.port}/runs?lite=1", timeout=5) as r:
-                d = _j.loads(r.read())
-            runs_info = {"runs": len(d.get("runs", [])), "roots": d.get("roots", [])}
-        except (OSError, ValueError):
-            runs_info = {"error": "could not read /runs"}
-    logf = Path.home() / ".epokio" / "agent.log"
-    try:
-        tail = logf.read_text(encoding="utf-8", errors="replace").splitlines()[-40:]
-    except OSError:
-        tail = []
-    info = {
-        "epokio": version(), "python": sys.version.split()[0], "executable": sys.executable,
-        "os": platform.platform(), "install": str(Path(__file__).parent),
-        "helper": ({"running": True, "epokio": h.get("epokio", "older"), "api": h.get("api", h.get("version")),
-                    "label": h.get("label"), "port": a.port} if h else {"running": False, "port": a.port}),
-        "saved_folders": roots, "watching": runs_info,
-        "token_file": (Path.home() / ".epokio" / "token").exists(),
-        "allowed_hosts": os.environ.get("EPOKIO_ALLOWED_HOSTS", ""),
-        "autostart": autostart.enabled() if autostart.supported() else None,
-        "pythons": [{"path": e["path"], "ready": e["ready"]} for e in envs.list_envs()],
-        "log_tail": tail,
-    }
-    # 한국어 윈도우 콘솔(cp949)에서 못 찍는 글자가 있어도 죽지 않게
-    try:
-        sys.stdout.reconfigure(errors="replace")
-    except (AttributeError, ValueError):
-        pass
-    if a.json:
-        print(json.dumps(info, ensure_ascii=False, indent=1))
-        return 0
-    print(f"Epokio {info['epokio']} | Python {info['python']} | {info['os']}")
-    print(f"  installed at {info['install']}")
-    hp = info["helper"]
-    if hp["running"]:
-        warn = "" if hp["epokio"] == info["epokio"] else f"   ! different from this install; run `epokio setup` to restart it"
-        print(f"  helper: running on port {hp['port']} | {hp['epokio']} | label {hp['label']}{warn}")
-    else:
-        print(f"  helper: NOT running on port {hp['port']}  (start it with `epokio setup`)")
-    w = info["watching"] or {}
-    if "runs" in w:
-        print(f"  watching {w['runs']} runs in {len(w['roots'])} folders:")
-        for r in w["roots"]:
-            print(f"    {r}{'' if Path(r).exists() else '   ! missing'}")
-    print(f"  saved folders: {', '.join(roots) or 'none'}")
-    print(f"  token file: {'yes' if info['token_file'] else 'no'} | allowed hosts: {info['allowed_hosts'] or '-'}"
-          f" | start at login: {info['autostart']}")
-    print(f"  pythons for training: " + (", ".join(f"{p['path']}{'' if p['ready'] else ' (no ultralytics)'}"
-                                                 for p in info["pythons"]) or "none found"))
-    print(f"\n  last lines of {logf}:" if tail else f"\n  no log yet at {logf}")
-    for line in tail:
-        print("    " + line)
-    return 0
+    from .doctor import doctor as run      # 400줄 상한으로 doctor.py에 떼어 냈다. 옛 이름도 되게
+    return run(argv)
 
 
 def autostart_main(argv: list[str] | None = None) -> int:

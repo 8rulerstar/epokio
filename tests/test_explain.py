@@ -184,3 +184,25 @@ def test_pr_gap_advice_names_f1_threshold(tmp_path):
     a = analysis.analyze(d)
     tip = a.notes[[k["kind"] for k in a.kinds].index("misses")][1]
     assert "best F1" in tip and "review screen" in tip
+
+
+def test_stopped_before_plan_says_resume(tmp_path):
+    """★계획(10)보다 일찍(6) 멈춘 YOLO 학습에도 '학습률이 이미 줄어 이어 하기는 소용없다'고 해 README와 부딪혔다"""
+    d = _run(tmp_path)
+    args = (d / "args.yaml").read_text()
+    (d / "args.yaml").write_text("\n".join("epochs: 10" if ln.startswith("epochs:") else ln for ln in args.splitlines()) + "\n")
+    a = analysis.analyze(d)
+    todo = dict(zip([k["kind"] for k in a.kinds], [t for _, t in a.notes]))["still_improving"]
+    assert "Resume" in todo and "6 of 10" in todo and "learning rate" not in todo
+
+
+def test_no_learning_rate_claim_without_a_record(tmp_path):
+    """학습률 기록·설정이 없는 학습(HF 등)에는 학습률 근거를 대지 않는다"""
+    import json
+    d = tmp_path / "hf"
+    d.mkdir()
+    hist = [x for e in range(1, 9) for x in ({"epoch": e, "loss": 1.0 / e}, {"epoch": e, "eval_accuracy": 0.5 + 0.04 * e})]
+    (d / "trainer_state.json").write_text(json.dumps({"log_history": hist, "num_train_epochs": 8}))
+    a = analysis.analyze(d)
+    todo = dict(zip([k["kind"] for k in a.kinds], [t for _, t in a.notes]))["still_improving"]
+    assert "learning rate" not in todo and "more epochs" in todo

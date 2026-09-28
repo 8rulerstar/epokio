@@ -1356,3 +1356,5 @@
 "Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time." = "Dự đoán 4 ảnh kiểm định bằng CPU mỗi 5 epoch để bạn thấy mô hình học. Mỗi lần mất một hai giây.";
 "Data v%d of %d" = "Dữ liệu v%d / %d";
 "The data changed after this run trained" = "Dữ liệu đã thay đổi sau lần huấn luyện này";
+"Ended" = "Đã kết thúc";
+"Ended at epoch %d. This log does not say how many epochs were planned." = "Kết thúc ở epoch %d. Nhật ký này không ghi số epoch dự định.";

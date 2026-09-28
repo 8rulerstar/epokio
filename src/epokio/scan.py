@@ -63,6 +63,9 @@ class Run:
         d = self.__dict__.copy()
         d["path"] = str(self.path)
         d["display"] = display_name(self)       # 모든 화면이 같은 이름을 쓰게(★폰 알림·트레이·맥 알림은 'train'만 보였다)
+        for k in ("metric", "best"):            # ★API가 0.8200000000000001 같은 부동소수 찌꺼기를 그대로 냈다
+            if isinstance(d.get(k), float):
+                d[k] = round(d[k], 6)
         return d
 
     @classmethod

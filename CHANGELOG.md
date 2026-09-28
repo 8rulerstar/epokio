@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 (2026-09-28)
+
+- **Your own training loop shows up without changes.** Any CSV whose first column is `epoch` and that has a loss column (`train_log.csv`, `log.csv`, ...) is read as a run of your code. Keras logs saved with a byte order mark (Windows, Excel, pandas `utf-8-sig`) are no longer missed.
+- **Fix:** `epokio setup --root <folder>` run while the helper was already running saved the folder but the helper did not watch it until restarted. It now hands the folder to the running helper.
+- **Fix:** a finished Keras, Lightning or TensorBoard run (no planned epoch count in its log) showed as *Stopped* with "stopped before the last one, train again from last.pt". It now shows as *Ended*.
+- **Fix:** notes said "resuming will not help, the learning rate has already wound down" for runs with no learning rate record, and for runs that stopped before their planned epochs. A run that stopped early is now told to resume.
+- **Fix:** `epokio doctor` said the helper was not running when it ran on a port other than 8787.
+- Lightning runs are named by their project (`my_exp/version_0`) instead of all being `version_0`. `epokio setup` on a Mac no longer suggests the Windows/Linux tray. Scores in the API no longer carry float noise (`0.8200000000000001`).
+
 ## 0.5.0 (2026-09-28)
 
 - **Notes for Hugging Face, Lightning and Keras runs speak their language.** "Keep the best epoch" now says how in that framework (`load_best_model_at_end`, `ModelCheckpoint`, `restore_best_weights`) instead of `best.pt`, which those runs do not have.

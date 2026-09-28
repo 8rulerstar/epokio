@@ -271,9 +271,18 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
     if best_ep is not None and best_ep >= n - 1 and n >= 5:
         tail = _tail(args, n)
         if not tail:
+            # ★학습률 기록이 없는 학습(TensorBoard 등)에도, 계획보다 일찍 멈춘 학습에도 '학습률이 이미 줄어 이어 하기는
+            #   소용없다'고 했다. 이어 하기를 권하는 README와도 부딪혔다. 근거가 있을 때만 그 말을 한다
+            planned = int(_num(args, "epochs", 0)) if args and "epochs" in args else 0
+            if planned and n < planned:
+                todo = tr("It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.", n=n, p=planned)
+            elif args and ({"close_mosaic", "task", "mode"} & set(args)) and _num(args, "lrf", ULTRA_LRF) < 0.5:
+                todo = tr("A new run with more epochs will probably score higher. Resuming this one will not help much, "
+                          "because its learning rate has already wound down.")
+            else:
+                todo = tr("A new run with more epochs will probably score higher.")
             out.append((tr("The best score came in the last epochs ({e} of {n}). It was still improving.", e=best_ep, n=n),
-                        tr("A new run with more epochs will probably score higher. Resuming this one will not help much, "
-                           "because its learning rate has already wound down."), {"kind": "still_improving", "epochs": n}))
+                        todo, {"kind": "still_improving", "epochs": n}))
         elif sc and (alive := _still_rising(sc[1][:n - tail], sc[2])):
             out.append((tr("The score was still rising before the final {t} epochs ({a:.3f} to {b:.3f}), "
                            "so the best score at the end is not only the end-of-training effect.", t=tail, a=alive[0], b=alive[1]),

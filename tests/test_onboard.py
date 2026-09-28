@@ -302,3 +302,32 @@ def test_doctor_prints_a_report_without_the_token(monkeypatch, tmp_path, capsys)
     out = capsys.readouterr().out
     d = json.loads(out)
     assert d["helper"]["running"] is False and d["token_file"] is True and tok not in out
+
+
+def test_setup_root_reaches_a_running_helper(monkeypatch, tmp_path, capsys):
+    """★처음엔 폴더 없이 setup, 그다음 setup --root: roots.json에만 적고 도는 도우미는 몰라 목록이 비어 있었다"""
+    from pathlib import Path
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    sent = []
+    monkeypatch.setattr(onboard, "outdated", lambda *a, **k: None)
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "add_roots_live", lambda port, roots: sent.extend(roots) or True)
+    monkeypatch.setattr(onboard, "headless", lambda: True)
+    onboard.main(["--root", str(runs), "--no-browser"])
+    assert sent == [runs.resolve()] and "Added the folder" in capsys.readouterr().out
+
+
+def test_doctor_finds_the_helper_on_its_real_port(monkeypatch, tmp_path):
+    """★8787로 고정해, 다른 포트로 뜬 도우미를 '안 돈다'고 오진했다"""
+    from pathlib import Path
+    from epokio import doctor, envs, port
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(port, "read_record", lambda: {"port": 8799, "pid": 1})
+    monkeypatch.setattr(onboard, "agent_alive", lambda p, *a, **k: p == 8799)
+    asked = []
+    monkeypatch.setattr(onboard, "agent_health", lambda p, *a, **k: asked.append(p))
+    monkeypatch.setattr(envs, "list_envs", lambda: [])
+    doctor.doctor(["--json"])
+    assert asked == [8799]

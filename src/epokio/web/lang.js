@@ -15,7 +15,7 @@ const LANG = (() => {
 const KO = {
   // 탭·상태
   "Runs": "학습 기록", "Train": "학습", "Queue": "대기열", "Compare": "비교", "Alerts": "알림",
-  "Training": "학습 중", "Starting": "시작하는 중", "Stalled": "진행 없음", "Failed": "실패", "Stopped": "중단됨", "Done": "완료",
+  "Training": "학습 중", "Starting": "시작하는 중", "Stalled": "진행 없음", "Failed": "실패", "Stopped": "중단됨", "Ended": "종료", "Done": "완료",
   "Waiting": "대기 중", "Running": "실행 중", "Cancelled": "취소됨",
   "kind|Training": "학습", "section|Training": "학습",
   "Evaluation": "평가", "Auto-labelling": "자동 라벨링", "Export": "내보내기", "Script": "스크립트", "Python setup": "파이썬 설치",

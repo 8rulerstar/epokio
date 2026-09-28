@@ -29,7 +29,7 @@ def main():
         from .onboard import main as run
         sys.exit(run(rest))
     elif cmd == "doctor":
-        from .onboard import doctor as run
+        from .doctor import doctor as run
         sys.exit(run(rest))
     elif cmd == "autostart":
         from .onboard import autostart_main as run

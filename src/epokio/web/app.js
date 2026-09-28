@@ -7,6 +7,8 @@ const S = { smooth: +LS.epokioSmooth || 0, tab: "runs", runs: [], sel: null, det
             evSeq: 0, gen: 0, sortScore: !!LS.epokioSortScore, lastMain: "", q: "", hooks: null, phoneOpen: false };
 const STATE = { running: [t("Training"), "var(--green)"], starting: [t("Starting"), "var(--purple)"], stalled: [t("Stalled"), "var(--orange)"],
                 failed: [t("Failed"), "var(--red)"], stopped: [t("Stopped"), "var(--soft)"], done: [t("Done"), "var(--accent)"] };
+// 계획 에폭을 모르는 학습(Keras·Lightning·TensorBoard)은 끝난 것과 멈춘 것을 구별할 수 없다. ★끝난 학습이 전부 '중단됨'으로 떴다
+const stateOf = (r) => (r.state === "stopped" && r.total == null ? [t("Ended"), "var(--soft)"] : STATE[r.state] || [esc(r.state), "var(--soft)"]);
 const RANK = { running: 0, starting: 1, stalled: 2, failed: 3, stopped: 4, done: 5 };
 const COLORS = ["var(--brand)", "var(--brand2)", "var(--good)", "var(--warn)", "var(--mixup)", "var(--gold)", "var(--info)", "var(--bad)"];   // 토큰 순서(앱의 chartPalette와 같다)
 const GENERIC = /^(train|exp|val|predict|run|detect|segment|pose|classify)\d*$/;
@@ -214,7 +216,7 @@ function drawBusy() {           // 대기열 탭: 돌거나 기다리는 작업 
 
 // ── 학습 목록 + 상세 ──
 function rowHTML(r, i, check) {
-  const [st, c] = STATE[r.state] || [esc(r.state), "var(--soft)"];
+  const [st, c] = stateOf(r);
   const pct = r.total ? Math.min(100, r.epoch / r.total * 100) : 0;     // 총 에폭을 모르면 막대를 숨긴다(빈 막대가 0%처럼 보였다). 자리는 지켜 줄이 안 흔들린다
   const when = r.state === "running" ? t("{d} left", { d: dur(r.eta) }) : t("{d} ago", { d: dur(r.idle) });
   const box = check ? `<input type="checkbox" class="check" tabindex="-1" aria-label="${esc(t("Compare") + ": " + display(r))}" ${S.picks.includes(r.path) ? "checked" : ""}>` : `<span class="dot"></span>`;
@@ -358,7 +360,7 @@ function queueNext(r, d, change) {
   }, t("Added to the queue"));
 }
 function detailHTML(r, d) {
-  const [st, c] = STATE[r.state] || [esc(r.state), "var(--soft)"];
+  const [st, c] = stateOf(r);
   let h = `<div style="display:flex;gap:12px;align-items:flex-start"><div style="flex:1;min-width:0"><h2>${esc(display(r))}</h2>
     <div class="meta"><span class="pill" style="--c:${c}">${st}</span> · ${t("epoch {e}/{n}", { e: r.epoch, n: r.total ?? "?" })}${r.elapsed ? " · " + t("took {d}", { d: dur(r.elapsed) }) : ""} · ${esc(r.source)}</div>${paceHTML(r)}</div>
     ${r.best != null ? `<div style="text-align:right"><div class="big">${r.best.toFixed(4)}</div><div class="hint" title="${esc(r.metric_name)}">${t("Score")} · ${esc(pretty(r.metric_name, d))}</div></div>` : ""}</div>`;
