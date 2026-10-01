@@ -10,6 +10,11 @@
   Start runs, queue them, review mistakes, and get a plain-language read of every result.
 </p>
 
+<p align="center"><sub>
+  Reads <a href="#supported-frameworks">Ultralytics YOLO · Hugging Face Trainer · PyTorch Lightning · Keras · timm ·
+  MMDetection · W&B local runs · MAE / DeiT / DINO logs · TensorBoard · your own CSV</a>, on this machine or a GPU server over SSH.
+</sub></p>
+
 <p align="center">
   <a href="#install">Install</a> ·
   <a href="#what-it-does">What it does</a> ·
@@ -60,7 +65,7 @@ and Increase Contrast.
 * **"Is my training still running?"** See epoch, time left and best score in the macOS menu bar, without opening a terminal, TensorBoard or a browser tab.
 * **"Tell me when YOLO training finishes."** A notification on your Mac, and a push to your phone (ntfy, Slack, Discord, Telegram), when a run finishes, fails, stalls or reaches a target score.
 * **"Loss became NaN overnight."** Epokio flags diverged runs (NaN loss) and runs that stopped updating, so you do not find out in the morning.
-* **"Which run was better?"** Compare Ultralytics, Hugging Face, PyTorch Lightning, Keras or TensorBoard-logged runs on one chart and in one table.
+* **"Which run was better?"** Compare Ultralytics, Hugging Face, PyTorch Lightning, Keras, timm, MAE/DeiT-style or TensorBoard-logged runs on one chart and in one table.
 * **"Where does my model get it wrong?"** Rank validation images by score and review the worst ones, with labels and predictions drawn on top.
 * **"I have to watch a GPU server over SSH."** Add the server in the Mac app with nothing installed on it, run `epokio watch` in the terminal, or open the web page from any laptop or phone.
 
@@ -325,6 +330,10 @@ Epokio reads the files your framework already writes. No logging code to add.
 | PyTorch Lightning | `CSVLogger` `metrics.csv`, `hparams.yaml` | ✅ | script | |
 | Keras | `CSVLogger` file (`training.log`, `history.csv`) | ✅ | script | |
 | TensorBoard logs | `events.out.tfevents.*` scalars (Lightning's default logger, Hugging Face `runs/`), read without TensorFlow | ✅ | script | |
+| Vision research code (MAE, DeiT, DINO, BEiT, ConvNeXt) | `log.txt` with one JSON line per epoch (`train_loss`, `test_acc1`, ...) | ✅ | script | |
+| timm `train.py` | `summary.csv` (`eval_top1` becomes the main score), `args.yaml` | ✅ | script | |
+| OpenMMLab (MMDetection 3.x, MMPretrain, MMSegmentation) | `vis_data/scalars.json` per run, `max_epochs` from the saved config (epoch-based training) | ✅ | script | |
+| Weights & Biases (local files) | `wandb/run-*/run-*.wandb`, read without installing wandb. Runs that log an `epoch` value; the rest are step-only and are left out. Also over SSH | ✅ | script | |
 | Your own training loop | any CSV whose first column is `epoch` and that has a loss column (`train_log.csv`, `log.csv`, ...) | ✅ | script | |
 
 Adding another framework is one small adapter class in `src/epokio/adapters.py`.
@@ -406,6 +415,9 @@ Screenshots on this page use the sample runs the app can create for you.
 * **메뉴바에서 한눈에**: 모든 학습의 진행률·남은 시간·최고 점수, GPU·CPU·메모리. 캐릭터가 학습 속도에 맞춰 뛰고, 멈추면 같이 멈춥니다. 학습이 없을 때는 CPU·GPU·AI 도구 사용량을 따라 달리게 할 수 있습니다(설정 → 모양). 완료·실패(NaN)·진행 없음·일찍 멈춤 알림
 * **끝나면 이유를 말해 줍니다**: "최고 mAP50-95는 40에폭 중 7에폭의 0.662입니다. 정밀도 0.86이 재현율 0.73보다 훨씬 높습니다. 잘못 찾는 것보다 놓치는 것이 많습니다. 신뢰도 문턱을 낮추거나 놓친 경우의 예시를 더하세요." 계산은 이 기계 안에서 합니다
 * **Studio 창**: 초보자는 `data.yaml`을 끌어다 놓고 시작 버튼만 누르면 됩니다. 전문가는 ultralytics 설정 전부를 설명과 함께 볼 수 있습니다. 거의 모든 동작에 단축키가 있고, **⌘K**로 무엇이든 찾아갑니다
+* **읽는 형식**: Ultralytics YOLO, Hugging Face Trainer, PyTorch Lightning, Keras, timm, MMDetection 등 OpenMMLab, W&B 로컬 기록(wandb 설치 없이), MAE·DeiT·DINO 계열 `log.txt`, TensorBoard, 첫 열이 epoch인 CSV. 학습 코드는 고치지 않습니다
+* **학습 결과 자세히**: 클래스별 정밀도·재현율·mAP(약한 클래스 강조), 학습하는 동안의 GPU·CPU·메모리·온도·팬 기록, 에폭별 예측 사진(켰을 때), 데이터 버전("데이터 v3 / 4", 학습 뒤 데이터가 바뀌면 경고)
+* **팬**: 팬 있는 맥은 본체 팬, 윈도우·리눅스는 NVIDIA GPU 팬. 학습 중 팬이 최고 속도 가까이 5분 넘게 돌면 알림
 * **어떻게 돌렸나**: Epokio로 시작한 학습은 파이썬·PyTorch·Ultralytics·CUDA 판, GPU, git 커밋, seed를 남겨 같은 조건으로 다시 돌릴 수 있습니다
 * **라벨 고치기**: 이미지 위에 YOLO 박스를 보여 주고 바로 고칩니다. 박스 그리기·옮기기, 확대·이동, 키보드로 클래스 고르기(열 개가 넘으면 검색), 고치는 대로 저절로 저장. 모델이 만든 박스와 내가 확인한 박스를 구분해 보여 줍니다
 * **연습 모드**: GPU도 데이터도 없이 가짜 학습을 돌려 화면을 익히고, 첫 진짜 학습은 짧은 안내를 따라 합니다. 어느 쪽도 진짜 학습을 멋대로 시작하지 않습니다

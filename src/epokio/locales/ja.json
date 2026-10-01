@@ -183,5 +183,6 @@
  "Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs.": "次回は EarlyStopping(patience=5, restore_best_weights=True) を入れるか、エポックを減らしてください。",
  "Next time stop earlier, or use fewer epochs.": "次回はもっと早く止めるか、エポックを減らしてください。",
  "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "{p} エポック中 {n} エポックで止まりました。再開して予定のエポックを終えてください。",
- "A new run with more epochs will probably score higher.": "エポック数を増やして新しく学習すると、スコアが上がる可能性が高いです。"
+ "A new run with more epochs will probably score higher.": "エポック数を増やして新しく学習すると、スコアが上がる可能性が高いです。",
+ "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU ファンが {min} 分間 {pct}% で回っています。GPU が冷却のため速度を落とす可能性があります。"
 }

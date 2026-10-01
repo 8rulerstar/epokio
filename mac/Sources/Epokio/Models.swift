@@ -28,7 +28,13 @@ struct Run: Codable, Identifiable, Hashable {
     /// 대표 점수가 높을수록 좋은가. 옛 agent(필드 없음)면 열 이름으로 어림한다 (RunDetail.higher와 같은 규칙)
     var metricHigher: Bool { metric_higher ?? !metric_name.lowercased().contains("loss") }
     var frameworkName: String {
-        switch framework { case "huggingface": "Hugging Face"; case "lightning": "Lightning"; case "keras": "Keras"; case "tensorboard": "TensorBoard"; case "epokio": "epokio.log"; case "custom": L("Your code"); default: "Ultralytics" }   // custom: epokio.start()로 기록한 직접 짠 학습
+        switch framework {
+        case "huggingface": "Hugging Face"; case "lightning": "Lightning"; case "keras": "Keras"; case "tensorboard": "TensorBoard"
+        case "epokio": "epokio.log"; case "custom": L("Your code")                  // custom: epokio.start()·직접 짠 루프의 CSV
+        case "timm": "timm"; case "openmmlab": "OpenMMLab"; case "wandb": "W&B"; case "jsonlog": "log.txt"
+        case nil, "ultralytics": "Ultralytics"
+        default: framework ?? "Ultralytics"                     // ★모르는 이름을 전부 Ultralytics로 보였다(새 형식이 늘 때마다)
+        }
     }
 
     var progress: Double? {
@@ -65,6 +71,7 @@ struct Snapshot: Codable {
     var cpu_temp: Double? = nil      // °C, 애플 실리콘 맥만. 없으면 칸을 숨긴다
     var fan: Double? = nil           // % 가장 빠른 팬의 최대 대비. 팬 있는 애플 실리콘 맥만(macfan.py)
     var fan_rpm: Int? = nil
+    var fan_source: String? = nil    // mac(SMC) · gpu(nvidia-smi, 윈도우·리눅스 원격 기계)
     var disk_free: Double? = nil     // GB (sysinfo). 쉬는 모드 카드가 쓴다
     var net_up: Double? = nil        // B/s
     var net_down: Double? = nil

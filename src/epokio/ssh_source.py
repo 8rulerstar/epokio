@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -33,12 +34,22 @@ CONTROL_DIR = HOME / "ssh-control"
 
 # 서버에서 도는 스크립트. ★표준 라이브러리만, python3.6에서도 돌게(f-string 없이)
 REMOTE = r'''
-import json, os, sys, time
+import base64, json, os, sys, time
 cfg = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
+try: HAVE = json.loads(HAVE_JSON)       # 지난번에 받은 {폴더: {파일: 수정 시각}}. 그대로면 내용을 다시 보내지 않는다
+except NameError: HAVE = {}
 HOME = os.path.expanduser("~")
 FILES = ["results.csv", "args.yaml", "trainer_state.json", "metrics.csv", "hparams.yaml", "epokio_log.csv",
-         "training.log", "history.csv", "training.csv", "keras_log.csv"]
-MARK = set(["results.csv", "trainer_state.json", "metrics.csv", "epokio_log.csv", "history.csv", "training.log", "training.csv", "keras_log.csv"])
+         "training.log", "history.csv", "training.csv", "keras_log.csv", "summary.csv", "log.txt",
+         "vis_data/scalars.json", "vis_data/config.py"]
+MARK = set(["results.csv", "trainer_state.json", "metrics.csv", "epokio_log.csv", "history.csv", "training.log", "training.csv",
+            "keras_log.csv", "summary.csv"])
+def jsonlog(d):
+    # MAE·DeiT·DINO의 log.txt(에폭마다 JSON 한 줄). 흔한 이름이라 첫 줄이 epoch 있는 JSON일 때만 학습으로 본다
+    try:
+        with open(os.path.join(d, "log.txt"), "rb") as f: head = f.readline(20000).decode("utf-8", "replace").strip()
+        return head.startswith("{") and "epoch" in json.loads(head)
+    except (OSError, ValueError): return False
 SKIP = set(["images", "labels", "weights", "dataset", "datasets", ".git", ".venv", "venv", "node_modules", "__pycache__",
             ".cache", "anaconda3", "miniconda3", ".conda", "site-packages", "Library", "snap"])
 roots = [os.path.expanduser(p) for p in cfg.get("paths", [])]
@@ -54,17 +65,22 @@ def walk(d, depth):
     except OSError: return
     ns = set(names)
     ck = sorted([n for n in names if n.startswith("checkpoint-")], key=lambda n: int("".join(c for c in n if c.isdigit()) or 0))
-    if ns & MARK or (ck and os.path.exists(os.path.join(d, ck[-1], "trainer_state.json"))):
+    wb = [n for n in names if n.startswith("run-") and n.endswith(".wandb")]   # W&B 기록(바이너리)
+    if ns & MARK or wb or ("log.txt" in ns and jsonlog(d)) or os.path.isfile(os.path.join(d, "vis_data", "scalars.json")) or (ck and os.path.exists(os.path.join(d, ck[-1], "trainer_state.json"))):
         rp = os.path.realpath(d)
         if rp in seen: return
         seen.add(rp)
         files = {}
-        for n in FILES + ([ck[-1] + "/trainer_state.json"] if ck else []):
+        for n in FILES + ([ck[-1] + "/trainer_state.json"] if ck else []) + wb:
             p = os.path.join(d, n)
             try:
                 st = os.stat(p)
-                if st.st_size > 4000000: continue
-                with open(p, "rb") as f: files[n] = [st.st_mtime, f.read().decode("utf-8", "replace")]
+                if st.st_size > (20000000 if n in wb else 4000000): continue
+                if HAVE.get(d, {}).get(n) == st.st_mtime:
+                    files[n] = [st.st_mtime, None]      # 안 바뀌었다: 내용은 빼고 시각만
+                    continue
+                with open(p, "rb") as f: data = f.read()
+                files[n] = [st.st_mtime, base64.b64encode(data).decode("ascii"), "b64"] if n in wb else [st.st_mtime, data.decode("utf-8", "replace")]
             except OSError: pass
         out.append({"path": d, "files": files})
         return
@@ -143,15 +159,17 @@ NO_REUSE_NOTE = ("Windows OpenSSH cannot reuse connections (ControlMaster), "
                  "so Epokio logs in to the server on every read")
 
 
-def run_remote(host: str, cfg: dict, ssh="ssh", timeout: float = TIMEOUT) -> dict:
-    """서버에서 스캔 스크립트를 돌린다. 실패하면 ValueError(사람이 읽을 이유)"""
+def run_remote(host: str, cfg: dict, ssh="ssh", timeout: float = TIMEOUT, have: dict | None = None) -> dict:
+    """서버에서 스캔 스크립트를 돌린다. 실패하면 ValueError(사람이 읽을 이유).
+    have: {원격 폴더: {파일: 원격 수정 시각}}. 스크립트 앞에 붙여 표준 입력으로 보낸다(★명령줄로는 길이 제한에 걸린다)"""
     if not valid_host(host):
         raise ValueError("invalid host name")
     arg = json.dumps({"paths": cfg.get("paths", []), "auto": cfg.get("auto", True)})
     cmd = _ssh_cmd(ssh, host, arg)
     try:
         # 바이트로 넘긴다: 텍스트 모드는 윈도우에서 스크립트의 \n을 \r\n으로 바꾸고, 출력은 로캘 코드페이지로 읽는다
-        p = subprocess.run(cmd, input=REMOTE.encode("utf-8"), capture_output=True, timeout=timeout)
+        script = "HAVE_JSON = " + repr(json.dumps(have or {})) + "\n" + REMOTE
+        p = subprocess.run(cmd, input=script.encode("utf-8"), capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         raise ValueError("timed out")
     except OSError as e:
@@ -191,6 +209,20 @@ def apply(host: str, got: dict, now: float | None = None) -> int:
             mt, text = float(pair[0]) + skew, pair[1]
             f = d / name
             f.parent.mkdir(parents=True, exist_ok=True)
+            if text is None:                                     # 서버: 지난번과 같다. 비춤이 남아 있으면 그대로
+                if f.exists():
+                    _HAVE.setdefault(host, {}).setdefault(str(r["path"]), {})[name] = pair[0]
+                    os.utime(f, (mt, mt))
+                continue
+            _HAVE.setdefault(host, {}).setdefault(str(r["path"]), {})[name] = pair[0]
+            if len(pair) > 2 and pair[2] == "b64":                 # 바이너리(W&B .wandb)
+                data = base64.b64decode(text)
+                if not f.exists() or f.read_bytes() != data:
+                    tmp = f.with_name(f.name + ".tmp")
+                    tmp.write_bytes(data)
+                    tmp.replace(f)
+                os.utime(f, (mt, mt))
+                continue
             if not f.exists() or f.read_text(encoding="utf-8", errors="replace", newline="") != text:
                 tmp = f.with_name(f.name + ".tmp")
                 tmp.write_text(text, encoding="utf-8", newline="")    # 윈도우에서도 개행을 바꾸지 않는다
@@ -201,6 +233,20 @@ def apply(host: str, got: dict, now: float | None = None) -> int:
             if f.is_file() and not any(k == f.parent or k in f.parents for k in keep):
                 f.unlink(missing_ok=True)
     return len(keep)
+
+
+_HAVE: dict[str, dict[str, dict[str, float]]] = {}      # 호스트 → 원격 폴더 → 파일 → 받은 원격 수정 시각
+
+
+def have_for(host: str) -> dict:
+    """다음 스캔에 보낼 '이미 받은 것'. 비춤 파일이 지워졌으면 빼서 다시 받는다"""
+    out = {}
+    for path, files in _HAVE.get(host, {}).items():
+        d = local_dir(host, path)
+        keep = {n: m for n, m in files.items() if d is not None and (d / n).exists()}
+        if keep:
+            out[path] = keep
+    return out
 
 
 def _safe_rel(name: str) -> bool:
@@ -271,7 +317,7 @@ class Poller:
     def poll_once(self, host: dict) -> dict:
         h = host["host"]
         try:
-            got = run_remote(h, host, self.ssh)
+            got = run_remote(h, host, self.ssh, have=have_for(h))
             n = apply(h, got)
             st = {"ok": True, "error": None, "runs": n, "at": time.time(), "python": got.get("python"),
                   "truncated": bool(got.get("truncated")),

@@ -38,6 +38,7 @@ class GPU:
     mem_used: float | None        # GB
     mem_total: float | None       # GB
     temp: float | None = None     # °C (NVIDIA만)
+    fan: float | None = None      # % (NVIDIA만. 팬 없는 서버용 카드는 [N/A])
 
 
 @dataclass
@@ -57,6 +58,7 @@ class Snapshot:
     cpu_temp: float | None = None      # °C (애플 실리콘 맥만, mactemp.py)
     fan: float | None = None           # % 가장 빠른 팬의 최대 대비 (팬 있는 애플 실리콘 맥만, macfan.py)
     fan_rpm: int | None = None
+    fan_source: str | None = None      # "mac"(SMC) · "gpu"(nvidia-smi, 윈도우·리눅스). 화면이 "GPU 팬"이라고 밝힌다
     ai: float | None = None            # % AI 도구 사용량 (aiuse.py). 메뉴바 캐릭터 속도용
     ai_from: str | None = None         # 그 값이 어디서 왔나: "reported" · "process" · "none"
 
@@ -153,7 +155,7 @@ def _nvidia() -> list[GPU]:
     smi = nvidia_smi_path()
     if not smi:
         return []
-    out = _run([smi, "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu",
+    out = _run([smi, "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,fan.speed",
                 "--format=csv,noheader,nounits"])
     gpus = []
     for line in out.strip().splitlines():
@@ -164,7 +166,7 @@ def _nvidia() -> list[GPU]:
         gb = lambda v: (f(v) / 1024) if f(v) is not None else None      # ★[N/A]를 0.0 GB로 바꾸지 않는다
         gpus.append(GPU(name=parts[0], util=f(parts[1]),
                         mem_used=gb(parts[2]), mem_total=gb(parts[3]),
-                        temp=f(parts[4])))
+                        temp=f(parts[4]), fan=f(parts[5]) if len(parts) > 5 else None))
     return gpus
 
 _PSUTIL: dict = {}      # psutil 첫 표본을 버렸는지
@@ -329,10 +331,13 @@ def sample(host: str | None = None, path: str | None = None) -> Snapshot:
         cpu, ai = _mac_cpu_ai()
         snap = Snapshot(host, cpu, used, total, gpus, time.time())
         snap.cpu_temp, (snap.fan, snap.fan_rpm) = mactemp.cpu_temp(), macfan.fan() or (None, None)
+        snap.fan_source = "mac" if snap.fan is not None else None
         snap.ai, snap.ai_from = aiuse.combine(ai)
         return _extras(snap, path)
     cpu, used, total = _generic_cpu_mem()
     snap = Snapshot(host, cpu, used, total, _nvidia(), time.time())
+    fans = [g.fan for g in snap.gpus if g.fan is not None]      # 윈도우·리눅스: 메인보드 팬은 표준 길이 없어 GPU 팬(가장 빠른 것)
+    snap.fan, snap.fan_source = (max(fans), "gpu") if fans else (None, None)
     snap.ai, snap.ai_from = aiuse.combine(None)      # 맥 아닌 기계는 프로세스 훑기 없음. 보고가 오면 그 값
     return _extras(snap, path)
 

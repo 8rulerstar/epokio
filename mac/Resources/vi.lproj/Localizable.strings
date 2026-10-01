@@ -1358,3 +1358,4 @@
 "The data changed after this run trained" = "Dữ liệu đã thay đổi sau lần huấn luyện này";
 "Ended" = "Đã kết thúc";
 "Ended at epoch %d. This log does not say how many epochs were planned." = "Kết thúc ở epoch %d. Nhật ký này không ghi số epoch dự định.";
+"GPU fan speed" = "Tốc độ quạt GPU";

@@ -69,7 +69,7 @@ const KO = {
   "Work out per-class scores": "클래스별 점수 계산", "Start it on the machine that has this run.": "이 학습이 있는 기계에서 시작하세요.",
   "From a validation pass with best.pt.": "best.pt로 검증한 결과입니다.", "From the last validation of this run.": "이 학습의 마지막 검증 결과입니다.",
   "Weakest first. Highlighted: well below the class average.": "약한 순서. 강조: 클래스 평균보다 크게 낮음.", "Few examples: the score is shaky": "사례가 적어 점수가 흔들립니다",
-  "Class average": "클래스 평균", "Added to the queue. The table appears here when it finishes.": "대기열에 넣었습니다. 끝나면 여기에 표가 나옵니다.", "Fan": "팬", "Fan speed": "팬 속도",
+  "Class average": "클래스 평균", "Added to the queue. The table appears here when it finishes.": "대기열에 넣었습니다. 끝나면 여기에 표가 나옵니다.", "Fan": "팬", "Fan speed": "팬 속도", "GPU fan": "GPU 팬", "GPU fan speed": "GPU 팬 속도",
   "GPU memory is full": "GPU 메모리가 가득 참", "Training resumed": "학습이 다시 진행 중",
   "On: sends to {hosts}.": "켜짐 · 받는 곳: {hosts}", "Off.": "꺼짐.", "Phone alerts": "폰 알림",
   "Easiest: install the free <b>ntfy</b> app on your phone, subscribe to a topic with a long random name, and paste <code>https://ntfy.sh/your-topic</code> here. Slack, Discord and Telegram webhook addresses work too. Anyone who knows the topic can read it, so make it hard to guess.":

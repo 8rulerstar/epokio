@@ -40,7 +40,14 @@ class Ultralytics(Adapter):
     name = "ultralytics"
 
     def detect(self, d, names):
-        return "results.csv" in names or "args.yaml" in names
+        # args.yaml만 있는 폴더(1에폭 전)도 울트라리틱스로 본다. 단 울트라리틱스 args.yaml에는 늘 task·mode가 있다(timm엔 둘 다 없다).
+        # ★timm도 args.yaml을 남겨서, summary.csv가 있는 timm 학습을 여기서 가져간 뒤 못 읽어 목록에서 사라졌다
+        if "results.csv" in names:
+            return True
+        if "args.yaml" not in names:
+            return False
+        text = (d / "args.yaml").read_text(encoding="utf-8", errors="ignore")[:20000]
+        return _yaml_value(text, "task") is not None or _yaml_value(text, "mode") is not None
 
     def load(self, d):
         p = d / "results.csv"

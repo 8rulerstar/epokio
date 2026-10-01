@@ -18,13 +18,15 @@ from pathlib import Path
 
 from .adapters_base import (Adapter, Loaded, _CSV_CACHE, _LOWER, _csv_header, _int, _num,  # noqa: F401
                             _read_csv, _yaml_value, metric_column)
-from .adapters_csvlog import CsvLog, Keras, Lightning  # noqa: F401
+from .adapters_csvlog import CsvLog, JsonLines, Keras, Lightning  # noqa: F401
 from .adapters_hf import HuggingFace  # noqa: F401
+from .adapters_mm import MMEngine  # noqa: F401
+from .adapters_wandb import WandB  # noqa: F401
 from .adapters_ultra import (ULTRA_LOSSES, ULTRA_TASK_METRIC, ULTRA_TASKS, EpokioLog, Ultralytics,  # noqa: F401
                              _log_row, ultralytics_warnings)
 from .tfevents import TensorBoard  # noqa: E402  파서가 커서 따로 둔다. 다른 형식과 같이 있으면 그쪽이 먼저
 
-ADAPTERS: list[Adapter] = [EpokioLog(), Ultralytics(), HuggingFace(), Lightning(), Keras(), TensorBoard(), CsvLog()]   # CsvLog는 이름 무관 CSV라 맨 끝
+ADAPTERS: list[Adapter] = [EpokioLog(), Ultralytics(), HuggingFace(), Lightning(), Keras(), JsonLines(), MMEngine(), WandB(), TensorBoard(), CsvLog()]   # CsvLog는 이름 무관 CSV라 맨 끝
 
 
 def detect(d: Path, names: set[str] | None = None) -> Adapter | None:

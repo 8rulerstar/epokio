@@ -100,7 +100,7 @@ def _read_total_epochs(run_dir: Path) -> int | None:
         return None
 
 
-from .scan_names import display_name, fmt_dur, unique  # noqa: E402,F401  (옛 import 경로 유지)
+from .scan_names import alias_of_sibling, display_name, fmt_dur, unique  # noqa: E402,F401  (옛 import 경로 유지)
 
 _pick_metric = schema.pick_metric      # 옛 이름(윈도우 쪽 코드·시험이 부른다)
 
@@ -374,7 +374,7 @@ def _walk(root: Path, depth: int):
             is_dir = e.is_dir()
         except OSError:
             continue
-        if is_dir and e.name not in SKIP_DIRS and not e.name.startswith("."):
+        if is_dir and e.name not in SKIP_DIRS and not e.name.startswith(".") and not (e.is_symlink() and alias_of_sibling(Path(e.path), root)):
             yield from _walk(Path(e.path), depth - 1)
 
 

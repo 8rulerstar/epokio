@@ -1366,3 +1366,4 @@
 "The data changed after this run trained" = "Os dados mudaram depois deste treino";
 "Ended" = "Encerrada";
 "Ended at epoch %d. This log does not say how many epochs were planned." = "Terminou na época %d. Este registro não diz quantas épocas estavam planejadas.";
+"GPU fan speed" = "Velocidade da ventoinha da GPU";

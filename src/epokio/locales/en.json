@@ -183,5 +183,6 @@
  "Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs.": "Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs.",
  "Next time stop earlier, or use fewer epochs.": "Next time stop earlier, or use fewer epochs.",
  "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.",
- "A new run with more epochs will probably score higher.": "A new run with more epochs will probably score higher."
+ "A new run with more epochs will probably score higher.": "A new run with more epochs will probably score higher.",
+ "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off."
 }

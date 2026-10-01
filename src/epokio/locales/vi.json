@@ -183,5 +183,6 @@
  "Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs.": "Lần sau hãy thêm EarlyStopping(patience=5, restore_best_weights=True), hoặc dùng ít epoch hơn.",
  "Next time stop earlier, or use fewer epochs.": "Lần sau hãy dừng sớm hơn, hoặc dùng ít epoch hơn.",
  "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "Đã dừng ở epoch {n} trên {p}. Hãy tiếp tục để hoàn thành số epoch đã định.",
- "A new run with more epochs will probably score higher.": "Huấn luyện lại với nhiều epoch hơn có lẽ sẽ đạt điểm cao hơn."
+ "A new run with more epochs will probably score higher.": "Huấn luyện lại với nhiều epoch hơn có lẽ sẽ đạt điểm cao hơn.",
+ "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "Quạt GPU đã chạy ở {pct}% trong {min} phút. GPU có thể chạy chậm lại để hạ nhiệt."
 }

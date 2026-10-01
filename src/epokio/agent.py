@@ -258,7 +258,9 @@ class Agent(Watcher):
             fp = (got or {}).get("versions", {}).get("data")
             if fp:                                        # 같은 데이터로 학습한 다른 학습들
                 got["versions"]["same_data"] = [o for o in self._data_index().get(fp, []) if o["path"] != str(d)][:20]
-            if got is not None:                           # 계보: 시작 가중치를 준 학습(부모)·이 학습에서 시작한 학습(자식)
+            # 계보: 시작 가중치를 준 학습(부모)·이 학습에서 시작한 학습(자식). best.pt·모델 등록부 기준이라 YOLO(또는 best.pt 있는) 학습만.
+            # ★W&B·timm 학습에도 "Put in use"와 "best.pt가 아직 없다"가 떠서 틀린 안내를 했다
+            if got is not None and (got.get("framework") == "ultralytics" or got.get("weights")):
                 from . import lineage
                 lin = lineage.lineage(d, self._run_paths())
                 if lin["parent"]:

@@ -183,5 +183,6 @@
  "Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs.": "下次加入 EarlyStopping(patience=5, restore_best_weights=True)，或减少轮数。",
  "Next time stop earlier, or use fewer epochs.": "下次提早停止，或减少轮数。",
  "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "在计划的 {p} 轮中停在了第 {n} 轮。请继续训练，完成计划的轮数。",
- "A new run with more epochs will probably score higher.": "增加轮数重新训练，分数很可能会更高。"
+ "A new run with more epochs will probably score higher.": "增加轮数重新训练，分数很可能会更高。",
+ "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU 风扇已以 {pct}% 运转 {min} 分钟。GPU 可能会降速散热。"
 }

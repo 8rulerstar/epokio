@@ -152,3 +152,20 @@ def test_psutil_first_cpu_sample_is_none(monkeypatch):
     assert sysinfo._generic_cpu_mem() == (None, 8.0, 16.0)      # 첫 표본
     fake.cpu_percent = lambda interval=None: 37.5
     assert sysinfo._generic_cpu_mem() == (37.5, 8.0, 16.0)      # 두 번째부터 값
+
+
+def test_gpu_fan_from_nvidia_smi_is_the_fan_on_windows_and_linux(monkeypatch):
+    """윈도우·리눅스는 메인보드 팬을 읽는 표준 길이 없다. GPU 팬(nvidia-smi fan.speed)을 쓰고, 출처를 밝힌다.
+    팬 없는 서버용 카드는 [N/A], 옛 드라이버처럼 열이 모자라도 죽지 않는다"""
+    out = "RTX 3060 Ti,99,6000,8192,71,64\nA100,50,1000,40960,40,[N/A]\nOld,10,1,2,30\n"
+    monkeypatch.setattr(sysinfo, "nvidia_smi_path", lambda: "/usr/bin/nvidia-smi")
+    monkeypatch.setattr(sysinfo, "_run", lambda cmd, timeout=3: out)
+    monkeypatch.setattr(sysinfo.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(sysinfo, "_generic_cpu_mem", lambda: (10.0, 8.0, 16.0))
+    monkeypatch.setattr(sysinfo, "_extras", lambda s, p: s)
+    s = sysinfo.sample("box")
+    assert [g.fan for g in s.gpus] == [64.0, None, None]
+    assert s.fan == 64.0 and s.fan_source == "gpu" and s.fan_rpm is None
+    monkeypatch.setattr(sysinfo, "_run", lambda cmd, timeout=3: "A100,50,1000,40960,40,[N/A]\n")
+    s = sysinfo.sample("box")
+    assert s.fan is None and s.fan_source is None

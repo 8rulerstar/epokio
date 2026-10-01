@@ -21,7 +21,7 @@ struct SystemStrip: View {
                             .transition(.opacity.combined(with: .move(edge: .leading)))
                     }
                     if showFan, let f = s.fan {
-                        FanGauge(pct: f, rpm: s.fan_rpm)
+                        FanGauge(pct: f, rpm: s.fan_rpm, gpu: s.fan_source == "gpu")
                             .transition(.opacity.combined(with: .move(edge: .leading)))
                     }
                     VStack(alignment: .leading, spacing: 2) {
@@ -107,18 +107,19 @@ struct FanGauge: View {
     @Environment(\.accessibilityReduceMotion) private var reduce
     let pct: Double
     let rpm: Int?
+    var gpu = false                 // 원격 윈도우·리눅스 기계: 본체 팬이 아니라 GPU 팬
     @State private var hover = false
 
     var body: some View {
         let full = pct >= Self.full
-        let tip = L("Fan speed") + (rpm.map { " · \($0) rpm" } ?? "")
-        Gauge(label: "FAN", value: pct, tint: full ? .warn : .secondary)
+        let tip = gpu ? L("GPU fan speed") : L("Fan speed") + (rpm.map { " · \($0) rpm" } ?? "")
+        Gauge(label: gpu ? "GPU FAN" : "FAN", value: pct, tint: full ? .warn : .secondary)
             .background(Circle().fill(Color.secondary.opacity(hover ? 0.12 : 0)))
             .scaleEffect(hover && !reduce ? 1.06 : 1)
             .animation(reduce ? nil : Motion.hover, value: full)
             .onHover { h in withAnimation(reduce ? nil : Motion.hover) { hover = h } }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(L("Fan speed"))
+            .accessibilityLabel(gpu ? L("GPU fan speed") : L("Fan speed"))
             .accessibilityValue(Text(verbatim: "\(Int(pct.rounded()))%" + (rpm.map { ", \($0) rpm" } ?? "")))
             .help(tip)
     }

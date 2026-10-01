@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.3 (2026-10-01)
+
+- Runs from other frameworks no longer show *Where it came from* and *Put in use* with a note that `best.pt` is missing. Those are about Ultralytics weights and now appear only for runs that have them.
+- W&B runs show as `project/run-id` and OpenMMLab runs as `config/timestamp`, instead of the long folder name or the timestamp alone.
+- **Over SSH, only what changed is sent.** The server skips files that have not changed since the last look, so watching a busy GPU server costs a fraction of the traffic. W&B runs now work over SSH too.
+- **GPU fan on Windows and Linux.** Machines with an NVIDIA GPU now report its fan speed (from `nvidia-smi`), shown as *GPU fan* on the web page and in the Mac app when you watch that machine. The warning for fans stuck near full speed during training works there too. Windows and Linux have no standard way to read the other fans without extra drivers.
+- **Fix:** in the Mac app, runs from any framework it did not know by name (W&B, OpenMMLab, log.txt) were labelled Ultralytics. They now show their own name, and timm runs show as timm instead of "Your code".
+- **Weights & Biases runs** are read from the files W&B keeps on your disk (`wandb/run-*/run-*.wandb`, online or offline), without installing wandb: losses and scores per epoch, the planned epochs and settings from the config. Only runs that log an `epoch` value, since W&B otherwise counts steps. W&B's `latest-run` link no longer shows a run twice.
+- **OpenMMLab runs** (MMDetection 3.x, MMPretrain, MMSegmentation) are read from `vis_data/scalars.json`: losses per epoch, COCO mAP and other validation scores, and the planned epochs from the saved config. Iteration-based runs are left out. Also over SSH.
+- **Vision research code shows up with no changes.** Runs from the MAE, DeiT, DINO, BEiT and ConvNeXt codebases (a `log.txt` with one JSON line per epoch) are read, with top-1 accuracy as the main score. Also over SSH.
+- **Fix: timm runs were invisible.** timm writes an `args.yaml` too, and Epokio took the folder for an Ultralytics run it could not read. `eval_*` and `test_*` columns now count as validation, not training.
+
 ## 0.5.2 (2026-09-28)
 
 - README: says up front that no code changes or account are needed, lists your own training loop's CSV among the supported formats, and compares with Trackio.

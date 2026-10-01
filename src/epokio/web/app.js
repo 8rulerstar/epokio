@@ -202,7 +202,7 @@ function drawSys() {
   const s = S.sys; if (!s || S.down) { $("#sys").innerHTML = ""; return; }      // 끊기면 옛 수치를 지운다
   const g = (s.gpus || [])[0] || {}; const mem = s.mem_total ? s.mem_used / s.mem_total * 100 : null;
   const p = (v) => v == null ? "–" : Math.round(v) + "%";
-  $("#sys").innerHTML = `<span>GPU <b>${p(g.util)}</b></span><span>CPU <b>${p(s.cpu)}</b></span><span>${t("MEM")} <b>${p(mem)}</b></span>${s.fan != null ? `<span title="${esc(t("Fan speed"))} · ${s.fan_rpm ?? "?"} rpm">${t("Fan")} <b>${p(s.fan)}</b></span>` : ""}<span>${esc(g.name || s.host)}</span>`;   // 팬: 팬 있는 맥만(macfan.py)
+  $("#sys").innerHTML = `<span>GPU <b>${p(g.util)}</b></span><span>CPU <b>${p(s.cpu)}</b></span><span>${t("MEM")} <b>${p(mem)}</b></span>${s.fan != null ? `<span title="${esc(s.fan_source === "gpu" ? t("GPU fan speed") : t("Fan speed") + (s.fan_rpm ? ` · ${s.fan_rpm} rpm` : ""))}">${s.fan_source === "gpu" ? t("GPU fan") : t("Fan")} <b>${p(s.fan)}</b></span>` : ""}<span>${esc(g.name || s.host)}</span>`;   // 팬: 팬 있는 맥만(macfan.py)
 }
 function drawBadge() {
   // 알림 탭에 그리는 것 전부(시작·다시 돎은 빼고). ★디스크·GPU 경고가 빠져 있어 '디스크 거의 참'이 와도 표시가 안 켜졌다

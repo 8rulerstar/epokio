@@ -5,8 +5,10 @@ import os
 import re
 import unicodedata
 
-_GENERIC = re.compile(r"^(train|exp|val|predict|run|detect|segment|pose|classify)\d*$|^version_\d+$")   # version_N: Lightning(★여러 학습이 전부 version_0으로 떴다)
-_SKIP_PARENT = ("runs", "detect", "segment", "pose", "classify", "obb", "lightning_logs")
+# version_N: Lightning(★여러 학습이 전부 version_0으로 떴다). 날짜_시각: OpenMMLab work_dirs/<설정>/<시각>(★시각만 보였다)
+_GENERIC = re.compile(r"^(train|exp|val|predict|run|detect|segment|pose|classify)\d*$|^version_\d+$|^\d{8}_\d{6}$")
+_WANDB = re.compile(r"^(?:offline-)?run-\d{8}_\d{6}-([a-z0-9]+)$")   # W&B: wandb/offline-run-<시각>-<id>
+_SKIP_PARENT = ("runs", "detect", "segment", "pose", "classify", "obb", "lightning_logs", "wandb")
 
 
 def display_name(r) -> str:
@@ -14,7 +16,9 @@ def display_name(r) -> str:
     ★웹·터미널·트레이·맥이 따로 만들어, 맥은 윈도우 경로(\\)를 못 나눠 'train'만 보였다.
     맥에서 온 한글 이름(NFD)은 NFC로(칸 수가 두 배로 세어져 표가 어긋났다)"""
     name = unicodedata.normalize("NFC", r.name)
-    if not _GENERIC.match(name):
+    if (w := _WANDB.match(name)):
+        name = w.group(1)                                   # ★offline-run-20260930_145135-h32dkwxl 이 그대로 보였다
+    elif not _GENERIC.match(name):
         return name
     parts = [p for p in re.split(r"[\\/]", str(r.path)) if p]
     parent = next((p for p in reversed(parts[:-1]) if p not in _SKIP_PARENT), None)
@@ -47,3 +51,11 @@ def fmt_dur(sec: float | None, sep: str = " ") -> str:
     if s < 86400:
         return f"{s // 3600}{t('unit.h')}{sep}{s % 3600 // 60}{t('unit.m')}"
     return f"{s // 86400}{t('unit.d')}{sep}{s % 86400 // 3600}{t('unit.h')}"
+
+
+def alias_of_sibling(link, parent) -> bool:
+    """옆 폴더를 가리키는 바로가기인가(W&B latest-run 등). ★scan._walk가 따라가서 같은 학습이 두 번 보였다"""
+    try:
+        return link.resolve().parent == parent.resolve()
+    except OSError:
+        return False

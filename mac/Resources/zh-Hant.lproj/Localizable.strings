@@ -1364,3 +1364,4 @@
 "The data changed after this run trained" = "本次訓練後資料已變更";
 "Ended" = "已結束";
 "Ended at epoch %d. This log does not say how many epochs were planned." = "在 epoch %d 結束。此紀錄沒有預定的 epoch 數。";
+"GPU fan speed" = "GPU 風扇轉速";

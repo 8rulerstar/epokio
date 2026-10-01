@@ -108,6 +108,10 @@ def test_fans_near_full_warn_only_when_it_lasts_during_training(tmp_path, monkey
     a._check_fan(hot, now=1200 + a.FAN_FULL_SEC)
     assert [k for k, _ in pushed] == ["fan_max"] and "7500" in pushed[0][1] and "96" in pushed[0][1]
     a._check_fan(SimpleNamespace(), now=9000)             # 팬 없는 맥(옛 표본)도 죽지 않는다
+    a._warned = {}
+    gpu = SimpleNamespace(fan=97.0, fan_rpm=None, fan_source="gpu")
+    a._check_fan(gpu, now=20000); a._check_fan(gpu, now=20000 + a.FAN_FULL_SEC)
+    assert pushed[-1][0] == "fan_max" and "GPU" in pushed[-1][1] and "rpm" not in pushed[-1][1]   # 윈도우·리눅스 GPU 팬
 
 @pytest.mark.skipif(not _can_symlink(), reason="심링크를 만들 수 없는 환경(윈도우 개발자 모드 꺼짐)")
 def test_remove_root_matches_resolved_path(tmp_path, monkeypatch):

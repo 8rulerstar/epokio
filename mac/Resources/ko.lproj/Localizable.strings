@@ -1367,3 +1367,4 @@
 "The data changed after this run trained" = "이 학습 뒤에 데이터가 바뀌었음";
 "Ended" = "종료";
 "Ended at epoch %d. This log does not say how many epochs were planned." = "%d에폭에서 끝났습니다. 이 기록에는 계획한 에폭 수가 없습니다.";
+"GPU fan speed" = "GPU 팬 속도";

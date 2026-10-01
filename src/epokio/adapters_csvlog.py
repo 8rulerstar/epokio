@@ -1,6 +1,7 @@
 """PyTorch Lightning CSVLogger(metrics.csv)와 Keras CSVLogger 어댑터."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import csv
@@ -102,30 +103,37 @@ class Keras(Adapter):
         warns = []
         if raw and len(raw[0]) == 1:
             warns.append("unknown format/version: single column, non-comma separator (CSVLogger sep=) is not supported")
-        by: dict[int, dict] = {}
-        for r in raw:
-            try:
-                ep = int(float(r["epoch"])) + offset
-            except (KeyError, ValueError):
+        return Loaded(self.name, _epoch_rows(raw, offset), f, warnings=warns)
+
+
+def _epoch_rows(raw: list[dict], offset: int) -> list[dict]:
+    """에폭별 {열: 값} 목록을 공통 모양(train/·val/·metrics/)으로. CSV 로그와 JSON 줄 로그가 같이 쓴다"""
+    by: dict[int, dict] = {}
+    for r in raw:
+        try:
+            ep = int(float(r["epoch"])) + offset
+        except (KeyError, ValueError):
+            continue
+        row = {"epoch": str(ep)}
+        for k, v in r.items():
+            if k == "epoch" or _num(v) == "":                  # 리스트 값("[..]")·빈 값은 곡선이 못 그린다
                 continue
-            row = {"epoch": str(ep)}
-            for k, v in r.items():
-                if k == "epoch" or _num(v) == "":                  # 리스트 값("[..]")·빈 값은 곡선이 못 그린다
-                    continue
-                if k in ("loss", "val_loss"):
-                    row["val/val_loss" if k == "val_loss" else "train/train_loss"] = v
-                elif k.endswith("loss"):
-                    row[("val/" if k.startswith("val_") else "train/") + k] = v
-                elif k in ("lr", "learning_rate"):         # Keras 2는 lr, Keras 3은 learning_rate
-                    continue
-                elif k.lower() in _TIME_COLS:                      # 걸린 시간은 점수가 아니다
-                    continue
-                else:
-                    row[metric_column(k, k.startswith("val_"))] = v
-            by[ep] = row                                           # append 재개로 같은 에폭이 또 나오면 나중 것
-        return Loaded(self.name, [by[k] for k in sorted(by)], f, warnings=warns)
+            if k in ("loss", "val_loss"):
+                row["val/val_loss" if k == "val_loss" else "train/train_loss"] = v
+            elif k.endswith("loss"):
+                row[("val/" if k.startswith(_VAL) else "train/") + k] = v
+            elif k in ("lr", "learning_rate") or k.endswith("_lr"):   # Keras 2는 lr, Keras 3은 learning_rate, MAE는 train_lr
+                continue
+            elif k.lower() in _TIME_COLS:                      # 걸린 시간은 점수가 아니다
+                continue
+            else:
+                row[metric_column(k, k.startswith(_VAL))] = v
+        by[ep] = row                                           # append 재개로 같은 에폭이 또 나오면 나중 것
+    return [by[k] for k in sorted(by)]
 
 
+# 검증 쪽 이름. ★timm은 eval_loss·eval_top1, MAE·DeiT는 test_loss·test_acc1이라 학습 손실로 잘못 분류됐다
+_VAL = ("val_", "valid_", "eval_", "test_")
 _TIME_COLS = {"sec", "secs", "seconds", "time", "elapsed", "duration", "epoch_time", "time_s"}
 _OWNED = {"results.csv", "metrics.csv", "epokio_log.csv"}         # 다른 어댑터 몫. 여기서 가로채면 모양이 틀어진다
 _MAX_PROBE = 8                                                     # 폴더마다 첫 줄만 보는 CSV 수(자동 탐색이 Desktop을 훑는다)
@@ -178,4 +186,48 @@ class CsvLog(Keras):
             eps = [int(float(r["epoch"])) for r in _read_csv(f) if _num(r.get("epoch", "")) != ""]
         except (KeyError, ValueError):
             eps = []
-        return self._load_file(f, offset=1 if eps and min(eps) == 0 else 0)
+        got = self._load_file(f, offset=1 if eps and min(eps) == 0 else 0)
+        # timm train.py 가 남기는 두 파일. utils/summary.py update_summary: epoch, train_*, eval_*, lr(원본 대조 2026-09-30)
+        if f.name == "summary.csv" and (d / "args.yaml").exists():
+            got.framework = "timm"
+        return got
+
+
+class JsonLines(Adapter):
+    """에폭마다 JSON 한 줄(log.txt). MAE·DeiT·DINO·BEiT·ConvNeXt 공식 코드가 이렇게 쓴다:
+    {"train_lr": .., "train_loss": .., "test_loss": .., "test_acc1": .., "epoch": 0, "n_parameters": ..}
+    ★이 형식을 몰라서 비전 연구 코드의 학습이 목록에 아예 안 떴다. 첫 줄이 epoch 있는 JSON일 때만 본다(흔한 이름이라)
+    원본 대조(2026-09-30): facebookresearch/mae main_finetune.py 335행·main_pretrain.py 202행, deit main.py 467행의
+    log_stats = {train_*, test_*, "epoch", "n_parameters"} → output_dir/log.txt 에 json.dumps 한 줄씩"""
+    name = "jsonlog"
+    FILE = "log.txt"
+    SKIP = ("n_parameters",)
+
+    def detect(self, d, names):
+        if self.FILE not in names:
+            return False
+        with (d / self.FILE).open(encoding="utf-8-sig", errors="ignore") as fh:
+            head = fh.readline(20000).strip()
+        try:
+            return head.startswith("{") and "epoch" in json.loads(head)
+        except ValueError:
+            return False
+
+    def load(self, d):
+        f = d / self.FILE
+        raw = []
+        try:
+            lines = f.read_text(encoding="utf-8-sig", errors="ignore").splitlines()
+        except OSError:
+            return None
+        for line in lines:
+            try:
+                r = json.loads(line)
+            except ValueError:                                     # 쓰는 중인 마지막 줄·다른 출력은 건너뛴다
+                continue
+            if isinstance(r, dict) and "epoch" in r:
+                raw.append({k: str(v) for k, v in r.items() if k not in self.SKIP and isinstance(v, (int, float))})
+        if not raw:
+            return None
+        eps = [int(float(r["epoch"])) for r in raw if "epoch" in r]
+        return Loaded(self.name, _epoch_rows(raw, 1 if eps and min(eps) == 0 else 0), f)

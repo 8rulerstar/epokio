@@ -27,13 +27,23 @@ extension RunDetailView {
             SectionTitle("Scores", hint: L("Best value of each score and the epoch it came at."))
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
                 ForEach(d.scoreKeys, id: \.self) { k in
-                    let vals = Array(zip(d.epochs, d.columns[k] ?? []))
-                    let best = vals.compactMap { e, v in v.map { (e, $0) } }.max { d.higher(k) ? $0.1 < $1.1 : $0.1 > $1.1 }
-                    MetricTile(name: d.label(k) + (best.map { "  ·  " + L("epoch %@", "\(Int($0.0))") } ?? ""),
-                               value: best?.1, hint: k, strong: k == run.metric_name)
+                    let best = bestPoint(d, k)
+                    MetricTile(name: d.label(k) + (best.map { "  ·  " + L("epoch %@", "\(Int($0.epoch))") } ?? ""),
+                               value: best?.value, hint: k, strong: k == run.metric_name)
                 }
             }
         }
+    }
+
+    /// 점수 열의 최고값과 그 에폭. ★한 식으로 쓰면 타입 추론이 150ms를 넘어 느린 CI에서 빌드가 멈출 수 있었다(0.5.0 때 다른 식으로 실제로 멈췄다)
+    func bestPoint(_ d: RunDetail, _ k: String) -> (epoch: Double, value: Double)? {
+        let higher = d.higher(k)
+        var best: (epoch: Double, value: Double)?
+        for (e, v) in zip(d.epochs, d.columns[k] ?? []) {
+            guard let v else { continue }
+            if best == nil || (higher ? v > best!.value : v < best!.value) { best = (e, v) }
+        }
+        return best
     }
 
     func notes(_ d: RunDetail) -> some View {

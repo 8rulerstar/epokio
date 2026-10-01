@@ -183,5 +183,6 @@
  "Next time add EarlyStopping(patience=5, restore_best_weights=True), or use fewer epochs.": "Da próxima vez, adicione EarlyStopping(patience=5, restore_best_weights=True), ou use menos épocas.",
  "Next time stop earlier, or use fewer epochs.": "Da próxima vez, pare antes, ou use menos épocas.",
  "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "Parou na época {n} de {p}. Retome para terminar as épocas planejadas.",
- "A new run with more epochs will probably score higher.": "Um novo treino com mais épocas provavelmente terá uma pontuação maior."
+ "A new run with more epochs will probably score higher.": "Um novo treino com mais épocas provavelmente terá uma pontuação maior.",
+ "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "A ventoinha da GPU está em {pct}% há {min} min. A GPU pode ficar mais lenta para esfriar."
 }

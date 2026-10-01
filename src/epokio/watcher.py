@@ -213,5 +213,9 @@ class Watcher:
         since = getattr(self, "_fan_since", None) or now
         self._fan_since = since
         if now - since >= self.FAN_FULL_SEC:
-            self._warn("fan_max", tr("Fans at {pct}% ({rpm} rpm) for {min} min. The chip may slow down to cool off.",
-                                     pct=f"{s.fan:.0f}", rpm=s.fan_rpm or "?", min=int((now - since) // 60)))
+            m = int((now - since) // 60)
+            if getattr(s, "fan_source", None) == "gpu":        # 윈도우·리눅스: GPU 팬(rpm 없음)
+                self._warn("fan_max", tr("GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.", pct=f"{s.fan:.0f}", min=m))
+            else:
+                self._warn("fan_max", tr("Fans at {pct}% ({rpm} rpm) for {min} min. The chip may slow down to cool off.",
+                                         pct=f"{s.fan:.0f}", rpm=s.fan_rpm or "?", min=m))
