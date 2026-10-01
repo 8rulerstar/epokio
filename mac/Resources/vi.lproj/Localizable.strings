@@ -1360,3 +1360,8 @@
 "Ended at epoch %d. This log does not say how many epochs were planned." = "Kết thúc ở epoch %d. Nhật ký này không ghi số epoch dự định.";
 "GPU fan speed" = "Tốc độ quạt GPU";
 "not in validation set" = "không có trong tập kiểm định";
+"%d log files over the size limit were skipped" = "Đã bỏ qua %d tệp nhật ký vượt giới hạn kích thước";
+"step %@" = "bước %@";
+"No new step for a while." = "Đã lâu không có bước mới.";
+"Ended at step %@. This log does not say how many steps were planned." = "Kết thúc ở bước %@. Nhật ký này không ghi số bước dự định.";
+"Stopped at step %@ before the last one." = "Dừng ở bước %@ trước bước cuối.";

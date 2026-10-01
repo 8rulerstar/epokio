@@ -15,7 +15,7 @@ from . import analysis, msg
 
 # 여러 해설이 겹치면 먼저 말할 것. 발산이 있으면 나머지 해설은 의미가 약하다
 _PRIORITY = ["diverged", "nan_recovered", "overfit", "still_improving", "early_best", "loss_rise", "misses", "false_alarms"]
-STATUSES = ("finished", "failed", "stalled", "running")
+STATUSES = ("finished", "failed", "stalled", "running", "stopped")
 
 
 def _main_score(a) -> tuple[str, float, int] | None:
@@ -53,19 +53,30 @@ def explain(run_dir: Path, status: str = "finished", args: dict | None = None,
     total = r.total if r and r.total else None               # 계획 에폭. ★'몇 에폭 중'에 기록된 줄 수를 써서 60/100이 '60 of 60'이 됐다
     if status == "running":
         a = analysis.without_end_notes(a)
+    step = bool(r and r.x_axis == "step")                    # step 학습: 행 수가 아니라 지금 step, 말도 "스텝"으로
+    tok = msg.set_unit("step" if step else "epoch")
+    try:
+        return _compose(a, r.epoch if step else a.epochs, total, status, args, weights, framework)
+    finally:
+        msg.reset_unit(tok)
+
+
+def _compose(a, cur: int, total, status, args, weights, framework) -> dict:
     parts: list[str] = []
     if status == "running":
-        parts.append(msg.tr("Still training: epoch {e} of {n}.", e=a.epochs, n=total or "?"))
+        parts.append(msg.tr("Still training: epoch {e} of {n}.", e=cur, n=total or "?"))
+    elif status == "stopped" and total and cur < total:
+        parts.append(msg.tr("Training stopped at epoch {e} of {n}.", e=cur, n=total))
     elif status == "failed":
-        parts.append(msg.tr("Training failed after {n} epochs.", n=a.epochs))
+        parts.append(msg.tr("Training failed after {n} epochs.", n=cur))
     elif status == "stalled":
-        parts.append(msg.tr("Training seems to have stopped after {n} epochs.", n=a.epochs))
+        parts.append(msg.tr("Training seems to have stopped after {n} epochs.", n=cur))
     sc = _main_score(a)
     if sc and status == "running":
         parts.append(msg.tr("Best {metric} so far is {v:.3f}, at epoch {e}.", metric=sc[0], v=sc[1], e=sc[2]))
     elif sc:
         parts.append(msg.tr("Best {metric} was {v:.3f} at epoch {e} of {n}.", metric=sc[0], v=sc[1], e=sc[2],
-                            n=max(total or 0, a.epochs)))
+                            n=max(total or 0, cur)))
 
     order = sorted(range(len(a.notes)),
                    key=lambda i: _PRIORITY.index(a.kinds[i].get("kind")) if a.kinds[i].get("kind") in _PRIORITY else 99)
@@ -85,11 +96,13 @@ def explain(run_dir: Path, status: str = "finished", args: dict | None = None,
         else:
             parts.append(todo)
     else:
-        parts.append(msg.tr("No clear problem showed up in the curves."))
+        # ★점수가 없는 학습(손실만)에도 '곡선에서 문제 없음'이라고 단정했다. 무엇을 봤는지 밝힌다
+        parts.append(msg.tr("No clear problem showed up in the curves.") if sc else
+                     msg.tr("No validation score was logged, so only the loss was checked. Nothing stood out in it."))
     safe = list(parts[:4])
     if safe_next and safe_next[0] < 4:
         safe[safe_next[0]] = safe_next[1]
-    score = {"metric": sc[0], "value": sc[1], "best_epoch": sc[2], "epochs": a.epochs} if sc else None
+    score = {"metric": sc[0], "value": sc[1], "best_epoch": sc[2], "epochs": cur} if sc else None
     return {"text": " ".join(parts[:4]), "kind": kind, "next": nxt, "status": status, "score": score,
             "sentences": safe}
 

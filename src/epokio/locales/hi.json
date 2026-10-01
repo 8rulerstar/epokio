@@ -3,5 +3,8 @@
  "Training failed": "प्रशिक्षण विफल",
  "Training finished": "प्रशिक्षण पूर्ण",
  "best": "सर्वोत्तम",
- "epoch": "एपॉक"
+ "epoch": "एपॉक",
+ "Test alert": "परीक्षण सूचना",
+ "Phone alerts from {machine} work.": "{machine} से फ़ोन सूचनाएँ काम कर रही हैं।",
+ "step": "स्टेप"
 }

@@ -3,5 +3,8 @@
  "Training failed": "Обучение не удалось",
  "Training finished": "Обучение завершено",
  "best": "лучший",
- "epoch": "эпоха"
+ "epoch": "эпоха",
+ "Test alert": "Тестовое уведомление",
+ "Phone alerts from {machine} work.": "Уведомления на телефон с {machine} работают.",
+ "step": "шаг"
 }

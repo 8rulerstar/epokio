@@ -186,5 +186,14 @@
  "A new run with more epochs will probably score higher.": "增加 epoch 重新訓練，分數很可能會更高。",
  "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU 風扇已以 {pct}% 運轉 {min} 分鐘。GPU 可能會降速散熱。",
  "Still training: epoch {e} of {n}.": "仍在訓練：第 {e} 輪，共 {n} 輪。",
- "Best {metric} so far is {v:.3f}, at epoch {e}.": "目前最好的 {metric} 是 {v:.3f}，在第 {e} 輪。"
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "目前最好的 {metric} 是 {v:.3f}，在第 {e} 輪。",
+ "Training stopped at epoch {e} of {n}.": "訓練在第 {e} 輪（共 {n} 輪）停止。",
+ "No validation score was logged, so only the loss was checked. Nothing stood out in it.": "沒有記錄驗證分數，因此只檢查了損失。沒有發現明顯問題。",
+ "Training loss has been rising since epoch {e} ({a:.3f} to {b:.3f}).": "訓練損失從第 {e} 輪起持續上升（{a:.3f} 到 {b:.3f}）。",
+ "Check the learning rate schedule and the data loader. A loss that climbs for this long rarely recovers.": "檢查學習率排程和資料載入器。持續這麼久上升的損失很少會回落。",
+ "No validation examples of {names}, so its score was not measured.": "驗證集中沒有 {names} 的樣本，因此沒有測出它的分數。",
+ "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "在驗證集中放入一些 {names} 影像。在此之前無法知道模型能否找到它們。",
+ "Test alert": "測試提醒",
+ "Phone alerts from {machine} work.": "來自 {machine} 的手機提醒運作正常。",
+ "step": "步"
 }

@@ -39,9 +39,7 @@ class Run:
     best: float | None
     best_epoch: int | None
     state: str              # starting | running | stalled | failed | stopped | done
-    idle: float             # 마지막 기록 이후 지난 초
-    #   ★원격 run은 저쪽 기계 시계로 잰 값이다. 이쪽 시계와 빼면 안 된다
-    #   (두 기계 시각이 몇 초만 어긋나도 상태가 엉뚱하게 나온다).
+    idle: float             # 마지막 기록 이후 지난 초. ★원격 run은 저쪽 시계로 잰 값이라 이쪽 시계와 빼면 안 된다
     history: list[float] = field(default_factory=list)   # 지표 추이 (스파크라인용)
     source: str = "local"
     framework: str = "ultralytics"      # 어느 어댑터가 읽었나 (ultralytics·huggingface·lightning·keras)
@@ -49,9 +47,9 @@ class Run:
     lower: bool | None = None     # None이면 metric_higher·열 이름으로 정한다(__post_init__). best가 '낮을수록 좋은' 점수인가. 목표 알림·순위·화면이 이것을 본다(저장된 설정이 아니라 실제로 쓴 방향)
     updated: float = 0.0    # 정렬용. 원격은 저쪽 시각이라 표시에 쓰지 않는다
     format_warnings: list[str] = field(default_factory=list)   # 못 알아본 열·버전(adapters). 화면은 작은 배지로
-    metric_higher: bool = True     # 대표 점수가 높을수록 좋은가(schema.higher_is_better).
-    #   ★화면이 열 이름을 다시 해석하지 않게 여기서 실어 보낸다. 기본 True: 이 필드가 없던 옛 agent(원격·SSH)의
-    #   응답을 from_dict로 읽을 때, 지금까지 화면이 쓰던 "높을수록 좋다" 가정을 그대로 유지한다.
+    metric_higher: bool = True     # 대표 점수가 높을수록 좋은가. ★화면이 열 이름을 다시 해석하지 않게 실어 보낸다.
+    #   기본 True: 이 필드가 없던 옛 agent(원격·SSH) 응답을 from_dict로 읽을 때 예전 가정("높을수록 좋다") 그대로.
+    x_axis: str = "epoch"          # "step"이면 epoch·total·best_epoch가 step 번호다(W&B·TensorBoard·CSV의 step 기록). 화면은 단위만 바꾼다
 
     def __post_init__(self):
         if self.lower is None:     # 방향을 안 준 Run(시험·옛 코드): metric_higher가 False면 그대로, 아니면 열 이름으로
@@ -152,8 +150,9 @@ class _Meta:
     학습 2,000개에서 agent 메모리가 583MB였다(그중 497MB가 CSV 행). 쓰는 건 이 넷뿐이다"""
     source: Path
     framework: str
-    total: int | None          # args.yaml의 epochs(없으면 어댑터가 찾은 값)
+    total: int | None          # args.yaml의 epochs(없으면 어댑터가 찾은 값). step 축이면 계획 step 수
     updated: float             # 기록 파일의 수정 시각
+    x_axis: str = "epoch"
 
 
 # 학습 폴더 → (기록 파일, (mtime, size), 요약, 메타)
@@ -218,7 +217,8 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
     except OSError:
         return None
     key = (st.st_mtime, st.st_size, dir_mtime, ov)
-    rows =[r for r in loaded.rows if r.get("epoch")]
+    axis = "step" if (loaded.args or {}).get("x_axis") == "step" else "epoch"
+    rows = [r for r in loaded.rows if r.get("epoch")]
     if not rows:
         return None
 
@@ -278,10 +278,10 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
         except (OSError, ValueError):
             pass
         # ★다른 기계에서 복사해 온 폴더는 모든 파일이 한 순간에 생겨 에폭당 0초·남은 시간 0초로 보였다. 모름으로 둔다
-        if parsed.epoch and parsed.elapsed < parsed.epoch * MIN_EPOCH_SEC:
+        if axis == "epoch" and parsed.epoch and parsed.elapsed < parsed.epoch * MIN_EPOCH_SEC:
             parsed.elapsed = 0.0
-    # args.yaml은 학습 중에 안 바뀐다. 기록 파일이 바뀔 때만 다시 읽는다(★예전엔 폴링마다 전부 다시 읽었다)
-    meta = _Meta(csv_path, loaded.framework, _read_total_epochs(run_dir) or loaded.total, st.st_mtime)
+    # args.yaml은 기록 파일이 바뀔 때만 다시 읽는다. step 축이면 args.yaml의 epochs는 단위가 달라 안 본다
+    meta = _Meta(csv_path, loaded.framework, loaded.total if axis == "step" else (_read_total_epochs(run_dir) or loaded.total), st.st_mtime, axis)
     _cache[run_dir] = (csv_path, key, parsed, meta)
     return parsed, meta
 
@@ -352,7 +352,7 @@ def read_run(run_dir: Path, now: float | None = None) -> Run | None:
         metric=p.metric, metric_name=p.metric_name, metric_higher=p.metric_higher, lower=p.lower,
         best=p.best, best_epoch=p.best_epoch,
         state=state, idle=idle, updated=updated, history=p.history, framework=loaded.framework,
-        format_warnings=list(getattr(loaded, "warnings", []) or []),
+        format_warnings=list(getattr(loaded, "warnings", []) or []), x_axis=loaded.x_axis,
     )
 
 

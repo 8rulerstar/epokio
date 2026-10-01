@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0 (2026-10-01)
+
+- **Send a test alert.** A **Send a test** button on the web page's Alerts (`POST /webhooks/test`), and `epokio alerts --add/--remove/--list/--test` to manage phone alerts from a terminal with no helper running.
+- **Over SSH, logs that only grow send just the new tail,** and files over the size limit are reported: the Mac app warns how many log files were skipped.
+- **Step-based runs are shown** instead of left out: W&B runs without `epoch` (by `_step`), CSV logs whose first column is `step` or `iter`, and TensorBoard step scalars with a step total such as `max_steps`. Runs carry `x_axis` (`epoch` or `step`).
+- README restructured: shorter, with the menu bar GIF (light and dark); details moved to `docs/` (studio, remote, MCP, uninstall, Korean).
+- **Fix: a run with no planned epochs was announced as finished** half an hour after it went quiet, even when it had crashed. It now only gets the *may have stopped* alert, since Epokio cannot tell.
+- **Fix: two runs with the same folder name** (two `lightning_logs/version_0`) ending close together lost the second alert.
+- **Phone alerts say which machine and which score** (*best val_acc 0.6000 · gpu-box-3*). A webhook that fails to send is written to the helper's log.
+- **Stopped runs are explained as stopped** (*Training stopped at epoch 6 of 10*), not as finished.
+- **The report and the AI-assistant report** no longer give end-of-run advice to runs still training.
+- **When the loss became NaN,** that is what the notes say; a score that collapsed with it is no longer called overfitting.
+- **Loss-only runs** (MAE-style pretraining) say that only the loss was checked, and warn when the training loss keeps rising.
+- **Classes missing from the validation set** go to the bottom of the per-class table without a made-up 0.000 score, with a note to add examples.
+- Korean: curve legends and head names are translated, and *Pose* is 포즈.
+- README: what "fails" and "stalls" cover (a crash shows up as stalled), which files the SSH view reads and its size limits, that the machine record uses the first GPU.
+
 ## 0.5.4 (2026-10-01)
 
 - **Fix: a run still training was explained as finished.** A run at epoch 60 of 100 was told "best at epoch 60 of 60, train longer". Runs in progress now say *Still training: epoch 60 of 100* and the best score so far, and notes that only make sense at the end (still improving, plateau, early best) wait until it ends. Finished runs count against the planned epochs.

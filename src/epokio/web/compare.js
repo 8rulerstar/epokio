@@ -26,7 +26,7 @@ async function drawCompare(periodic) {
       + chart(runs.map((r, i) => ({ name: display(r), x: ds[i]?.columns.epoch || [], y: ds[i]?.columns[S.cmpKey] || [], color: COLORS[i] })))
       + `<table style="margin-top:14px"><tr><th>${t("Run")}</th><th>${t("Epochs")}</th><th>${t("Score")}</th><th>${t("Precision")}</th><th>${t("Recall")}</th><th>F1</th><th>mAP50-95</th><th>${t("Model")}</th></tr>`
       + runs.map((r, i) => { const h = ds[i]?.heads[0] || {}; const a = ds[i]?.args || {};
-          return `<tr><td>${esc(display(r))}</td><td class="num">${r.epoch}/${r.total ?? "?"}</td><td class="num ${top != null && r.best === top ? "win" : ""}" title="${esc(pretty(r.metric_name))}">${f3(r.best)}${r.lower ? " ↓" : ""}</td><td class="num">${f3(h.precision)}</td><td class="num">${f3(h.recall)}</td>
+          return `<tr><td>${esc(display(r))}</td><td class="num">${xnum(r, r.epoch)}/${xnum(r, r.total)}</td><td class="num ${top != null && r.best === top ? "win" : ""}" title="${esc(pretty(r.metric_name))}">${f3(r.best)}${r.lower ? " ↓" : ""}</td><td class="num">${f3(h.precision)}</td><td class="num">${f3(h.recall)}</td>
           <td class="num ${h.f1 != null && h.f1 === best ? "win" : ""}">${f3(h.f1)}</td><td class="num">${f3(h.map5095)}</td><td>${esc((a.model || "").split(/[\\/]/).pop())}</td></tr>`; }).join("") + `</table>`;
     // 데이터가 다르면 점수를 나란히 놓는 의미가 없다(같은 프로젝트 안에서만 비교한다는 원칙)
     const fps = new Set(ds.map((d) => d?.versions?.data).filter(Boolean));

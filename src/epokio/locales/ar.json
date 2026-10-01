@@ -3,5 +3,8 @@
  "Training failed": "فشل التدريب",
  "Training finished": "اكتمل التدريب",
  "best": "الأفضل",
- "epoch": "حقبة"
+ "epoch": "حقبة",
+ "Test alert": "تنبيه تجريبي",
+ "Phone alerts from {machine} work.": "تنبيهات الهاتف من {machine} تعمل.",
+ "step": "خطوة"
 }

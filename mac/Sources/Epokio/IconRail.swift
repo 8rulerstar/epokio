@@ -125,7 +125,7 @@ struct StatusRing: View {
         VStack(alignment: .leading, spacing: 8) {
             if let r = store.lead {
                 Text(verbatim: r.displayName).font(.ui(13, weight: .semibold))
-                Text(verbatim: L("epoch %@", "\(r.epoch)/\(r.total.map(String.init) ?? "?")") + "  ·  " + L("%@ left", duration(r.eta)))
+                Text(verbatim: r.progressText + "  ·  " + L("%@ left", duration(r.eta)))
                     .font(.ui(12)).foregroundStyle(ink.soft)
             } else {
                 Text("Nothing is training right now").font(.ui(13, weight: .semibold))

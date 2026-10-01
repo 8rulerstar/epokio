@@ -7,7 +7,7 @@ from pathlib import Path
 import csv
 import io
 
-from .adapters_base import Adapter, Loaded, _num, _read_csv, _yaml_value, epochs_nearby, metric_column
+from .adapters_base import STEP_KEYS, Adapter, Loaded, _num, _read_csv, _yaml_value, epochs_nearby, metric_column
 
 
 class Lightning(Adapter):
@@ -147,8 +147,25 @@ def _epoch_loss_header(f: Path, strict: bool = True) -> bool:
         head = fh.readline()
     if not strict:
         return head.lower().startswith("epoch") and "loss" in head.lower()
-    cols = [c.strip().lower() for c in next(csv.reader(io.StringIO(head)), [])]
-    return bool(cols) and cols[0] == "epoch" and any("loss" in c for c in cols[1:])
+    return _x_column(head, ("epoch",)) is not None
+
+
+_STEP_COLS = ("step", "iter", "iteration")       # step으로 적는 직접 짠 루프. 축만 다르고 모양은 같다
+
+
+def _x_column(head: str, allowed: tuple) -> str | None:
+    """첫 줄의 첫 열 이름(원래 철자)이 allowed 중 하나이고 loss 열이 있으면 그 이름"""
+    raw = next(csv.reader(io.StringIO(head)), [])
+    cols = [c.strip().lower() for c in raw]
+    ok = bool(cols) and cols[0] in allowed and any("loss" in c for c in cols[1:])
+    if ok and cols[0] != "epoch" and "epoch" in cols:   # step 열 뒤에 epoch 열도 있으면 우리가 아는 모양이 아니다(가로채지 않는다)
+        ok = False
+    return raw[0].strip() if ok else None
+
+
+def _head(f: Path) -> str:
+    with f.open(encoding="utf-8-sig", errors="ignore") as fh:
+        return fh.readline()
 
 
 class CsvLog(Keras):
@@ -159,7 +176,7 @@ class CsvLog(Keras):
 
     def _probe(self, f: Path) -> bool:
         try:
-            return _epoch_loss_header(f)
+            return _x_column(_head(f), ("epoch",) + _STEP_COLS) is not None
         except OSError:
             return False
 
@@ -182,6 +199,13 @@ class CsvLog(Keras):
         f = self._file(d, {p.name for p in d.iterdir()})
         if not f:
             return None
+        try:
+            xcol = _x_column(_head(f), _STEP_COLS)
+        except OSError:
+            return None
+        if xcol:                                        # step 축: 행 모양은 그대로, "epoch" 자리에 step 번호(x_axis=step)
+            raw = [{**{k: v for k, v in r.items() if k != xcol}, "epoch": r[xcol]} for r in _read_csv(f) if _num(r.get(xcol, "")) != ""]
+            return Loaded(self.name, _epoch_rows(raw, 0), f, total=epochs_nearby(d, STEP_KEYS), args={"x_axis": "step"})
         try:
             eps = [int(float(r["epoch"])) for r in _read_csv(f) if _num(r.get("epoch", "")) != ""]
         except (KeyError, ValueError):

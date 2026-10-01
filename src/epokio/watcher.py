@@ -44,10 +44,15 @@ class Watcher:
             now = time.time()
             recent = getattr(self, "_recent", {})
             self._recent = recent = {k: t for k, t in recent.items() if now - t < 120}
-            key = Path(run.get("path") or "").name or run.get("name")    # 경로든 이름이든 폴더 이름으로 맞춘다
-            if kind in ("finished", "failed", "job_done", "job_failed") and key in recent:
+            # 같은 결과 폴더(전체 경로)의 같은 결과(끝남·실패)만 겹친 것으로 본다.
+            # ★폴더 이름만 봐서, 다른 프로젝트의 version_0 둘이 연달아 끝나면 두 번째(실패)가 사라졌다
+            import os
+            p = run.get("path") or ""
+            outcome = {"finished": "ok", "job_done": "ok", "failed": "bad", "job_failed": "bad"}.get(kind)
+            key = (os.path.normcase(os.path.normpath(p)) if p else run.get("name"), outcome)
+            if outcome and key in recent:
                 return
-            if kind in ("finished", "failed", "job_done", "job_failed"):
+            if outcome:
                 recent[key] = now
             self.seq += 1
             self.events.append({"seq": self.seq, "kind": kind, "before": before, "run": run, "at": now})
@@ -75,7 +80,7 @@ class Watcher:
         except TypeError:
             return
         for url in cfg.get("urls", []):
-            webhook(url, Event(kind, r, "running"))
+            webhook(url, Event(kind, r, "running"), machine=getattr(self, "label", None))
 
     def stop_watch(self, timeout: float = 5.0):
         """감시 스레드를 멈추고 끝날 때까지 기다린다. 한 프로세스에 Agent를 여럿 만드는 시험용.

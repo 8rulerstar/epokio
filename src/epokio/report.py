@@ -119,7 +119,11 @@ def _run_section(r: Run, a: Analysis | None, asset_dir: Path | None, rev: dict |
 def build(runs: list[Run], asset_dir: Path | None = None, reviews: dict | None = None) -> str:
     now = time.strftime("%Y-%m-%d %H:%M")
     reviews = reviews or {}
+    from .analysis import without_end_notes
+    # ★진행 중인 60/100 학습에 '에폭을 늘려 새로 돌려라'를 붙였다(상세 화면은 고쳤는데 보고서·MCP는 이 길이었다)
     analyses = {id(r): (analyze(r.path) if readable(r) else None) for r in runs}
+    analyses = {k: (without_end_notes(a) if a and r.state in ("running", "starting") else a)
+                for r in runs for k, a in [(id(r), analyses[id(r)])]}
     active = [r for r in runs if r.state in ("running", "starting")]
     done = [r for r in runs if r.state == "done"]
     bad = [r for r in runs if r.state in ("stalled", "failed")]

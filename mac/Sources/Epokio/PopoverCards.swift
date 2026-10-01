@@ -263,7 +263,7 @@ struct LiveCard: View {
                 }
                 if let p = run.progress { ThinProgress(value: p, tint: run.tint) }
                 HStack(spacing: 6) {
-                    Text(verbatim: L("epoch %@", "\(run.epoch)/\(run.total.map(String.init) ?? "?")"))
+                    Text(verbatim: run.progressText)
                         .contentTransition(.numericText(value: Double(run.epoch)))
                     Spacer(minLength: 6)
                     if let eta = run.eta, eta > 0 {

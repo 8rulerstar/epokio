@@ -24,6 +24,7 @@ struct Run: Codable, Identifiable, Hashable {
     var ssh: SSHOrigin?                             // SSH 가벼운 모드로 비춰 온 학습(보기 전용)
     var format_warnings: [String]?                  // 못 알아본 열·버전. 목록에 작은 배지
     var metric_higher: Bool?                        // 대표 점수 방향(agent의 schema.py). 옛 agent는 안 보낸다
+    var x_axis: String?                             // "step"이면 epoch·total이 step 번호(W&B·TensorBoard·CSV step 기록). 옛 agent는 안 보낸다
     struct SSHOrigin: Codable, Hashable { let host: String; let path: String }
     /// 대표 점수가 높을수록 좋은가. 옛 agent(필드 없음)면 열 이름으로 어림한다 (RunDetail.higher와 같은 규칙)
     var metricHigher: Bool { metric_higher ?? !metric_name.lowercased().contains("loss") }
@@ -42,6 +43,14 @@ struct Run: Codable, Identifiable, Hashable {
         return min(Double(epoch) / Double(t), 1.0)
     }
     var isLive: Bool { state == "running" || state == "starting" }
+    var isStepAxis: Bool { x_axis == "step" }
+    /// "12/100". step 학습은 "12,000/100,000"(천 단위 구분은 앱 언어대로)
+    var countText: String {
+        let n = { (v: Int) in isStepAxis ? v.formatted() : String(v) }
+        return n(epoch) + "/" + (total.map(n) ?? "?")
+    }
+    /// "에폭 12/100" 또는 "스텝 12,000/100,000". 모든 화면이 이것을 쓴다(★단위를 화면마다 짓지 않게)
+    var progressText: String { isStepAxis ? L("step %@", countText) : L("epoch %@", countText) }
     /// 끝까지 간 학습인가. ★진행률이 아니라 상태로 판단한다: 실패·중단은 마지막 에폭이 total에 닿아도 완료가 아니다
     var isComplete: Bool { state == "done" }
 }

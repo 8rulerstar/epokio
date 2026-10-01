@@ -50,6 +50,7 @@ enum SnapshotMode {
             print("frames saved:", n, "loaded:", f.count, "size:", f.first.map { "\(Int($0.size.width))x\(Int($0.size.height))" } ?? "-")
             exit(n > 0 ? 0 : 1)
         }
+        InfoToggleExport.runIfRequested()                                                 // README용: 메뉴바 정보 칩 장면(InfoToggleExport.swift)
         if let i = args.firstIndex(of: "--export-characters"), i + 1 < args.count {       // README용: 캐릭터 프레임을 PNG로(4배)
             let dir = URL(fileURLWithPath: args[i + 1])
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

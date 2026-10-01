@@ -186,5 +186,14 @@
  "A new run with more epochs will probably score higher.": "A new run with more epochs will probably score higher.",
  "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.",
  "Still training: epoch {e} of {n}.": "Still training: epoch {e} of {n}.",
- "Best {metric} so far is {v:.3f}, at epoch {e}.": "Best {metric} so far is {v:.3f}, at epoch {e}."
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "Best {metric} so far is {v:.3f}, at epoch {e}.",
+ "Training stopped at epoch {e} of {n}.": "Training stopped at epoch {e} of {n}.",
+ "No validation score was logged, so only the loss was checked. Nothing stood out in it.": "No validation score was logged, so only the loss was checked. Nothing stood out in it.",
+ "Training loss has been rising since epoch {e} ({a:.3f} to {b:.3f}).": "Training loss has been rising since epoch {e} ({a:.3f} to {b:.3f}).",
+ "Check the learning rate schedule and the data loader. A loss that climbs for this long rarely recovers.": "Check the learning rate schedule and the data loader. A loss that climbs for this long rarely recovers.",
+ "No validation examples of {names}, so its score was not measured.": "No validation examples of {names}, so its score was not measured.",
+ "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.",
+ "Test alert": "Test alert",
+ "Phone alerts from {machine} work.": "Phone alerts from {machine} work.",
+ "step": "step"
 }

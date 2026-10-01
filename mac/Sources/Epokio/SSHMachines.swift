@@ -9,7 +9,8 @@ struct SSHHost: Decodable, Hashable {
     let paths: [String]?
     let auto: Bool?
     let status: Status?
-    struct Status: Decodable, Hashable { let ok: Bool?; let error: String?; let runs: Int?; let at: Double?; let python: String?; let truncated: Bool? }
+    struct Status: Decodable, Hashable { let ok: Bool?; let error: String?; let runs: Int?; let at: Double?; let python: String?; let truncated: Bool?; let skipped: [Skipped]? }
+    struct Skipped: Decodable, Hashable { let path: String; let name: String; let size: Int? }   // 한도를 넘어 안 가져온 기록 파일
 }
 private struct SSHList: Decodable { let hosts: [SSHHost]; let config_hosts: [String] }
 
@@ -83,6 +84,12 @@ struct SSHSection: View {
             if h.status?.truncated == true {
                 Label("Too many folders to read", systemImage: "exclamationmark.triangle.fill").font(.ui(11)).foregroundStyle(.warn)
                     .help("Only part of the server was read. Add the exact folders below so Epokio does not have to search.")
+            }
+            if let sk = h.status?.skipped, !sk.isEmpty {
+                Label(L("%d log files over the size limit were skipped", sk.count), systemImage: "exclamationmark.triangle.fill")
+                    .font(.ui(11)).foregroundStyle(.warn)
+                    .help(sk.map { "\($0.path)/\($0.name)" }.joined(separator: "\n"))
+                    .transition(.opacity)
             }
             IconButton(symbol: "arrow.clockwise", help: "Read now") {
                 Task { await store.act { _ = try await AgentClient.local.post("ssh/refresh") }; try? await Task.sleep(for: .seconds(3)); await load() }

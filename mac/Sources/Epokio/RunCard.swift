@@ -60,7 +60,7 @@ struct RunCard: View {
                     Label(run.source, systemImage: "desktopcomputer").lineLimit(1).truncationMode(.middle)
                         .help(run.source)
                 }
-                Label("\(run.epoch)/\(run.total.map(String.init) ?? "?")", systemImage: "repeat").help(L("epoch %@", ""))
+                Label(run.countText, systemImage: "repeat").help(run.progressText)
                 if run.state == "running" {
                     Label(duration(run.eta), systemImage: "hourglass").help("Time left")
                 } else {

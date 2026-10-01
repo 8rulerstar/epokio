@@ -5,7 +5,7 @@ from pathlib import Path
 
 # 판 번호는 여기 한 곳(pyproject가 이것을 읽는다). ★설치 정보로 읽어, 맥 앱(PYTHONPATH로 소스를 돌린다)과
 #   exe에서는 'unknown'이거나 따로 깔린 다른 epokio의 판이 나왔다
-__version__ = "0.5.4"
+__version__ = "0.6.0"
 
 
 def _migrate_home() -> None:

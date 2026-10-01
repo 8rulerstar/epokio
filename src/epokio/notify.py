@@ -38,16 +38,20 @@ def title(kind: str) -> str:
     return i18n.t(KINDS[kind]) if kind in KINDS else "Epokio"      # ★모르는 사건이 "학습 완료"로 떴다
 
 
-def body_of(e: Event) -> str:
+def body_of(e: Event, machine: str | None = None) -> str:
+    """폰에 가는 본문. 어느 기계의 무슨 점수인지까지. ★기계 이름(로컬이면 빠졌다)과 지표 이름이 없어 '최고 0.6000'만 왔다"""
     r = e.run
+    where = r.source if r.source not in ("local", "로컬") else machine
     if e.kind in MACHINE_KINDS:
-        return r.name
+        return " · ".join(x for x in (r.name, where) if x)
     from .scan import display_name
-    parts = [display_name(r), f"{i18n.t('epoch')} {r.epoch}/{r.total or '?'}"]
+    from .scan_names import x_count
+    parts = [display_name(r), f"{i18n.t(getattr(r, 'x_axis', 'epoch'))} {x_count(r)}"]   # step 학습은 'step 12,000/100,000'
     if r.best is not None:
-        parts.append(f"{i18n.t('best')} {r.best:.4f}")
-    if r.source not in ("local", "로컬"):
-        parts.append(r.source)
+        metric = (r.metric_name or "").split("/", 1)[-1]
+        parts.append(f"{i18n.t('best')} {metric + ' ' if metric else ''}{r.best:.4f}")
+    if where:
+        parts.append(where)
     return " · ".join(parts)
 
 
@@ -57,27 +61,47 @@ def is_ntfy(url: str) -> bool:
     return host == "ntfy.sh" or host.startswith("ntfy.") or "/ntfy/" in url
 
 
-def webhook(url: str, e: Event):
-    """Slack·Discord·일반 웹후크에 한 번에 맞는 모양으로 보낸다. 실패해도 앱은 계속 돈다."""
-    # ★문구는 여기서 다 만든다. 보내는 스레드 안에서 만들면 그 사이 다른 사건이 언어를 바꿀 수 있다
-    head = title(e.kind)
-    body = body_of(e)
+def _request(url: str, head: str, body: str, urgent: bool = False) -> urllib.request.Request:
+    """주소 종류에 맞는 요청 하나. 실제 알림과 시험 알림이 같은 모양을 쓴다"""
     text = f"*{head}*\n{body}"
     if is_ntfy(url):      # ntfy: 폰 푸시 앱(무료, 직접 서버를 둘 수도 있다). 본문은 글자, 제목은 머리말
-        req = urllib.request.Request(url, data=body.encode(), headers={
+        return urllib.request.Request(url, data=body.encode(), headers={
             # 머리말은 ASCII만 되므로 한글 제목은 RFC 2047로 싼다(ntfy가 푼다)
             "Title": "=?UTF-8?B?" + base64.b64encode(f"Epokio: {head}".encode()).decode() + "?=",
-            "Tags": "warning" if e.kind in URGENT else "white_check_mark",
-            "Priority": "high" if e.kind in URGENT else "default"})
-    else:
-        # Slack은 text, Discord는 content. 텔레그램(...sendMessage?chat_id=...)은 text만
-        payload = {"text": text} if "api.telegram.org" in url else {"text": text, "content": text}
-        req = urllib.request.Request(url, data=json.dumps(payload).encode(),
-                                     headers={"Content-Type": "application/json"})
+            "Tags": "warning" if urgent else "white_check_mark",
+            "Priority": "high" if urgent else "default"})
+    # Slack은 text, Discord는 content. 텔레그램(...sendMessage?chat_id=...)은 text만
+    payload = {"text": text} if "api.telegram.org" in url else {"text": text, "content": text}
+    return urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+
+
+def valid(url) -> bool:
+    """웹후크 주소 검사(API·CLI 같은 규칙). https만 받는다"""
+    return isinstance(url, str) and url.startswith("https://")
+
+
+def send_test(url: str, machine: str | None = None, timeout: float = 5) -> dict:
+    """시험 알림 하나를 바로(기다려서) 보낸다. 결과 {url, ok, status 또는 error}. 언어는 부르는 쪽이 i18n.use로 고른다"""
+    req = _request(url, i18n.t("notify.test"), i18n.t("notify.test_body", machine=machine or "Epokio"))
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return {"url": url, "ok": True, "status": getattr(r, "status", 200)}
+    except Exception as ex:                       # HTTPError도 여기로(상태 코드를 같이 돌려준다)
+        out = {"url": url, "ok": False, "error": str(ex)[:200]}
+        if getattr(ex, "code", None):
+            out["status"] = ex.code
+        return out
+
+
+def webhook(url: str, e: Event, machine: str | None = None):
+    """Slack·Discord·일반 웹후크에 한 번에 맞는 모양으로 보낸다. 실패해도 앱은 계속 돈다."""
+    # ★문구는 여기서 다 만든다. 보내는 스레드 안에서 만들면 그 사이 다른 사건이 언어를 바꿀 수 있다
+    req = _request(url, title(e.kind), body_of(e, machine), e.kind in URGENT)
 
     def send():
         try:
             urllib.request.urlopen(req, timeout=6).read()
-        except Exception:
-            pass
+        except Exception as ex:                          # ★실패해도 아무 기록이 없어, 폰 알림이 왜 안 오는지 알 길이 없었다
+            import logging
+            logging.getLogger("epokio").warning("webhook to %s failed: %s", url.split("?")[0][:60], ex)
     threading.Thread(target=send, daemon=True).start()

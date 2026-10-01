@@ -34,7 +34,7 @@ async function drawQueue(periodic) {
     // 도는 학습과만 짝짓는다(★이름이 겹치면 끝난 옛 학습이 잡혀 50/50이 보였다)
     const r = j.state === "running" && j.output && S.runs.find((x) => norm(x.path) === norm(j.output) && ["running", "starting", "stalled"].includes(x.state));
     if (!r || !r.total) return "";
-    return " · " + t("epoch {e}/{n}", { e: r.epoch, n: r.total }) + (r.eta ? " · " + t("about {d} left, done around {time}", { d: dur(r.eta), time: new Date(Date.now() + r.eta * 1000).toLocaleTimeString(LOCALE, HM) }) : "");   // ★[]면 브라우저 언어라 영어 화면에 '오후 11:15'가 섞인다
+    return " · " + xprog(r) + (r.eta ? " · " + t("about {d} left, done around {time}", { d: dur(r.eta), time: new Date(Date.now() + r.eta * 1000).toLocaleTimeString(LOCALE, HM) }) : "");   // ★[]면 브라우저 언어라 영어 화면에 '오후 11:15'가 섞인다
   };
   const hints = (j) => (S.diag[j.id] || []).map((h) => `<div class="msg" style="--c:var(--red);margin:6px 0 0"><b>${esc(h.title)}.</b> ${esc(h.fix)}</div>`).join("");
   const row = (j, k) => {

@@ -70,7 +70,7 @@
  "Stopped": "중단됨",
  "Done": "완료",
  "Box": "박스",
- "Pose": "자세",
+ "Pose": "포즈",
  "Mask": "마스크",
  "Try:": "해 볼 것:",
  "Head": "종류",
@@ -186,5 +186,14 @@
  "A new run with more epochs will probably score higher.": "에폭을 늘려 새로 학습하면 점수가 더 오를 가능성이 큽니다.",
  "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU 팬이 {min}분째 {pct}%로 돌고 있습니다. GPU가 열을 식히려고 느려질 수 있습니다.",
  "Still training: epoch {e} of {n}.": "아직 학습 중입니다: {n}에폭 중 {e}에폭.",
- "Best {metric} so far is {v:.3f}, at epoch {e}.": "지금까지 최고 {metric}은(는) {e}에폭의 {v:.3f}입니다."
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "지금까지 최고 {metric}은(는) {e}에폭의 {v:.3f}입니다.",
+ "Training stopped at epoch {e} of {n}.": "학습이 {n}에폭 중 {e}에폭에서 멈췄습니다.",
+ "No validation score was logged, so only the loss was checked. Nothing stood out in it.": "검증 점수가 기록되지 않아 손실만 확인했습니다. 손실에서 눈에 띄는 문제는 없습니다.",
+ "Training loss has been rising since epoch {e} ({a:.3f} to {b:.3f}).": "학습 손실이 {e}에폭부터 계속 오르고 있습니다({a:.3f}에서 {b:.3f}).",
+ "Check the learning rate schedule and the data loader. A loss that climbs for this long rarely recovers.": "학습률 스케줄과 데이터 로더를 확인하세요. 이렇게 오래 오르는 손실은 잘 돌아오지 않습니다.",
+ "No validation examples of {names}, so its score was not measured.": "검증셋에 {names}이(가) 없어 이 클래스의 점수는 재지 못했습니다.",
+ "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "검증셋에 {names} 이미지를 넣으세요. 그 전에는 모델이 이 클래스를 찾는지 알 수 없습니다.",
+ "Test alert": "시험 알림",
+ "Phone alerts from {machine} work.": "{machine}의 폰 알림이 잘 옵니다.",
+ "step": "스텝"
 }

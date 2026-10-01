@@ -1360,3 +1360,8 @@
 "Ended at epoch %d. This log does not say how many epochs were planned." = "Bei Epoche %d beendet. Dieses Protokoll nennt nicht, wie viele Epochen geplant waren.";
 "GPU fan speed" = "GPU-Lüfterdrehzahl";
 "not in validation set" = "nicht in der Validierung";
+"%d log files over the size limit were skipped" = "%d Logdateien über der Größengrenze übersprungen";
+"step %@" = "Schritt %@";
+"No new step for a while." = "Seit einer Weile kein neuer Schritt.";
+"Ended at step %@. This log does not say how many steps were planned." = "Bei Schritt %@ beendet. Dieses Protokoll nennt nicht, wie viele Schritte geplant waren.";
+"Stopped at step %@ before the last one." = "Bei Schritt %@ vor dem letzten gestoppt.";

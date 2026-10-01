@@ -12,7 +12,9 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -23,6 +25,7 @@ import time
 import urllib.parse
 from pathlib import Path
 
+log = logging.getLogger(__name__)
 HOME = Path.home() / ".epokio"
 CONFIG = HOME / "ssh_hosts.json"
 MIRROR = HOME / "ssh"
@@ -32,71 +35,7 @@ MAX_BACKOFF = 8                   # 실패한 서버는 간격을 2배씩, 최�
 WORKERS = 4                       # 서버를 동시에 읽는다(죽은 서버 하나가 나머지를 늦추지 않게)
 CONTROL_DIR = HOME / "ssh-control"
 
-# 서버에서 도는 스크립트. ★표준 라이브러리만, python3.6에서도 돌게(f-string 없이)
-REMOTE = r'''
-import base64, json, os, sys, time
-cfg = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
-try: HAVE = json.loads(HAVE_JSON)       # 지난번에 받은 {폴더: {파일: 수정 시각}}. 그대로면 내용을 다시 보내지 않는다
-except NameError: HAVE = {}
-HOME = os.path.expanduser("~")
-FILES = ["results.csv", "args.yaml", "trainer_state.json", "metrics.csv", "hparams.yaml", "epokio_log.csv",
-         "training.log", "history.csv", "training.csv", "keras_log.csv", "summary.csv", "log.txt",
-         "vis_data/scalars.json", "vis_data/config.py", "args.json", "config.yaml", "config.json", "opt.yaml"]
-MARK = set(["results.csv", "trainer_state.json", "metrics.csv", "epokio_log.csv", "history.csv", "training.log", "training.csv",
-            "keras_log.csv", "summary.csv"])
-def jsonlog(d):
-    # MAE·DeiT·DINO의 log.txt(에폭마다 JSON 한 줄). 흔한 이름이라 첫 줄이 epoch 있는 JSON일 때만 학습으로 본다
-    try:
-        with open(os.path.join(d, "log.txt"), "rb") as f: head = f.readline(20000).decode("utf-8", "replace").strip()
-        return head.startswith("{") and "epoch" in json.loads(head)
-    except (OSError, ValueError): return False
-SKIP = set(["images", "labels", "weights", "dataset", "datasets", ".git", ".venv", "venv", "node_modules", "__pycache__",
-            ".cache", "anaconda3", "miniconda3", ".conda", "site-packages", "Library", "snap"])
-roots = [os.path.expanduser(p) for p in cfg.get("paths", [])]
-if cfg.get("auto", True):
-    roots += [HOME]
-out, seen, budget, cut = [], set(), [4000], [False]
-def walk(d, depth):
-    if depth < 0 or budget[0] <= 0 or len(out) >= 300:
-        if budget[0] <= 0 or len(out) >= 300: cut[0] = True     # 다 못 봤다는 표시(앱이 경고하고, 지우기를 건너뛴다)
-        return
-    budget[0] -= 1
-    try: names = os.listdir(d)
-    except OSError: return
-    ns = set(names)
-    ck = sorted([n for n in names if n.startswith("checkpoint-")], key=lambda n: int("".join(c for c in n if c.isdigit()) or 0))
-    wb = [n for n in names if n.startswith("run-") and n.endswith(".wandb")]   # W&B 기록(바이너리)
-    wb += [n for n in names if n.startswith("events.out.tfevents.")]          # TensorBoard 기록(바이너리)
-    for sub in ("train", "validation"):                                          # Keras식 하위 폴더
-        if sub in ns and os.path.isdir(os.path.join(d, sub)):
-            try: wb += [sub + "/" + n for n in os.listdir(os.path.join(d, sub)) if n.startswith("events.out.tfevents.")]
-            except OSError: pass
-    if ns & MARK or wb or ("log.txt" in ns and jsonlog(d)) or os.path.isfile(os.path.join(d, "vis_data", "scalars.json")) or (ck and os.path.exists(os.path.join(d, ck[-1], "trainer_state.json"))):
-        rp = os.path.realpath(d)
-        if rp in seen: return
-        seen.add(rp)
-        files = {}
-        for n in FILES + ([ck[-1] + "/trainer_state.json"] if ck else []) + wb:
-            p = os.path.join(d, n)
-            try:
-                st = os.stat(p)
-                if st.st_size > (20000000 if n in wb else 4000000): continue
-                if HAVE.get(d, {}).get(n) == st.st_mtime:
-                    files[n] = [st.st_mtime, None]      # 안 바뀌었다: 내용은 빼고 시각만
-                    continue
-                with open(p, "rb") as f: data = f.read()
-                files[n] = [st.st_mtime, base64.b64encode(data).decode("ascii"), "b64"] if n in wb else [st.st_mtime, data.decode("utf-8", "replace")]
-            except OSError: pass
-        out.append({"path": d, "files": files})
-        return
-    for n in names:
-        if n in SKIP or n.startswith("."): continue
-        p = os.path.join(d, n)
-        if os.path.isdir(p) and not os.path.islink(p): walk(p, depth - 1)
-for r in roots:
-    walk(r, 5 if r == HOME else 6)
-print(json.dumps({"now": time.time(), "runs": out, "truncated": cut[0], "python": sys.version.split()[0], "home": HOME}))
-'''
+from .ssh_remote import REMOTE                 # 서버에서 도는 스크립트(400줄 상한 때문에 따로)
 
 HOST_RE = re.compile(r"^[A-Za-z0-9_.@:\-\[\]]+$")      # ssh 옵션으로 읽힐 수 있는 "-"로 시작하는 이름은 막는다
 
@@ -202,53 +141,92 @@ def apply(host: str, got: dict, now: float | None = None) -> int:
     now = time.time() if now is None else now
     skew = now - float(got.get("now") or now)
     base = mirror_dir(host)
-    keep = set()
+    keep, skipped = set(), []
     for r in got.get("runs", []):
         d = local_dir(host, str(r.get("path", "")))
         if d is None:
             continue
         keep.add(d)
         for name, pair in (r.get("files") or {}).items():
-            if not _safe_rel(name):
-                continue
-            mt, text = float(pair[0]) + skew, pair[1]
-            f = d / name
-            f.parent.mkdir(parents=True, exist_ok=True)
-            if text is None:                                     # 서버: 지난번과 같다. 비춤이 남아 있으면 그대로
-                if f.exists():
-                    _HAVE.setdefault(host, {}).setdefault(str(r["path"]), {})[name] = pair[0]
-                    os.utime(f, (mt, mt))
-                continue
-            _HAVE.setdefault(host, {}).setdefault(str(r["path"]), {})[name] = pair[0]
-            if len(pair) > 2 and pair[2] == "b64":                 # 바이너리(W&B .wandb)
-                data = base64.b64decode(text)
-                if not f.exists() or f.read_bytes() != data:
-                    tmp = f.with_name(f.name + ".tmp")
-                    tmp.write_bytes(data)
-                    tmp.replace(f)
-                os.utime(f, (mt, mt))
-                continue
-            if not f.exists() or f.read_text(encoding="utf-8", errors="replace", newline="") != text:
-                tmp = f.with_name(f.name + ".tmp")
-                tmp.write_text(text, encoding="utf-8", newline="")    # 윈도우에서도 개행을 바꾸지 않는다
-                tmp.replace(f)
-            os.utime(f, (mt, mt))
+            if _safe_rel(name):
+                _put(host, str(r["path"]), d / name, name, pair, float(pair[0]) + skew, skipped)
     if base.is_dir() and not got.get("truncated"):               # 서버에서 지운 학습은 여기서도
         for f in list(base.rglob("*")):                          # ★다 못 본 스캔으로 지우면 멀쩡한 학습이 화면에서 사라진다
             if f.is_file() and not any(k == f.parent or k in f.parents for k in keep):
                 f.unlink(missing_ok=True)
+    before = {(x["path"], x["name"]) for x in _SKIPPED.get(host, [])}
+    _SKIPPED[host] = skipped
+    if skipped and {(x["path"], x["name"]) for x in skipped} != before:     # 15초마다 같은 경고를 쌓지 않는다
+        log.warning("ssh %s: skipped %d log file(s) over the size limit: %s", host, len(skipped),
+                    ", ".join(x["path"] + "/" + x["name"] for x in skipped[:5]))
     return len(keep)
 
 
+def _put(host: str, rpath: str, f: Path, name: str, pair: list, mt: float, skipped: list) -> None:
+    """파일 하나를 비춤에 쓴다. 모양은 ssh_remote.py 머리말"""
+    kind = pair[2] if len(pair) > 2 else None
+    have = _HAVE.setdefault(host, {}).setdefault(rpath, {})
+    if kind == "too_large":                                   # 한도를 넘어 안 왔다: 알리고, 있던 비춤은 그대로
+        skipped.append({"path": rpath, "name": name, "size": int(pair[3])})
+        have.pop(name, None)
+        return
+    f.parent.mkdir(parents=True, exist_ok=True)
+    if pair[1] is None:                                       # 서버: 지난번과 같다. 비춤이 남아 있으면 그대로
+        if f.exists():
+            have[name] = pair[0]
+            os.utime(f, (mt, mt))
+        return
+    if kind in ("append", "append_b64"):                      # 뒤에 붙은 조각만 왔다
+        data = pair[1].encode("utf-8") if kind == "append" else base64.b64decode(pair[1])
+        if not f.exists() or f.stat().st_size != int(pair[3]):
+            have.pop(name, None)                              # 이 Mac 쪽이 어긋났다: 다음번엔 통째로
+            _FULL.setdefault(host, set()).add((rpath, name))
+            return
+        with open(f, "ab") as fh:
+            fh.write(data)
+    else:
+        data = base64.b64decode(pair[1]) if kind == "b64" else pair[1].encode("utf-8")
+        if not f.exists() or f.read_bytes() != data:          # 개행을 바꾸지 않고 바이트 그대로(윈도우)
+            tmp = f.with_name(f.name + ".tmp")
+            tmp.write_bytes(data)
+            tmp.replace(f)
+    _FULL.get(host, set()).discard((rpath, name))
+    have[name] = pair[0]
+    os.utime(f, (mt, mt))
+
+
 _HAVE: dict[str, dict[str, dict[str, float]]] = {}      # 호스트 → 원격 폴더 → 파일 → 받은 원격 수정 시각
+_FULL: dict[str, set] = {}                               # 호스트 → 이어 받기가 어긋나 통째로 다시 받을 (폴더, 파일)
+_SKIPPED: dict[str, list] = {}                           # 호스트 → 지난 읽기에서 한도를 넘어 건너뛴 파일
+
+
+def skipped(host: str) -> list[dict]:
+    return list(_SKIPPED.get(host, []))
+
+
+def _print(f: Path) -> list | None:
+    """비춤 파일의 [크기, 처음 4KB 지문, 마지막 4KB 지문]. 서버가 같은 앞부분인지 보고 뒤만 보낸다"""
+    try:
+        with open(f, "rb") as fh:
+            size = os.fstat(fh.fileno()).st_size
+            head = hashlib.md5(fh.read(min(4096, size))).hexdigest()[:16]
+            fh.seek(max(0, size - 4096))
+            return [size, head, hashlib.md5(fh.read()).hexdigest()[:16]]
+    except OSError:
+        return None
 
 
 def have_for(host: str) -> dict:
-    """다음 스캔에 보낼 '이미 받은 것'. 비춤 파일이 지워졌으면 빼서 다시 받는다"""
+    """다음 스캔에 보낼 '이미 받은 것' {폴더: {파일: [시각, 크기, 지문, 지문]}}. 비춤 파일이 지워졌으면 빼서 다시 받는다"""
     out = {}
+    full = _FULL.get(host, set())
     for path, files in _HAVE.get(host, {}).items():
         d = local_dir(host, path)
-        keep = {n: m for n, m in files.items() if d is not None and (d / n).exists()}
+        keep = {}
+        for n, m in files.items():
+            fp = _print(d / n) if d is not None and (path, n) not in full else None
+            if fp:
+                keep[n] = [m] + fp
         if keep:
             out[path] = keep
     return out
@@ -325,7 +303,7 @@ class Poller:
             got = run_remote(h, host, self.ssh, have=have_for(h))
             n = apply(h, got)
             st = {"ok": True, "error": None, "runs": n, "at": time.time(), "python": got.get("python"),
-                  "truncated": bool(got.get("truncated")),
+                  "truncated": bool(got.get("truncated")), "skipped": skipped(h),
                   "note": NO_REUSE_NOTE if sys.platform == "win32" else None}
             self._fails.pop(h, None)
         except (ValueError, OSError) as e:       # OSError: 비춤 폴더를 못 만듦 등. 뒤 스레드가 죽지 않게

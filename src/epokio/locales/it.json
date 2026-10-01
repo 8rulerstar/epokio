@@ -3,5 +3,8 @@
  "Training failed": "Addestramento fallito",
  "Training finished": "Addestramento completato",
  "best": "migliore",
- "epoch": "epoca"
+ "epoch": "epoca",
+ "Test alert": "Avviso di prova",
+ "Phone alerts from {machine} work.": "Gli avvisi sul telefono da {machine} funzionano.",
+ "step": "passo"
 }

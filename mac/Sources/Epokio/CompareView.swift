@@ -100,7 +100,7 @@ struct CompareView: View {
                 let best = runs.compactMap { details[$0.id]?.heads.first?.f1 }.max()
                 GridRow {
                     Text(verbatim: r.displayName).lineLimit(2).frame(minWidth: 120, maxWidth: 200, alignment: .leading)
-                    Text(verbatim: "\(r.epoch)/\(r.total.map(String.init) ?? "?")")
+                    Text(verbatim: r.countText)
                     Text(verbatim: h?.precision.map { Fmt.score($0, style: scoreStyle) } ?? "–")
                     Text(verbatim: h?.recall.map { Fmt.score($0, style: scoreStyle) } ?? "–")
                     Text(verbatim: h?.f1.map { Fmt.score($0, style: scoreStyle) } ?? "–")

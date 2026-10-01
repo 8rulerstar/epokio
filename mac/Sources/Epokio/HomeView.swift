@@ -347,7 +347,7 @@ struct LiveTile: View {
             }
             VStack(alignment: .leading, spacing: big ? 6 : 2) {
                 Text(verbatim: run.displayName).font(big ? .role(.title) : .role(.body, weight: .semibold)).lineLimit(1).truncationMode(.middle)
-                Text(verbatim: L("epoch %@", "\(run.epoch)/\(run.total.map(String.init) ?? "?")") + (run.eta.map { "  ·  " + L("done around %@", Fmt.time(Date().addingTimeInterval($0))) } ?? ""))
+                Text(verbatim: run.progressText + (run.eta.map { "  ·  " + L("done around %@", Fmt.time(Date().addingTimeInterval($0))) } ?? ""))
                     .font(big ? .role(.body) : .role(.caption)).foregroundStyle(ink.soft).lineLimit(1)
             }
             Spacer(minLength: 0)

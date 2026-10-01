@@ -83,7 +83,7 @@ class TensorBoard:                      # adapters.Adapter 모양(서로 import�
 
     def load(self, d):
         from . import tfevents as _tf   # 안에서 import: 어느 쪽을 먼저 불러도 순환이 안 깨지게
-        from .adapters_base import Loaded, _num, epochs_nearby
+        from .adapters_base import STEP_KEYS, Loaded, _num, epochs_nearby
         try:
             files = _files(d, {p.name for p in d.iterdir()})
         except OSError:
@@ -143,7 +143,8 @@ class TensorBoard:                      # adapters.Adapter 모양(서로 import�
         args = {"x_axis": mode}
         if epoch_tag:
             args["epoch_tag"] = epoch_tag
-        total = epochs_nearby(d)                            # Lightning hparams.yaml, 또는 같은 폴더의 args·config
+        # Lightning hparams.yaml, 또는 같은 폴더의 args·config. step 축이면 계획 step 수(에폭 수를 쓰면 진행률이 틀린다)
+        total = epochs_nearby(d, STEP_KEYS) if mode == "step" else epochs_nearby(d)
         done = None                                          # HF: 소수 에폭이라 줄의 에폭(올림)과 끝낸 에폭(내림)이 다르다
         if epoch_tag == "train/epoch" and epochs:
             done = int(math.floor(max(v for _, v in epochs) + 1e-6))

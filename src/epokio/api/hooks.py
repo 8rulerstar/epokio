@@ -1,4 +1,4 @@
-"""웹후크(폰 알림) 설정: GET /webhooks(호스트만) · POST /webhooks(저장)"""
+"""웹후크(폰 알림) 설정: GET /webhooks(호스트만) · POST /webhooks(저장) · POST /webhooks/test(시험 알림)"""
 from __future__ import annotations
 
 import threading
@@ -25,7 +25,29 @@ def get(agent, route: str, q: dict):
     return NOT_MINE
 
 
+def _test(agent, body: dict):
+    """저장된 웹후크마다(또는 body의 url 하나에) 시험 알림을 바로 보내고 주소별 결과를 돌려준다"""
+    from .. import i18n, notify
+    if body.get("url") is not None:
+        if not notify.valid(body["url"]):
+            return 400, {"error": "every webhook must start with https://"}
+        urls = [body["url"]]
+    else:
+        try:
+            cfg = jsonfile.read(agent.HOOKS_FILE, {}, move_broken=False)
+        except (OSError, ValueError):
+            cfg = {}
+        urls = [u for u in (cfg.get("urls", []) if isinstance(cfg, dict) else []) if notify.valid(u)]
+        if not urls:
+            return 400, {"error": "no webhooks saved"}
+    i18n.use(msg.tag())                                  # 시험을 누른 화면의 언어로
+    # 하나씩 기다려 보낸다(주소마다 5초 한도). ★보내고 잊는 실제 알림과 달리, 시험은 결과를 바로 보여 줘야 한다
+    return 200, {"results": [notify.send_test(u, getattr(agent, "label", None)) for u in urls]}
+
+
 def post(agent, route: str, body: dict):
+    if route == "/webhooks/test":
+        return _test(agent, body)
     if route == "/webhooks":
         urls = body.get("urls", [])
         if not isinstance(urls, list):                 # ★문자열을 주면 글자별로 걸러져 기존 웹후크가 지워졌다

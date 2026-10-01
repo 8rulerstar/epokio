@@ -23,10 +23,10 @@ const KO = {
   // 시간·공통
   "{n}s": "{n}초", "{n}m": "{n}분", "{h}h {m}m": "{h}시간 {m}분", "{n}d": "{n}일",
   "{n}h": "{n}시간", "{d}d {h}h": "{d}일 {h}시간",
-  "{d} left": "{d} 남음", "{d} ago": "{d} 전", "epoch {e}/{n}": "에폭 {e}/{n}", "epoch {n}": "에폭 {n}", "took {d}": "걸린 시간 {d}",
+  "{d} left": "{d} 남음", "{d} ago": "{d} 전", "epoch {e}/{n}": "에폭 {e}/{n}", "epoch {n}": "에폭 {n}", "step {e}/{n}": "스텝 {e}/{n}", "step {n}": "스텝 {n}", "steps": "스텝", "took {d}": "걸린 시간 {d}",
   "{n} active": "{n}개 진행 중", "Can't reach Epokio": "Epokio에 연결되지 않음", "last update {time}": "마지막 갱신 {time}",
   "MEM": "메모리", "request failed ({status})": "요청 실패 ({status})", "this machine": "이 기계",
-  "Box": "박스", "Pose": "자세", "Mask": "마스크",
+  "Box": "박스", "Pose": "포즈", "Mask": "마스크", "precision": "정밀도", "recall": "재현율",
   "The token did not work.": "토큰이 맞지 않습니다.", "The token stopped working.": "토큰이 더 이상 맞지 않습니다.",
   // 학습 기록
   "Can't reach Epokio on this machine.": "이 기계의 Epokio에 연결되지 않습니다.",
@@ -74,7 +74,7 @@ const KO = {
   "On: sends to {hosts}.": "켜짐 · 받는 곳: {hosts}", "Off.": "꺼짐.", "Phone alerts": "폰 알림",
   "Easiest: install the free <b>ntfy</b> app on your phone, subscribe to a topic with a long random name, and paste <code>https://ntfy.sh/your-topic</code> here. Slack, Discord and Telegram webhook addresses work too. Anyone who knows the topic can read it, so make it hard to guess.":
     "가장 쉬운 방법: 폰에 무료 앱 <b>ntfy</b>를 설치하고, 길고 무작위인 이름의 토픽을 구독한 뒤 <code>https://ntfy.sh/your-topic</code>을 여기에 붙여 넣으세요. Slack·Discord·Telegram 웹후크 주소도 됩니다. 토픽 이름을 아는 사람은 누구나 볼 수 있으니 짐작하기 어렵게 지으세요.",
-  "Save": "저장", "Turn off": "끄기",
+  "Save": "저장", "Turn off": "끄기", "Send a test": "시험 보내기", "Test sent.": "시험 알림을 보냈습니다.", "Some alerts did not go through.": "일부 알림이 가지 않았습니다.", "Delivered": "전달됨",
   "Not saved.": "저장하지 못했습니다.", "best {v}": "최고 {v}",
   "No notifications yet. When a run finishes, fails or stalls, it shows up here.": "아직 알림이 없습니다. 학습이 끝나거나, 실패하거나, 멈추면 여기에 나타납니다.",
   // 잠금
@@ -144,7 +144,9 @@ const KO = {
   "Lowest val loss · epoch {x} · overfitting after": "검증 손실 최저 · 에폭 {x} · 이후 과적합", "Lowest val loss · epoch {x}": "검증 손실 최저 · 에폭 {x}",
   "Validation loss rose after epoch {x}: likely overfitting. best.pt keeps the best epoch.": "에폭 {x} 뒤로 검증 손실이 올랐습니다. 과적합일 가능성이 큽니다. best.pt에는 가장 좋은 에폭이 남아 있습니다.",
   "Validation loss was lowest here.": "검증 손실이 여기서 가장 낮았습니다.",
-  "Time per epoch": "에폭당 시간", "{d}/epoch": "{d}/에폭", "Time left": "남은 시간", "Estimated finish": "끝날 예상 시각",
+  "Time per epoch": "에폭당 시간", "{d}/epoch": "{d}/에폭", "Time per step": "스텝당 시간", "{d}/step": "{d}/스텝",
+  "Lowest val loss · step {x} · overfitting after": "검증 손실 최저 · 스텝 {x} · 이후 과적합", "Lowest val loss · step {x}": "검증 손실 최저 · 스텝 {x}",
+  "Validation loss rose after step {x}: likely overfitting.": "스텝 {x} 뒤로 검증 손실이 올랐습니다. 과적합일 가능성이 큽니다.", "Time left": "남은 시간", "Estimated finish": "끝날 예상 시각",
   "Train again with a change": "바꿔서 다시 학습", "Same settings as {name}, with {change}.": "{name}과(와) 같은 설정에 {change}을(를) 바꿉니다.",
   "Looking for Python…": "파이썬을 찾는 중…", "Queue training": "대기열에 넣기", "Added to the queue": "대기열에 넣었습니다",
   "Try: {change}": "해 볼 것: {change}", "from {file}": "{file}에서 시작", "No Python with ultralytics found": "ultralytics가 있는 파이썬이 없습니다", "no ultralytics": "ultralytics 없음",

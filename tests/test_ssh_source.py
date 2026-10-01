@@ -167,3 +167,83 @@ def test_crlf_files_are_mirrored_as_is(env):
     """윈도우 텍스트 모드는 LF 를 CRLF 로 바꾼다: 서버 내용을 바이트 그대로 쓰는지"""
     ssh_source.apply("h", {"now": time.time(), "runs": [{"path": "/r/exp", "files": {"results.csv": [0, "a\r\nb\n"]}}]})
     assert (ssh_source.local_dir("h", "/r/exp") / "results.csv").read_bytes() == b"a\r\nb\n"
+
+
+# ── 늘어나는 파일은 뒤만, 너무 큰 파일은 알린다 ──
+@pytest.fixture
+def tail(env, monkeypatch):
+    for k in ("_HAVE", "_FULL", "_SKIPPED"):
+        monkeypatch.setattr(ssh_source, k, {})
+    fake, run = env
+
+    def read():
+        got = ssh_source.run_remote("gpu", {"auto": True}, ssh=fake, have=ssh_source.have_for("gpu"))
+        ssh_source.apply("gpu", got)
+        return {n: p for r in got["runs"] for n, p in r["files"].items()}
+    return read, run
+
+
+def bump(p, extra: bytes):
+    with open(p, "ab") as f:
+        f.write(extra)
+    t = os.stat(p).st_mtime + 5                                         # 시각이 꼭 바뀌게
+    os.utime(p, (t, t))
+
+
+def test_growing_csv_and_binary_come_as_tails(tail):
+    read, run = tail
+    ev = run / "events.out.tfevents.1.host"
+    ev.write_bytes(bytes(range(256)) * 40)
+    read()
+    size = os.stat(run / "results.csv").st_size
+    bump(run / "results.csv", b"3,0.3,0.9\n")
+    bump(ev, b"\x00\xff" * 100)
+    got = read()
+    assert got["results.csv"][1:] == ["3,0.3,0.9\n", "append", size]
+    assert got["events.out.tfevents.1.host"][2] == "append_b64"
+    d = ssh_source.local_dir("gpu", str(run))
+    for n in ("results.csv", ev.name):
+        assert (d / n).read_bytes() == (run / n).read_bytes()          # 바이트 그대로
+
+
+def test_rewritten_file_falls_back_to_full(tail):
+    read, run = tail
+    read()
+    (run / "results.csv").write_text("epoch,metrics/mAP50-95(B),train/box_loss\n1,0.5,1.2\n2,0.6,1.0\n3,0.7,0.8\n")
+    bump(run / "results.csv", b"")
+    got = read()
+    assert len(got["results.csv"]) == 2                                 # 앞부분이 바뀌었다: 통째로
+    assert (ssh_source.local_dir("gpu", str(run)) / "results.csv").read_bytes() == (run / "results.csv").read_bytes()
+
+
+def test_local_mirror_out_of_step_resends_full(tail):
+    read, run = tail
+    read()
+    f = ssh_source.local_dir("gpu", str(run)) / "results.csv"
+    f.unlink()
+    bump(run / "results.csv", b"3,0.3,0.9\n")
+    assert len(read()["results.csv"]) == 2                              # 비춤을 지우면 통째로
+    # 서버가 이어 보낸 조각이 이 Mac 크기와 안 맞으면 붙이지 않고, 다음번에 통째로 받는다
+    pair = [os.stat(run / "results.csv").st_mtime + 1, "x\n", "append", 3]
+    ssh_source.apply("gpu", {"now": time.time(), "runs": [{"path": str(run), "files": {"results.csv": pair}}]})
+    assert f.read_bytes() == (run / "results.csv").read_bytes()
+    assert "results.csv" not in ssh_source.have_for("gpu").get(str(run), {})
+    bump(run / "results.csv", b"4,0.4,0.8\n")
+    assert len(read()["results.csv"]) == 2 and f.read_bytes() == (run / "results.csv").read_bytes()
+
+
+def test_oversized_file_is_reported(tail, monkeypatch):
+    read, run = tail
+    monkeypatch.setattr(ssh_source, "REMOTE", ssh_source.REMOTE.replace("4000000", "1000"))
+    (run / "args.yaml").write_text("x: 1\n" * 400)
+    got = read()
+    assert got["args.yaml"][2:] == ["too_large", 2000]
+    assert ssh_source.skipped("gpu") == [{"path": str(run), "name": "args.yaml", "size": 2000}]
+    # 이어 받기면 한도는 붙은 조각에만: 1KB 한도로도 오래 도는 학습의 로그를 계속 받는다
+    for _ in range(5):
+        bump(run / "results.csv", b"9,0.9,0.1\n" * 50)
+        assert read()["results.csv"][2] == "append"
+    assert os.stat(run / "results.csv").st_size > 2000
+    monkeypatch.setattr(ssh_source, "run_remote", lambda *a, **k: {"now": time.time(), "runs": [
+        {"path": str(run), "files": {"args.yaml": [1, None, "too_large", 2000]}}]})
+    assert ssh_source.Poller(ssh="ssh").poll_once({"host": "gpu"})["skipped"][0]["name"] == "args.yaml"

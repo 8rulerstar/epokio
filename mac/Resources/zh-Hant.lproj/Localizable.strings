@@ -1366,3 +1366,8 @@
 "Ended at epoch %d. This log does not say how many epochs were planned." = "在 epoch %d 結束。此紀錄沒有預定的 epoch 數。";
 "GPU fan speed" = "GPU 風扇轉速";
 "not in validation set" = "驗證集中沒有";
+"%d log files over the size limit were skipped" = "已略過 %d 個超出大小限制的紀錄檔";
+"step %@" = "第 %@ 步";
+"No new step for a while." = "已有一段時間沒有新的訓練步。";
+"Ended at step %@. This log does not say how many steps were planned." = "在第 %@ 步結束。此紀錄沒有預定的步數。";
+"Stopped at step %@ before the last one." = "在最後一步之前，於第 %@ 步停止。";

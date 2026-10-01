@@ -37,6 +37,10 @@ def classify(before: str | None, run: Run) -> str | None:
     if before in LIVE + ("stalled",) and now == "stopped":
         if run.total and run.epoch < run.total:
             return "stopped_early"           # 계획보다 일찍 끝남: 조기종료거나 비정상 종료
+        if not run.total:
+            # ★계획 에폭을 모르면 끝난 건지 죽은 건지 알 수 없다. 그런데 '학습이 끝났습니다'를 보내, 크래시한 학습도 끝났다고 했다.
+            #   멎음 알림은 이미 갔다(stalled). 곧장 멈춤으로 왔으면(주기가 길 때) 멎음으로만 알린다
+            return None if before == "stalled" else "stalled"
         return "finished"
     if before == "stalled" and now in LIVE:
         return "recovered"                   # 멎은 줄 알았는데 다시 돈다

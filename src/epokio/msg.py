@@ -76,9 +76,37 @@ def tag() -> str:
     return _tag.get()
 
 
+# x축 단위. step으로 적는 학습(W&B·TensorBoard·CSV step 기록)의 해설은 "에폭"이 아니라 "스텝"이라고 말해야 한다.
+# 문장마다 step판을 17개 언어로 따로 두지 않고, 번역된 틀(채우기 전)에서 그 언어의 에폭 낱말만 바꾼다.
+# 성이 같은 낱말을 골랐다(독·서·불·포: 여성 명사 '반복'), 관사·형용사가 그대로 맞는다
+_unit: contextvars.ContextVar[str] = contextvars.ContextVar("unit", default="epoch")
+_STEP_WORDS = {
+    "ko": (("에폭", "스텝"),), "ja": (("エポック", "ステップ"),),
+    "zh-Hans": (("轮次", "步"), ("轮", "步")), "zh-Hant": (("個 epoch", "步"), ("轮次", "步"), ("輪", "步"), ("epoch", "步")),
+    "vi": (("epoch", "bước"),),
+    "de": (("Epochen", "Iterationen"), ("Epoche", "Iteration")),
+    "es": (("épocas", "iteraciones"), ("época", "iteración"), ("Época", "Iteración")),
+    "fr": (("époques", "itérations"), ("époque", "itération"), ("Époque", "Itération")),
+    "pt-BR": (("épocas", "iterações"), ("época", "iteração"), ("Época", "Iteração")),
+}
+_EN_STEP = (("epochs", "steps"), ("epoch", "step"), ("Epochs", "Steps"), ("Epoch", "Step"))
+
+
+def set_unit(unit: str):
+    """"step"이면 이 문맥의 tr()이 에폭 낱말을 스텝으로 바꾼다. 돌려준 토큰으로 reset_unit"""
+    return _unit.set("step" if unit == "step" else "epoch")
+
+
+def reset_unit(token) -> None:
+    _unit.reset(token)
+
+
 def tr(template: str, **kw) -> str:
     lang = _lang.get()
     s = TABLE.get(lang, {}).get(template, template)
+    if _unit.get() == "step":                     # 표에 없는 언어는 영어 틀이 오므로 영어 바꾸기도 늘 한다
+        for a, b in _STEP_WORDS.get(lang, ()) + _EN_STEP:
+            s = s.replace(a, b)
     s = s.format(**kw) if kw else s
     return josa(s) if lang == "ko" else s
 

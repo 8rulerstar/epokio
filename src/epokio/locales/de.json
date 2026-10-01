@@ -186,5 +186,14 @@
  "A new run with more epochs will probably score higher.": "Ein neuer Lauf mit mehr Epochen erzielt wahrscheinlich einen höheren Wert.",
  "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "Der GPU-Lüfter läuft seit {min} Min. mit {pct} %. Die GPU kann sich zum Abkühlen drosseln.",
  "Still training: epoch {e} of {n}.": "Training läuft noch: Epoche {e} von {n}.",
- "Best {metric} so far is {v:.3f}, at epoch {e}.": "Bester Wert {metric} bisher: {v:.3f} in Epoche {e}."
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "Bester Wert {metric} bisher: {v:.3f} in Epoche {e}.",
+ "Training stopped at epoch {e} of {n}.": "Das Training stoppte bei Epoche {e} von {n}.",
+ "No validation score was logged, so only the loss was checked. Nothing stood out in it.": "Es wurde kein Validierungswert protokolliert, daher wurde nur der Verlust geprüft. Dabei fiel nichts auf.",
+ "Training loss has been rising since epoch {e} ({a:.3f} to {b:.3f}).": "Der Trainingsverlust steigt seit Epoche {e} ({a:.3f} auf {b:.3f}).",
+ "Check the learning rate schedule and the data loader. A loss that climbs for this long rarely recovers.": "Prüfe den Lernraten-Plan und den Data Loader. Ein so lange steigender Verlust erholt sich selten.",
+ "No validation examples of {names}, so its score was not measured.": "Keine Validierungsbeispiele für {names}, daher wurde der Wert nicht gemessen.",
+ "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "Lege einige {names}-Bilder in die Validierung. Bis dahin weißt du nicht, ob das Modell sie findet.",
+ "Test alert": "Testbenachrichtigung",
+ "Phone alerts from {machine} work.": "Handy-Benachrichtigungen von {machine} funktionieren.",
+ "step": "Schritt"
 }

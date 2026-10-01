@@ -59,3 +59,11 @@ def alias_of_sibling(link, parent) -> bool:
         return link.resolve().parent == parent.resolve()
     except OSError:
         return False
+
+
+def x_count(r) -> str:
+    """진행 칸 '12/100'. step 축(x_axis=step) 학습은 '12,000/100,000'처럼 천 단위 쉼표(모든 화면이 같은 모양)"""
+    total = getattr(r, "total", None)
+    if getattr(r, "x_axis", "epoch") == "step":
+        return f"{r.epoch:,}/{f'{total:,}' if total else '?'}"
+    return f"{r.epoch}/{total or '?'}"

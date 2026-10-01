@@ -186,5 +186,14 @@
  "A new run with more epochs will probably score higher.": "エポック数を増やして新しく学習すると、スコアが上がる可能性が高いです。",
  "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU ファンが {min} 分間 {pct}% で回っています。GPU が冷却のため速度を落とす可能性があります。",
  "Still training: epoch {e} of {n}.": "まだ学習中です: {n} エポック中 {e} エポック。",
- "Best {metric} so far is {v:.3f}, at epoch {e}.": "これまでの最高 {metric} は {e} エポックの {v:.3f} です。"
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "これまでの最高 {metric} は {e} エポックの {v:.3f} です。",
+ "Training stopped at epoch {e} of {n}.": "学習は {n} エポック中 {e} エポックで止まりました。",
+ "No validation score was logged, so only the loss was checked. Nothing stood out in it.": "検証スコアが記録されていないため、損失だけを確認しました。目立つ問題はありません。",
+ "Training loss has been rising since epoch {e} ({a:.3f} to {b:.3f}).": "学習損失が {e} エポックから上がり続けています({a:.3f} から {b:.3f})。",
+ "Check the learning rate schedule and the data loader. A loss that climbs for this long rarely recovers.": "学習率スケジュールとデータローダーを確認してください。これほど長く上がる損失はあまり戻りません。",
+ "No validation examples of {names}, so its score was not measured.": "検証セットに {names} の例がないため、スコアは測れていません。",
+ "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "検証セットに {names} の画像を入れてください。それまではモデルが見つけられるか分かりません。",
+ "Test alert": "テスト通知",
+ "Phone alerts from {machine} work.": "{machine} からのスマホ通知は届いています。",
+ "step": "ステップ"
 }

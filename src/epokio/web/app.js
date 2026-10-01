@@ -50,6 +50,11 @@ async function fillPythons(sel) {
     || `<option value="">${t("No Python with ultralytics found")}</option>`;
   sel.animate?.([{ opacity: .4 }, { opacity: 1 }], { duration: 250 });
 }
+/// x축 단위. step으로 적는 학습(/runs의 x_axis "step")은 epoch 자리에 step 번호가 온다. 천 단위 쉼표로 보인다
+const isStep = (r) => r?.x_axis === "step";
+const xnum = (r, v) => v == null ? "?" : isStep(r) ? Number(v).toLocaleString(LOCALE) : v;
+const xprog = (r) => t(isStep(r) ? "step {e}/{n}" : "epoch {e}/{n}", { e: xnum(r, r.epoch), n: xnum(r, r.total) });
+const xname = (r) => isStep(r) ? (v) => t("step {n}", { n: xnum(r, v) }) : undefined;
 /// 짧은 알림(아래 가운데). bad면 빨강
 function toast(text, bad, action) {
   document.querySelector(".toast")?.remove();
@@ -86,7 +91,8 @@ function display(r) {           // 'train'처럼 흔한 이름이면 위 폴더�
 // column_info가 없을 때(옛 agent·대표 점수 이름만 있을 때)만 글자로 다듬는다: val/val_loss → "val loss"(★"val val"로 보였다)
 const pretty = (k, d) => {
   const i = d && d.column_info && d.column_info[k];
-  if (i) { const s = i.side ? i.side + " " + i.name : i.name; return i.head ? s + " · " + i.head : s; }
+  // ★한국어 화면에 "train box", "precision · Pose"처럼 영어로 나왔다. 쪽·이름·머리를 각각 번역한다(모르는 열 이름은 그대로)
+  if (i) { const s = i.side ? t(i.side) + " " + t(i.name) : t(i.name); return i.head ? s + " · " + t(i.head) : s; }
   return String(k || "").replace(/^(val|train)\/\1_/, "$1/").replace("metrics/", "").replace("_loss", "").replace("(B)", " · " + t("Box")).replace("(P)", " · " + t("Pose")).replace("(M)", " · " + t("Mask")).replace("/", " ");
 };
 const kindOf = (k, d) => (d && d.column_info && d.column_info[k] || {}).kind;
@@ -223,7 +229,7 @@ function rowHTML(r, i, check) {
   return `<div class="row ${r.state} ${!check && S.sel === r.path ? "on" : ""}" role="button" tabindex="0" style="--c:${c};animation-delay:${Math.min(i, 12) * 25}ms" data-path="${esc(r.path)}">
     ${box}<span class="name">${r.meta?.star ? "⭐ " : ""}${esc(display(r))}</span><span class="best" ${r.lower ? `title="${t("lower is better")}"` : ""}>${r.best != null ? r.best.toFixed(3) + (r.lower ? " ↓" : "") : ""}</span>
     ${r.total ? `<span class="bar"><i style="width:${pct}%"></i></span>` : `<span class="bar" style="visibility:hidden"></span>`}
-    <span class="meta">${st} · ${t("epoch {e}/{n}", { e: r.epoch, n: r.total ?? "?" })} · ${when} · ${esc(r.source)}${(r.meta?.tags || []).map((tag) => " · #" + esc(tag)).join("")}</span></div>`;
+    <span class="meta">${st} · ${xprog(r)} · ${when} · ${esc(r.source)}${(r.meta?.tags || []).map((tag) => " · #" + esc(tag)).join("")}</span></div>`;
 }
 async function drawRuns(periodic) {
   const g = ++S.gen;
@@ -362,7 +368,7 @@ function queueNext(r, d, change) {
 function detailHTML(r, d) {
   const [st, c] = stateOf(r);
   let h = `<div style="display:flex;gap:12px;align-items:flex-start"><div style="flex:1;min-width:0"><h2>${esc(display(r))}</h2>
-    <div class="meta"><span class="pill" style="--c:${c}">${st}</span> · ${t("epoch {e}/{n}", { e: r.epoch, n: r.total ?? "?" })}${r.elapsed ? " · " + t("took {d}", { d: dur(r.elapsed) }) : ""} · ${esc(r.source)}</div>${paceHTML(r)}</div>
+    <div class="meta"><span class="pill" style="--c:${c}">${st}</span> · ${xprog(r)}${r.elapsed ? " · " + t("took {d}", { d: dur(r.elapsed) }) : ""} · ${esc(r.source)}</div>${paceHTML(r)}</div>
     ${r.best != null ? `<div style="text-align:right"><div class="big">${r.best.toFixed(4)}</div><div class="hint" title="${esc(r.metric_name)}">${t("Score")} · ${esc(pretty(r.metric_name, d))}</div></div>` : ""}</div>`;
   if (!d) return h + `<p class="hint">${t("No details for this run.")}</p>`;
   // 대표 점수를 고른다(W&B의 요약 지표처럼). ★손실·오류율이 대표여야 하는 학습도 '높을수록 좋은 첫 열'로만 골랐다
@@ -397,11 +403,11 @@ function detailHTML(r, d) {
     h += `<h3 style="display:flex;align-items:center">${t("Curves")}<span style="margin-left:auto" class="seg"><button data-v="0" aria-pressed="${S.curve === 0}" class="${S.curve === 0 ? "on" : ""}">${t("Loss")}</button><button data-v="1" aria-pressed="${S.curve === 1}" class="${S.curve === 1 ? "on" : ""}">${t("Scores")}</button></span></h3>
       <p class="hint">${S.curve === 0 ? t("Loss should go down. If validation goes up while training goes down, it is overfitting.") : t("Scores should go up and level off.")}</p>`
       + chart(keys.map((k, i) => ({ name: pretty(k, d), x: d.columns.epoch || [], y: ema(d.columns[k], S.smooth), color: COLORS[i % COLORS.length], dash: k.startsWith("val/") })),
-              { mark: S.curve === 0 ? valLossLow(d) : null })
+              { mark: S.curve === 0 ? valLossLow(d, isStep(r)) : null, xname: xname(r) })
       + `<label class="hint" style="display:flex;align-items:center;gap:8px;margin-top:6px">${t("Smoothing")} <input id="sm" type="range" min="0" max="0.95" step="0.05" value="${S.smooth}" style="width:160px"> ${S.smooth.toFixed(2)}</label>`;
   }
   if (r.meta?.note || r.meta?.goal != null) h += `<h3>${t("Your notes")}</h3>${r.meta.note ? `<p style="white-space:pre-wrap;margin:4px 0">${esc(r.meta.note)}</p>` : ""}`
-    + (r.meta.goal != null ? `<p class="hint">${t("Goal:")} ${esc(r.metric_name)} ${r.lower ? "≤" : "≥"} ${esc(r.meta.goal)} ${r.meta.goal_hit ? `· <b style='color:var(--green)'>${t("reached")}</b>` : ""}</p>` : "");
+    + (r.meta.goal != null ? `<p class="hint">${t("Goal:")} ${esc(pretty(r.metric_name, d))} ${r.lower ? "≤" : "≥"} ${esc(r.meta.goal)} ${r.meta.goal_hit ? `· <b style='color:var(--green)'>${t("reached")}</b>` : ""}</p>` : "");
   h += perClassHTML(r, d) + snapshotsHTML(r, d) + machineHTML(r, d);                            // 클래스별 성능 (classes.js)
   if (d.notes.length) h += `<h3>${t("What stands out")}</h3>` + d.notes.map((n, i) => `<div class="note" style="animation-delay:${i * 60}ms">💡 ${esc(n.observation)}<p>→ ${esc(n.try)}</p>
       ${n.next && r.source === S.label ? `<button class="chip nextrun" style="--c:var(--brand)" data-next="${i}">▶ ${esc(t("Try: {change}", { change: nextSummary(n.next, d.args) }))}</button>` : ""}</div>`).join("");
@@ -485,7 +491,7 @@ function bindCharts() {
   });
 }
 /// 검증 손실(val/*_loss 합)이 가장 낮은 에폭. analysis.py와 같은 규칙(0이나 빈 에폭은 뺀다, 8개 이상일 때만)
-function valLossLow(d) {
+function valLossLow(d, step) {
   const vl = Object.keys(d.columns).filter((k) => k.startsWith("val/") && k.endsWith("_loss"));
   if (!vl.length) return null;
   const n = Math.max(...vl.map((k) => d.columns[k].length)), ep = d.columns.epoch || [];
@@ -496,6 +502,8 @@ function valLossLow(d) {
   const lo = ok.reduce((a, b) => s[b] < s[a] ? b : a), last = s[ok[ok.length - 1]];
   const over = lo < n - 3 && last > s[lo] * 1.10;
   const x = ep[lo] ?? lo + 1;
+  if (step) return { x, label: over ? t("Lowest val loss · step {x} · overfitting after", { x }) : t("Lowest val loss · step {x}", { x }),
+    hint: over ? t("Validation loss rose after step {x}: likely overfitting.", { x }) : t("Validation loss was lowest here.") };
   return { x, label: over ? t("Lowest val loss · epoch {x} · overfitting after", { x }) : t("Lowest val loss · epoch {x}", { x }),
     hint: over ? t("Validation loss rose after epoch {x}: likely overfitting. best.pt keeps the best epoch.", { x }) : t("Validation loss was lowest here.") };
 }
@@ -505,7 +513,8 @@ function paceHTML(r) {
   const per = r.elapsed / r.epoch;
   const end = r.eta != null ? new Date(Date.now() + r.eta * 1000) : null;
   const when = end && end.toLocaleString(LOCALE, end.toDateString() === new Date().toDateString() ? HM : { month: "short", day: "numeric", ...HM });
-  return `<div class="pace"><span title="${t("Time per epoch")}"><b>${esc(t("{d}/epoch", { d: dur(per) }))}</b></span>${end ? `<span title="${t("Time left")}"><b>${esc(t("{d} left", { d: dur(r.eta) }))}</b></span><span title="${t("Estimated finish")}"><b>~${esc(when)}</b></span>` : ""}</div>`;
+  const per_t = isStep(r) ? [t("Time per step"), t("{d}/step", { d: dur(per) })] : [t("Time per epoch"), t("{d}/epoch", { d: dur(per) })];
+  return `<div class="pace"><span title="${per_t[0]}"><b>${esc(per_t[1])}</b></span>${end ? `<span title="${t("Time left")}"><b>${esc(t("{d} left", { d: dur(r.eta) }))}</b></span><span title="${t("Estimated finish")}"><b>~${esc(when)}</b></span>` : ""}</div>`;
 }
 
 function lightbox(src) {

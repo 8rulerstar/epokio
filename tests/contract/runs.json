@@ -27,7 +27,8 @@
    "source": "str",
    "state": "str",
    "total": "num",
-   "updated": "num"
+   "updated": "num",
+   "x_axis": "str"
   }
  ],
  "scan_mode": "str",

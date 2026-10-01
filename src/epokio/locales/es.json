@@ -186,5 +186,14 @@
  "A new run with more epochs will probably score higher.": "Un nuevo entrenamiento con más épocas probablemente puntuará más alto.",
  "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "El ventilador de la GPU lleva {min} min al {pct} %. La GPU puede ir más lenta para enfriarse.",
  "Still training: epoch {e} of {n}.": "Todavía entrenando: época {e} de {n}.",
- "Best {metric} so far is {v:.3f}, at epoch {e}.": "Mejor {metric} hasta ahora: {v:.3f}, en la época {e}."
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "Mejor {metric} hasta ahora: {v:.3f}, en la época {e}.",
+ "Training stopped at epoch {e} of {n}.": "El entrenamiento se detuvo en la época {e} de {n}.",
+ "No validation score was logged, so only the loss was checked. Nothing stood out in it.": "No se registró ninguna puntuación de validación, así que solo se revisó la pérdida. No destacó nada.",
+ "Training loss has been rising since epoch {e} ({a:.3f} to {b:.3f}).": "La pérdida de entrenamiento sube desde la época {e} ({a:.3f} a {b:.3f}).",
+ "Check the learning rate schedule and the data loader. A loss that climbs for this long rarely recovers.": "Revisa el calendario de la tasa de aprendizaje y el cargador de datos. Una pérdida que sube tanto tiempo rara vez se recupera.",
+ "No validation examples of {names}, so its score was not measured.": "No hay ejemplos de validación de {names}, así que su puntuación no se midió.",
+ "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "Añade imágenes de {names} a la validación. Hasta entonces no sabrás si el modelo las encuentra.",
+ "Test alert": "Alerta de prueba",
+ "Phone alerts from {machine} work.": "Las alertas al móvil desde {machine} funcionan.",
+ "step": "paso"
 }

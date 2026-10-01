@@ -13,6 +13,7 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .analysis_loss import _train_loss_blowup, _train_loss_rising
 from .schema import HEADS, IMAGE_FILES, head_col, higher_is_better, kind, pick_metric
 
 
@@ -197,25 +198,11 @@ def _early_stop(framework: str) -> str:
             }.get(framework, tr("Next time stop earlier, or use fewer epochs."))
 
 
-def _train_loss_blowup(rows) -> tuple[float, int, float] | None:
-    """학습 손실이 바닥을 찍은 뒤 두 배 넘게 불어났다(NaN이 아니어도 학습이 무너진 것). (바닥 값, 바닥 에폭 자리, 끝 값)"""
-    tl = [c for c in rows[0].keys() if c.startswith("train/") and c.endswith("loss")]
-    n = len(rows)
-    if not tl or n < 6:
-        return None
-    s = [sum(v) if all(x is not None for x in v) else None for v in ([_f(r.get(c)) for c in tl] for r in rows)]
-    ok = [k for k in range(n) if s[k] is not None]
-    if len(ok) < 6:
-        return None
-    lo = min(ok, key=lambda k: s[k])
-    tail = [s[k] for k in ok[-3:]]
-    end = sum(tail) / len(tail)
-    return (s[lo], lo, end) if lo < n - 3 and s[lo] > 0 and end > s[lo] * 2 else None
-
-
-def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics") -> list[tuple[str, str, dict]]:
+def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics", step: bool = False) -> list[tuple[str, str, dict]]:
     out = []
     n = len(rows)
+    # 위치 비교·"N 중 E"의 N. step 축이면 행 수가 아니라 마지막 step 번호(★W&B step 기록은 점을 솎아 행 수 ≠ step)
+    nx = _epoch(rows, n - 1) if step else n
     main = heads[0] if heads else None
     sc = _score(rows)
 
@@ -233,7 +220,7 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
         b = _best(vals, up)
         last = next(v for v in reversed(vals) if v is not None)
         drop = (vals[b] - last) if up else (last - vals[b])
-        early = n >= 10 and _epoch(rows, b) <= max(2, n * 0.15)    # 2에폭 최고점은 과적합보다 '너무 이른 최고점'(4번)이 맞다
+        early = n >= 10 and _epoch(rows, b) <= max(2, nx * 0.15)    # 2에폭 최고점은 과적합보다 '너무 이른 최고점'(4번)이 맞다
         if b < n - 3 and not early and drop > abs(vals[b]) * OVERFIT_DROP:
             out.append((tr("{m} peaked at epoch {e} ({a:.3f}) and fell to {b:.3f} by the end. "
                            "The model may be overfitting.", m=name.split("/", 1)[-1], e=_epoch(rows, b), a=vals[b], b=last)
@@ -268,12 +255,12 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
     # 3)·4) 최고점 위치. 대표 점수 기준이라 YOLO 밖 프레임워크도 판정한다.
     #    '이어 하기'가 아니라 '에폭을 늘려 새로'라고 말한다(이어 하면 이미 줄어든 학습률에서 시작한다)
     best_ep = _epoch(rows, _best(sc[1], sc[2])) if sc else (main.best_epoch if main else None)
-    if best_ep is not None and best_ep >= n - 1 and n >= 5:
-        tail = _tail(args, n)
+    if best_ep is not None and best_ep >= (_epoch(rows, n - 2) if step else n - 1) and n >= 5:
+        tail = 0 if step else _tail(args, n)
         if not tail:
             # ★학습률 기록이 없는 학습(TensorBoard 등)에도, 계획보다 일찍 멈춘 학습에도 '학습률이 이미 줄어 이어 하기는
             #   소용없다'고 했다. 이어 하기를 권하는 README와도 부딪혔다. 근거가 있을 때만 그 말을 한다
-            planned = int(_num(args, "epochs", 0)) if args and "epochs" in args else 0
+            planned = int(_num(args, "epochs", 0)) if args and "epochs" in args and not step else 0
             if planned and n < planned:
                 todo = tr("It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.", n=n, p=planned)
             elif args and ({"close_mosaic", "task", "mode"} & set(args)) and _num(args, "lrf", ULTRA_LRF) < 0.5:
@@ -281,7 +268,7 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
                           "because its learning rate has already wound down.")
             else:
                 todo = tr("A new run with more epochs will probably score higher.")
-            out.append((tr("The best score came in the last epochs ({e} of {n}). It was still improving.", e=best_ep, n=n),
+            out.append((tr("The best score came in the last epochs ({e} of {n}). It was still improving.", e=best_ep, n=nx),
                         todo, {"kind": "still_improving", "epochs": n}))
         elif sc and (alive := _still_rising(sc[1][:n - tail], sc[2])):
             out.append((tr("The score was still rising before the final {t} epochs ({a:.3f} to {b:.3f}), "
@@ -289,15 +276,15 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
                         tr("A new run with more epochs will probably score higher. Resuming this one will not help much, "
                            "because its learning rate has already wound down."), {"kind": "still_improving", "epochs": n}))
     # 4b) 정체: 점수가 중간에 멈췄고(떨어지지도 않았다) 뒤 에폭은 보탠 게 없다. 조기 종료를 그 프레임워크의 말로
-    if sc and n >= 10 and best_ep is not None and max(2, n * 0.15) < best_ep <= n * 0.6:
+    if sc and n >= 10 and best_ep is not None and max(2, nx * 0.15) < best_ep <= nx * 0.6:
         b = _best(sc[1], sc[2])
         last = next(v for v in reversed(sc[1]) if v is not None)
         if abs(sc[1][b] - last) <= abs(sc[1][b]) * OVERFIT_DROP:
             out.append((tr("The score stopped improving after epoch {e} of {n}. The last {k} epochs added nothing.",
-                           e=best_ep, n=n, k=n - best_ep),
+                           e=best_ep, n=nx, k=nx - best_ep),
                         _early_stop(framework), {"kind": "plateau", "best_epoch": best_ep}))
-    if best_ep is not None and n >= 10 and best_ep <= max(2, n * 0.15):
-        out.append((tr("The best score came very early (epoch {e} of {n}).", e=best_ep, n=n),
+    if best_ep is not None and n >= 10 and best_ep <= max(2, nx * 0.15):
+        out.append((tr("The best score came very early (epoch {e} of {n}).", e=best_ep, n=nx),
                     tr("The learning rate may be too high, or the start weights already fit the data."), {"kind": "early_best"}))
 
     # 5a) 폭주: NaN은 아니지만 학습 손실이 바닥 뒤 두 배 넘게 불어났다(프레임워크 무관)
@@ -325,6 +312,13 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
             out.append((tr("{c} became NaN at epoch {e} but recovered later. Results after that point may be unreliable.",
                            c=c, e=_epoch(rows, i)),
                         tr("Lower the learning rate or check for broken labels."), {"kind": "nan_recovered"}))
+    # ★손실이 NaN으로 끝났는데 점수가 0.1로 떨어진 걸 '과적합일 수 있다'고 먼저 말했다. 발산이면 그게 원인이다
+    if any(k.get("kind") == "diverged" for *_, k in out):
+        out = [x for x in out if x[2].get("kind") not in ("overfit", "loss_rise", "plateau", "still_improving", "early_best")]
+    if not sc and not out and (up := _train_loss_rising(rows)):
+        out.append((tr("Training loss has been rising since epoch {e} ({a:.3f} to {b:.3f}).", e=_epoch(rows, up[0]), a=up[1], b=up[2]),
+                    tr("Check the learning rate schedule and the data loader. A loss that climbs for this long rarely recovers."),
+                    {"kind": "loss_up"}))
     return out
 
 
@@ -334,9 +328,17 @@ def analyze(run_dir: Path) -> Analysis | None:
         return None
     heads = [h for h in (head_stats(rows, x) for x in HEADS) if h]
     imgs = {k: run_dir / v for k, v in IMAGE_FILES.items() if (run_dir / v).exists()}
-    from . import adapters
+    from . import adapters, msg
     got = adapters.load(run_dir)
-    found = _notes(rows, heads, read_args(run_dir), got.framework if got else "ultralytics")
+    step = bool(got and got.args.get("x_axis") == "step")
+    tok = msg.set_unit("step" if step else "epoch")             # step 학습의 해설은 "스텝"으로 말한다
+    try:
+        found = _notes(rows, heads, read_args(run_dir), got.framework if got else "ultralytics", step)
+    finally:
+        msg.reset_unit(tok)
+    for *_, k in found:
+        if step:
+            k["unit"] = "step"                                  # next_run이 에폭 수를 제안하지 않게
     sc = _score(rows)
     score = None
     if sc:
@@ -364,6 +366,8 @@ def next_run(kind: dict, args: dict, weights: str | None) -> dict | None:
         except (TypeError, ValueError):
             return d
     k = kind.get("kind")
+    if kind.get("unit") == "step" and k in ("plateau", "overfit", "still_improving"):
+        return None                                       # step 학습에 에폭 수를 제안하면 거짓말이다
     if k == "plateau":                                    # 멈춘 뒤로는 헛돈다: 그만큼 줄이고 스스로 멈추게
         return {"epochs": max(10, round(kind["best_epoch"] * 1.3)), "patience": 10}
     if k == "overfit":

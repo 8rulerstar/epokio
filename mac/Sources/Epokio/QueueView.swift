@@ -251,7 +251,7 @@ struct JobRow: View {
     /// "에폭 3/50 · 약 20분 남음, 14:05쯤 끝남". 시각은 24시간(웹과 같다)
     var progress: String? {
         guard let r = run, let t = r.total, t > 0 else { return nil }
-        let head = L("epoch %@", "\(r.epoch)/\(t)")
+        let head = r.progressText
         guard let eta = r.eta, eta > 0 else { return head }
         let f = DateFormatter(); f.dateFormat = "HH:mm"
         return head + " · " + L("about %@ left, done around %@", duration(eta), f.string(from: Date().addingTimeInterval(eta)))

@@ -21,6 +21,7 @@ from pathlib import Path
 from . import rundetail, schema, sysinfo
 from .scan import Run, fmt_dur, scan
 from .scan import display_name as _display_name
+from .scan_names import x_count
 
 BLOCKS = "▁▂▃▄▅▆▇█"
 STATE = {"running": ("▶", "Training"), "starting": ("…", "Starting"), "stalled": ("‖", "Stalled"),
@@ -127,9 +128,10 @@ def row(r: Run, width: int) -> str:
     icon, _ = STATE.get(r.state, ("?", r.state))
     pct = f"{int(r.progress * 100):3d}%" if r.progress is not None else "   ?"
     when = f"{dur(r.eta)} left" if r.state == "running" else f"{dur(r.idle)} ago"
-    ep = f"{r.epoch}/{r.total or '?'}"
+    ep = x_count(r)
+    unit = "step" if r.x_axis == "step" else "ep"
     best = f"best {r.best:.4f}" if r.best is not None else ""
-    tail = f" {pct}  ep {ep:>9}  {when:>11}  {best:<11}"          # 폭을 고정해 막대 끝이 줄마다 같다('17h 13m ago'가 11칸)
+    tail = f" {pct}  {unit} {ep:>9}  {when:>11}  {best:<11}"          # 폭을 고정해 막대 끝이 줄마다 같다('17h 13m ago'가 11칸)
     name_w = max(12, min(40, width // 3))
     bar_w = max(0, width - name_w - len(tail) - 4)
     star = "★" if (getattr(r, "meta", None) or {}).get("star") else " "
@@ -147,7 +149,7 @@ def sys_line(s: dict | None) -> str:
 
 def detail_lines(r: Run, d: dict | None, curve: int, width: int) -> list[str]:
     _, state = STATE.get(r.state, ("?", r.state))
-    out = [display_name(r), f"{state} · epoch {r.epoch}/{r.total or '?'}" + (f" · took {dur(r.elapsed)}" if r.elapsed else "") + f" · {r.source}", ""]
+    out = [display_name(r), f"{state} · {r.x_axis} {x_count(r)}" + (f" · took {dur(r.elapsed)}" if r.elapsed else "") + f" · {r.source}", ""]
     if not d:
         return out + ["(no details)"]
     head_name = schema.HEADS

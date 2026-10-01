@@ -3,5 +3,8 @@
  "Training failed": "Eğitim başarısız",
  "Training finished": "Eğitim tamamlandı",
  "best": "en iyi",
- "epoch": "epok"
+ "epoch": "epok",
+ "Test alert": "Test bildirimi",
+ "Phone alerts from {machine} work.": "{machine} makinesinden telefon bildirimleri çalışıyor.",
+ "step": "adım"
 }

@@ -79,7 +79,7 @@ def test_a_record_split_across_blocks_is_joined(tmp_path):
 
 
 def test_runs_without_an_epoch_and_torn_files_are_skipped(tmp_path):
-    assert adapters.load(run(tmp_path, [history({"loss": 0.5})])) is None      # step뿐: 에폭으로 셀 수 없다
+    assert adapters.load(run(tmp_path, [history({"loss": 0.5})])) is None      # epoch도 _step도 없다: x축이 없다
     d = run(tmp_path / "torn", [history({"epoch": 1, "train/loss": 0.5}), history({"epoch": 2, "train/loss": 0.4})])
     f = next(d.glob("*.wandb"))
     f.write_bytes(f.read_bytes()[:-5])                                       # 쓰는 중

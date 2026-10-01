@@ -153,7 +153,7 @@ def _explain(run_dir: Path) -> dict | None:
     from .scan import read_run
     try:
         r = read_run(run_dir)
-        status = {"failed": "failed", "stalled": "stalled", "running": "running", "starting": "running"}.get(r.state if r else "", "finished")
+        status = {"failed": "failed", "stalled": "stalled", "running": "running", "starting": "running", "stopped": "stopped"}.get(r.state if r else "", "finished")
         res = explain.explain(run_dir, status)
         return {**res, "jev_request": explain.jev_request(res)}
     except Exception:

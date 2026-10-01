@@ -85,7 +85,7 @@ enum BarInfo: String, CaseIterable, Identifiable {
         case .pct: return r.pct4.trimmingCharacters(in: .whitespaces)
         case .eta: return r.state == "running" ? r.eta.map { shortDuration($0) } : nil
         case .clock: return r.state == "running" ? r.eta.map { Date().addingTimeInterval($0).formatted(date: .omitted, time: .shortened) } : nil
-        case .epoch: return "\(r.epoch)/\(r.total.map(String.init) ?? "?")"
+        case .epoch: return r.countText
         case .best: return r.best.map { Fmt.metric($0, higher: r.metricHigher, style: scoreStyle) }
         case .gpu: return gpu.map { "G\(Int($0))%" }
         }

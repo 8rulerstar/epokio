@@ -14,9 +14,10 @@ function phoneHTML() {
     <summary style="cursor:pointer;font-weight:600">${t("Phone alerts")} <span class="hint" style="font-weight:400">${now}</span></summary>
     <p class="hint">${t("Easiest: install the free <b>ntfy</b> app on your phone, subscribe to a topic with a long random name, and paste <code>https://ntfy.sh/your-topic</code> here. Slack, Discord and Telegram webhook addresses work too. Anyone who knows the topic can read it, so make it hard to guess.")}</p>
     <div class="inrow"><input class="in" id="hookurl" aria-label="${t("Webhook address")}" placeholder="https://ntfy.sh/epokio-7f3k9q" spellcheck="false">
-      <button class="btn primary" id="hooksave">${t("Save")}</button>${h && h.count ? `<button class="btn" id="hookoff">${t("Turn off")}</button>` : ""}</div>
+      <button class="btn primary" id="hooksave">${t("Save")}</button>${h && h.count ? `<button class="btn" id="hooktest">${t("Send a test")}</button><button class="btn" id="hookoff">${t("Turn off")}</button>` : ""}</div>
     <div id="hookmsg" role="status"></div></details>`;
 }
+function hostOf(u) { try { return new URL(u).hostname; } catch { return ""; } }      // 주소 전체는 비밀이라 호스트만
 function wirePhone() {
   const d = $("#phone"); if (!d) return;
   d.ontoggle = () => { S.phoneOpen = d.open; };
@@ -28,6 +29,15 @@ function wirePhone() {
     catch (e) { box.innerHTML = `<div class="msg" style="--c:var(--red)"><b>${t("Not saved.")}</b> ${esc(e instanceof Locked ? t("The token did not work.") : e.message)}</div>`; }
   };
   $("#hooksave").onclick = () => { const u = cleanPath($("#hookurl").value); if (u) save([u]); };
+  // 시험 보내기: 저장된 주소마다 결과를 한 줄씩(성공 초록 ✓, 실패 빨강 ✕와 이유). 줄은 차례로 떠오른다
+  const test = $("#hooktest");
+  if (test) test.onclick = async () => {
+    if (!await needToken(t("Changing alerts needs this machine's token"))) return;
+    const r = await act(test, () => api("webhooks/test", "POST", {}), (x) => x.results.every((y) => y.ok) ? t("Test sent.") : t("Some alerts did not go through."));
+    if (!r) return;
+    $("#hookmsg").innerHTML = r.results.map((y, i) => `<div class="msg" style="--c:var(${y.ok ? "--green" : "--red"});animation-delay:${i * 60}ms">
+      <b>${y.ok ? "✓" : "✕"} ${esc(hostOf(y.url))}</b> ${y.ok ? t("Delivered") : esc(y.error || "")}${y.status ? ` (${y.status})` : ""}</div>`).join("");
+  };
   const off = $("#hookoff"); if (off) off.onclick = () => save([]);
 }
 async function drawInbox(periodic) {
@@ -37,7 +47,7 @@ async function drawInbox(periodic) {
     // ★이름을 t로 두면 번역 함수 t()를 가려서, 학습이 붙은 알림이 하나라도 있으면 알림 탭 전체가 TypeError로 안 그려졌다
     const [title, c, ic] = EV[e.kind] || [esc(e.kind), "var(--soft)", "•"]; const r = e.run || {};
     // 기계 경고·작업 알림은 에폭이 없다(★'epoch 0/?'가 찍혔다). 학습 목록에 있는 것만 누르면 그 학습으로 간다
-    const ep = r.total != null ? " · " + t("epoch {e}/{n}", { e: r.epoch ?? "?", n: r.total }) : "";
+    const ep = r.total != null ? " · " + xprog(r) : "";
     return `<div class="item" ${runs.has(r.path) ? 'role="button" tabindex="0"' : ""} style="animation-delay:${Math.min(i, 12) * 20}ms;${runs.has(r.path) ? "" : "cursor:default"}" data-path="${runs.has(r.path) ? esc(r.path) : ""}"><span class="ico" style="--c:${c}">${ic}</span>
       <div style="flex:1;min-width:0"><div style="font-weight:${e.seq > S.seen ? 700 : 500}">${title}</div>
       <div class="hint" style="margin:0;overflow-wrap:anywhere">${esc(r.name ? display(r) : "")}${ep}${r.best != null ? " · " + t("best {v}", { v: r.best.toFixed(4) }) : ""}</div></div>

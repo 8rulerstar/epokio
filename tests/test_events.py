@@ -100,7 +100,7 @@ def test_phone_alerts_use_the_language_of_the_app_that_set_them(tmp_path, monkey
         msg.set_from_header(None)                 # 요청 언어가 다음 테스트로 새지 않게
     assert json.loads((tmp_path / "hooks.json").read_text())["lang"] == "ko-KR"
     sent = []
-    monkeypatch.setattr(notify, "webhook", lambda url, e: sent.append(i18n.t(notify.KINDS[e.kind])))
+    monkeypatch.setattr(notify, "webhook", lambda url, e, machine=None: sent.append(i18n.t(notify.KINDS[e.kind])))
     monkeypatch.setattr("epokio.config.quiet_now", lambda: False)
     try:
         a._webhook("failed", {"name": "r", "path": "", "epoch": 1, "total": 2, "elapsed": 1, "eta": None,
@@ -109,3 +109,39 @@ def test_phone_alerts_use_the_language_of_the_app_that_set_them(tmp_path, monkey
     finally:
         i18n.use("en")
     assert sent == ["학습이 실패했습니다"]
+
+
+def test_a_run_with_no_planned_epochs_is_never_called_finished_when_it_goes_quiet():
+    """★계획 에폭을 모르는 학습은 크래시로 죽어도 30분 뒤 '학습이 끝났습니다'가 갔다. 멎음 알림(stalled)으로 끝낸다"""
+    from types import SimpleNamespace as N
+    from epokio.monitor import classify
+    assert classify("stalled", N(state="stopped", total=None, epoch=4)) is None
+    assert classify("running", N(state="stopped", total=None, epoch=4)) == "stalled"
+    assert classify("stalled", N(state="stopped", total=10, epoch=4)) == "stopped_early"
+    assert classify("running", N(state="done", total=None, epoch=4)) == "finished"     # epokio_done 같은 끝 표시가 있으면 끝
+
+
+def test_phone_text_says_which_machine_and_which_score():
+    """★로컬 학습이면 기계 이름이 빠지고, '최고 0.6000'만 와서 무슨 점수인지 몰랐다"""
+    from epokio import notify
+    from epokio.monitor import Event
+    from epokio.scan import Run
+    r = Run.from_dict({"name": "version_0", "path": "/r/litnan/version_0", "epoch": 4, "total": None, "elapsed": 1,
+                       "eta": None, "metric": 0.6, "metric_name": "metrics/val_acc", "best": 0.6, "best_epoch": 3,
+                       "state": "failed", "idle": 0, "history": [], "source": "local"})
+    body = notify.body_of(Event("failed", r, "running"), machine="gpu-box-3")
+    assert "litnan/version_0" in body and "val_acc 0.6000" in body and body.endswith("gpu-box-3")
+
+
+def test_two_runs_with_the_same_folder_name_both_get_their_alerts(tmp_path, monkeypatch):
+    """★다른 프로젝트의 version_0 둘이 연달아 끝나면, 폴더 이름만 봐서 두 번째(실패)를 겹친 것으로 버렸다"""
+    from collections import deque
+    from epokio.agent import Agent
+    monkeypatch.setattr(Agent, "ROOTS_FILE", tmp_path / "roots.json")
+    a = Agent.__new__(Agent)
+    a.roots, a.label, a.events, a.seq = [], "t", deque(maxlen=50), 0
+    monkeypatch.setattr(a, "_webhook", lambda *x: None)
+    a._push("finished", "running", {"name": "version_0", "path": "/a/lightning_logs/version_0"})
+    a._push("failed", "running", {"name": "version_0", "path": "/b/lightning_logs/version_0"})
+    a._push("job_done", "running", {"name": "x", "path": "/a/lightning_logs/version_0"})   # 같은 폴더 같은 결과: 겹침
+    assert [e["kind"] for e in a.events] == ["finished", "failed"]

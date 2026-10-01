@@ -100,7 +100,7 @@ struct RunDetailView: View {
                 StageBadge(stage: stage).animation(.bouncy, value: stage)
                 Spacer()
             }
-            Text(verbatim: [run.stateText, L("epoch %@", "\(run.epoch)/\(run.total.map(String.init) ?? "?")"),
+            Text(verbatim: [run.stateText, run.progressText,
                             run.frameworkName, run.source].joined(separator: "  ·  "))
                 .font(.ui(12.5)).foregroundStyle(ink.soft)
             if let b = run.best {
@@ -143,9 +143,14 @@ struct RunDetailView: View {
         let next = !showTips || run.state == "failed" || run.state == "stalled" ? nil : d.notes.first?.next
         let (symbol, tint, text, tip): (String, Color, String, String?) = {
             if run.state == "failed" { return ("xmark.octagon.fill", .bad, L("Loss became NaN. This run will not recover."), nil) }
-            if run.state == "stalled" { return ("pause.circle.fill", .warn, L("No new epoch for a while."), nil) }
+            if run.state == "stalled" { return ("pause.circle.fill", .warn, run.isStepAxis ? L("No new step for a while.") : L("No new epoch for a while."), nil) }
             if showTips, let n = d.notes.first { return ("lightbulb.fill", .gold, n.observation, n.try) }
             if run.isLive { return ("bolt.fill", .good, L("Training. Nothing unusual so far."), nil) }
+            if run.state == "stopped" && run.isStepAxis {        // step 학습: 단위가 다르고 last.pt 권유도 맞지 않는다
+                return ("stop.circle.fill", .secondary, run.total == nil
+                        ? L("Ended at step %@. This log does not say how many steps were planned.", run.epoch.formatted())
+                        : L("Stopped at step %@ before the last one.", run.epoch.formatted()), nil)
+            }
             if run.state == "stopped" && run.total == nil {   // ★계획 에폭을 모르는 학습(Keras 등)이 끝나도 "마지막 전에 멈춤, last.pt로 다시"라고 했다
                 return ("stop.circle.fill", .secondary, L("Ended at epoch %d. This log does not say how many epochs were planned.", run.epoch), nil)
             }

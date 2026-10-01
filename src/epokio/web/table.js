@@ -73,7 +73,7 @@ function paintTable() {
         <td><input type="checkbox" class="tsel" ${T.sel.has(r.path) ? "checked" : ""} aria-label="${esc(t("Select {name}", { name: tName(r) }))}"></td>
         <td><span class="dot" style="display:inline-block;margin:0 6px 0 0;--c:${dot[r.state] || "var(--soft)"}"></span>${r.star ? "⭐ " : ""}${esc(tName(r))}</td>
         <td class="num" style="${top != null && r.best === top ? "color:var(--brand);font-weight:600" : ""}">${r.best != null ? r.best.toFixed(4) : "–"}</td>
-        <td class="num">${r.epoch}/${r.total ?? "?"}</td>
+        <td class="num">${xnum(r, r.epoch)}/${xnum(r, r.total)}${isStep(r) ? " " + t("steps") : ""}</td>
         ${d.keys.map((k) => `<td class="num">${esc(r.args[k] ?? "–")}</td>`).join("")}
         <td class="hint" style="margin:0">${r.tags.map((g) => "#" + esc(g)).join(" ")}</td><td class="hint" style="margin:0">${r.idle != null ? dur(r.idle) + " ago" : "–"}</td></tr>`).join("")}
     </table></div></div>`;

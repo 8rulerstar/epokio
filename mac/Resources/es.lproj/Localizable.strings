@@ -1360,3 +1360,8 @@
 "Ended at epoch %d. This log does not say how many epochs were planned." = "Terminó en la época %d. Este registro no dice cuántas épocas estaban previstas.";
 "GPU fan speed" = "Velocidad del ventilador de la GPU";
 "not in validation set" = "no está en validación";
+"%d log files over the size limit were skipped" = "Se omitieron %d archivos de registro por superar el límite de tamaño";
+"step %@" = "paso %@";
+"No new step for a while." = "Sin paso nuevo desde hace un rato.";
+"Ended at step %@. This log does not say how many steps were planned." = "Terminó en el paso %@. Este registro no dice cuántos pasos estaban previstos.";
+"Stopped at step %@ before the last one." = "Detenida en el paso %@, antes del último.";

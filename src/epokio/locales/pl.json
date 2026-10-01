@@ -3,5 +3,8 @@
  "Training failed": "Trening nieudany",
  "Training finished": "Trening zakończony",
  "best": "najlepszy",
- "epoch": "epoka"
+ "epoch": "epoka",
+ "Test alert": "Powiadomienie testowe",
+ "Phone alerts from {machine} work.": "Powiadomienia na telefon z {machine} działają.",
+ "step": "krok"
 }

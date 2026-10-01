@@ -1,4 +1,4 @@
-"""`epokio` 명령 하나로 모은다: setup · watch · agent · tray · autostart · mcp"""
+"""`epokio` 명령 하나로 모은다: setup · watch · agent · tray · autostart · mcp · alerts"""
 from __future__ import annotations
 
 import sys
@@ -11,6 +11,7 @@ HELP = """usage: epokio <command> [options]
   agent      run the helper that the app, web page and terminal read from
   tray       training progress in the system tray (Windows, Linux)
   mcp        run the MCP server for AI assistants
+  alerts     phone alerts (webhooks): --add URL, --remove URL, --list, --test, --lang
   doctor     print what Epokio sees (versions, helper, folders, log) for a bug report
 
 Run `epokio <command> -h` for options, `epokio --version` for the version."""
@@ -27,6 +28,9 @@ def main():
     cmd, rest = sys.argv[1], sys.argv[2:]
     if cmd == "setup":
         from .onboard import main as run
+        sys.exit(run(rest))
+    elif cmd == "alerts":
+        from .alerts_cli import main as run
         sys.exit(run(rest))
     elif cmd == "doctor":
         from .doctor import doctor as run

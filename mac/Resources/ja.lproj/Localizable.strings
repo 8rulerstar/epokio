@@ -1360,3 +1360,8 @@
 "Ended at epoch %d. This log does not say how many epochs were planned." = "エポック %d で終了しました。このログには予定のエポック数がありません。";
 "GPU fan speed" = "GPU ファン速度";
 "not in validation set" = "検証セットにない";
+"%d log files over the size limit were skipped" = "サイズ上限を超えたログファイル %d 件をスキップしました";
+"step %@" = "ステップ %@";
+"No new step for a while." = "しばらく新しいステップがありません。";
+"Ended at step %@. This log does not say how many steps were planned." = "ステップ %@ で終了しました。このログには予定のステップ数がありません。";
+"Stopped at step %@ before the last one." = "最終ステップ前のステップ %@ で停止しました。";

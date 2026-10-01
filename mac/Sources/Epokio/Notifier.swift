@@ -112,9 +112,9 @@ final class Notifier {
         case "fan_max": String(localized: "Fans at full speed")
         default: String(localized: "Training resumed")
         }
-        let ep: String = e.run.total.map { "\(e.run.epoch)/\($0)" } ?? "\(e.run.epoch)"   // ★계획을 모르면 "3/?"로 보였다
-        let plain = e.kind.hasPrefix("job_") || ["disk_low", "gpu_hot", "gpu_mem", "fan_max"].contains(e.kind)
-        var body = plain ? e.run.name : e.run.name + " · " + L("epoch %@", ep)
+                let plain = e.kind.hasPrefix("job_") || ["disk_low", "gpu_hot", "gpu_mem", "fan_max"].contains(e.kind)
+        var body = plain ? e.run.name : e.run.name + " · " + (e.run.total == nil   // ★계획을 모르면 "3/?"로 보였다
+            ? (e.run.isStepAxis ? L("step %@", e.run.epoch.formatted()) : L("epoch %@", "\(e.run.epoch)")) : e.run.progressText)
         if let b = e.run.best { body += " · " + L("best %@", String(format: "%.4f", b)) }
         if machine != "local" { body += " · \(machine)" }
         c.body = why.map { body + "\n" + $0 } ?? body

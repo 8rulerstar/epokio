@@ -47,9 +47,11 @@ def read(run_dir: Path) -> dict | None:
             few = isinstance(r.get("instances"), (int, float)) and 0 < r["instances"] < FEW
             weak = (mean is not None and isinstance(v, (int, float)) and len(vals) > 1 and not absent(r)
                     and v < mean * WEAK_SHARE)
+            # 검증셋에 없는 클래스의 점수는 잰 것이 아니다(0으로 나온다): 비우고 표 맨 아래로. ★0.000으로 '약한 순' 맨 위에 왔다
             table.append({"name": r["name"], "instances": r.get("instances"), "images": r.get("images"),
-                          **{c: r.get(k) for c, k in cols.items()}, "weak": weak, "few": few, "absent": absent(r)})
-        table.sort(key=lambda t: (t.get("mAP50-95", t.get("mAP50")) is None, t.get("mAP50-95", t.get("mAP50")) or 0))
+                          **{c: (None if absent(r) else r.get(k)) for c, k in cols.items()}, "weak": weak, "few": few,
+                          "absent": absent(r)})
+        table.sort(key=lambda t: (t["absent"], t.get("mAP50-95", t.get("mAP50")) is None, t.get("mAP50-95", t.get("mAP50")) or 0))
         out_heads.append({"head": head, "main": "mAP50-95" if "mAP50-95" in cols else "mAP50",
                           "mean": round(mean, 4) if mean is not None else None, "rows": table})
     return {"source": d.get("source"), "at": d.get("at"), "heads": out_heads} if out_heads else None
@@ -63,7 +65,13 @@ def note(c: dict | None) -> tuple[str, str] | None:
     h = next((x for x in c["heads"] if x["head"] != "box"), c["heads"][0])
     weak = [r for r in h["rows"] if r["weak"]]
     if not weak:
-        return None
+        missing = [r["name"] for r in h["rows"] if r.get("absent")]
+        if not missing:
+            return None
+        from .msg import tr
+        names = ", ".join(missing[:3]) + (f" +{len(missing) - 3}" if len(missing) > 3 else "")
+        return (tr("No validation examples of {names}, so its score was not measured.", names=names),
+                tr("Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.", names=names))
     from .msg import tr
     names = ", ".join(r["name"] for r in weak[:3]) + (f" +{len(weak) - 3}" if len(weak) > 3 else "")
     obs = tr("Weakest classes: {names}, well below the class average of {mean}.", names=names, mean=f"{h['mean']:.3f}")

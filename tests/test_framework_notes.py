@@ -39,7 +39,7 @@ def test_an_early_peak_that_fell_is_not_called_steady(tmp_path):
     """★최고점이 1에폭이라 과적합 판정을 건너뛰었는데, 다음 문장이 '점수는 떨어지지 않았다'고 했다(0.6 → 0.3이었다)"""
     tl = [0.8 - 0.05 * e if e < 5 else 0.6 + 0.4 * (e - 5) ** 1.5 for e in range(10)]
     k = _kinds(lightning(tmp_path, tl, [0.6] * 5 + [0.3] * 5))
-    assert "loss_rise" not in k and "early_best" in k
+    assert "loss_rise" not in k and "early_best" not in k          # 발산이면 그게 원인: 이른 최고점·과적합은 말하지 않는다
     obs, tip = k["diverged"]                                   # NaN 없이 불어난 손실도 발산으로 본다
     assert "grew to" in obs and "learning rate" in tip
 
@@ -55,3 +55,17 @@ def test_a_plateau_suggests_that_frameworks_early_stopping(tmp_path):
 def test_a_steady_climb_has_no_plateau_or_blowup(tmp_path):
     k = _kinds(lightning(tmp_path, [0.8 - 0.03 * e for e in range(20)], [0.5 + 0.02 * e for e in range(20)]))
     assert "plateau" not in k and "diverged" not in k
+
+
+def test_a_loss_only_run_says_what_was_checked_and_catches_a_rising_loss(tmp_path):
+    """★MAE 사전학습처럼 점수가 없는 학습에 아무것도 안 보고 '곡선에서 문제 없음'이라고 했고, 손실이 계속 올라도 그랬다"""
+    from epokio import explain
+    d = lightning(tmp_path, [0.8 - 0.02 * e for e in range(20)], [None] * 20)
+    assert "only the loss" in explain.explain(d)["text"]
+    import json
+    d2 = tmp_path / "mae_up"                                               # MAE 사전학습 log.txt: 학습 손실만
+    d2.mkdir()
+    (d2 / "log.txt").write_text("".join(json.dumps({"train_lr": 1e-4, "epoch": e,
+                                "train_loss": 0.8 - 0.05 * e if e < 5 else 0.55 + 0.03 * (e - 5)}) + "\n" for e in range(20)))
+    obs, tip = _kinds(d2)["loss_up"]
+    assert "rising since epoch" in obs and "learning rate" in tip

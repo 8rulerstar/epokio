@@ -98,12 +98,15 @@ def metric_column(key: str, val_side: bool) -> str:
 
 
 _EPOCH_KEYS = ("epochs", "max_epochs", "num_epochs", "num_train_epochs", "n_epochs")
+# step으로 적는 학습(x_axis=step)의 계획 step 수. 에폭 수를 step 학습의 총량으로 쓰면 진행률이 거짓말을 한다
+STEP_KEYS = ("total_steps", "max_steps", "num_training_steps", "max_iters", "max_iter", "iterations", "num_steps")
 _CONFIG_FILES = ("args.yaml", "args.json", "config.yaml", "config.json", "hparams.yaml", "opt.yaml")
 
 
-def epochs_nearby(d: Path) -> int | None:
+def epochs_nearby(d: Path, keys: tuple = _EPOCH_KEYS) -> int | None:
     """같은 폴더의 설정 파일에서 계획 에폭. 없으면 None(진행률·남은 시간을 못 낸다).
-    ★MAE·DeiT log.txt, Lightning TensorBoard 기록은 에폭 수를 스스로 남기지 않아 진행률이 늘 비었다"""
+    ★MAE·DeiT log.txt, Lightning TensorBoard 기록은 에폭 수를 스스로 남기지 않아 진행률이 늘 비었다.
+    keys=STEP_KEYS면 step 학습의 계획 step 수"""
     import json
     for n in _CONFIG_FILES:
         f = d / n
@@ -118,9 +121,9 @@ def epochs_nearby(d: Path) -> int | None:
                 obj = json.loads(text)
             except ValueError:
                 continue
-            vals = [obj.get(k) for k in _EPOCH_KEYS] if isinstance(obj, dict) else []
+            vals = [obj.get(k) for k in keys] if isinstance(obj, dict) else []
         else:
-            vals = [_yaml_value(text, k) for k in _EPOCH_KEYS]
+            vals = [_yaml_value(text, k) for k in keys]
         for v in vals:
             try:
                 if v is not None and float(v) > 0:

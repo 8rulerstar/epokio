@@ -3,5 +3,8 @@
  "Training failed": "Pelatihan gagal",
  "Training finished": "Pelatihan selesai",
  "best": "terbaik",
- "epoch": "epoch"
+ "epoch": "epoch",
+ "Test alert": "Notifikasi uji",
+ "Phone alerts from {machine} work.": "Notifikasi ponsel dari {machine} berfungsi.",
+ "step": "langkah"
 }

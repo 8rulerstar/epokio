@@ -186,5 +186,14 @@
  "A new run with more epochs will probably score higher.": "Huấn luyện lại với nhiều epoch hơn có lẽ sẽ đạt điểm cao hơn.",
  "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "Quạt GPU đã chạy ở {pct}% trong {min} phút. GPU có thể chạy chậm lại để hạ nhiệt.",
  "Still training: epoch {e} of {n}.": "Vẫn đang huấn luyện: epoch {e} trên {n}.",
- "Best {metric} so far is {v:.3f}, at epoch {e}.": "{metric} tốt nhất đến giờ là {v:.3f}, ở epoch {e}."
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "{metric} tốt nhất đến giờ là {v:.3f}, ở epoch {e}.",
+ "Training stopped at epoch {e} of {n}.": "Huấn luyện dừng ở epoch {e} trên {n}.",
+ "No validation score was logged, so only the loss was checked. Nothing stood out in it.": "Không có điểm kiểm định nào được ghi, nên chỉ kiểm tra loss. Không có gì nổi bật.",
+ "Training loss has been rising since epoch {e} ({a:.3f} to {b:.3f}).": "Loss huấn luyện tăng liên tục từ epoch {e} ({a:.3f} lên {b:.3f}).",
+ "Check the learning rate schedule and the data loader. A loss that climbs for this long rarely recovers.": "Kiểm tra lịch learning rate và data loader. Loss tăng lâu như vậy hiếm khi hồi lại.",
+ "No validation examples of {names}, so its score was not measured.": "Tập kiểm định không có mẫu {names}, nên chưa đo được điểm của lớp này.",
+ "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "Hãy thêm ảnh {names} vào tập kiểm định. Trước đó bạn không biết mô hình có tìm được chúng không.",
+ "Test alert": "Thông báo thử",
+ "Phone alerts from {machine} work.": "Thông báo điện thoại từ {machine} hoạt động.",
+ "step": "bước"
 }
