@@ -1359,3 +1359,4 @@
 "Ended" = "Đã kết thúc";
 "Ended at epoch %d. This log does not say how many epochs were planned." = "Kết thúc ở epoch %d. Nhật ký này không ghi số epoch dự định.";
 "GPU fan speed" = "Tốc độ quạt GPU";
+"not in validation set" = "không có trong tập kiểm định";

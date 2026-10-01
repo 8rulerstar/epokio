@@ -41,7 +41,7 @@ except NameError: HAVE = {}
 HOME = os.path.expanduser("~")
 FILES = ["results.csv", "args.yaml", "trainer_state.json", "metrics.csv", "hparams.yaml", "epokio_log.csv",
          "training.log", "history.csv", "training.csv", "keras_log.csv", "summary.csv", "log.txt",
-         "vis_data/scalars.json", "vis_data/config.py"]
+         "vis_data/scalars.json", "vis_data/config.py", "args.json", "config.yaml", "config.json", "opt.yaml"]
 MARK = set(["results.csv", "trainer_state.json", "metrics.csv", "epokio_log.csv", "history.csv", "training.log", "training.csv",
             "keras_log.csv", "summary.csv"])
 def jsonlog(d):
@@ -66,6 +66,11 @@ def walk(d, depth):
     ns = set(names)
     ck = sorted([n for n in names if n.startswith("checkpoint-")], key=lambda n: int("".join(c for c in n if c.isdigit()) or 0))
     wb = [n for n in names if n.startswith("run-") and n.endswith(".wandb")]   # W&B 기록(바이너리)
+    wb += [n for n in names if n.startswith("events.out.tfevents.")]          # TensorBoard 기록(바이너리)
+    for sub in ("train", "validation"):                                          # Keras식 하위 폴더
+        if sub in ns and os.path.isdir(os.path.join(d, sub)):
+            try: wb += [sub + "/" + n for n in os.listdir(os.path.join(d, sub)) if n.startswith("events.out.tfevents.")]
+            except OSError: pass
     if ns & MARK or wb or ("log.txt" in ns and jsonlog(d)) or os.path.isfile(os.path.join(d, "vis_data", "scalars.json")) or (ck and os.path.exists(os.path.join(d, ck[-1], "trainer_state.json"))):
         rp = os.path.realpath(d)
         if rp in seen: return

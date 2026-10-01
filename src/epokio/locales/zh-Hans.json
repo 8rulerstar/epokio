@@ -184,5 +184,7 @@
  "Next time stop earlier, or use fewer epochs.": "下次提早停止，或减少轮数。",
  "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "在计划的 {p} 轮中停在了第 {n} 轮。请继续训练，完成计划的轮数。",
  "A new run with more epochs will probably score higher.": "增加轮数重新训练，分数很可能会更高。",
- "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU 风扇已以 {pct}% 运转 {min} 分钟。GPU 可能会降速散热。"
+ "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU 风扇已以 {pct}% 运转 {min} 分钟。GPU 可能会降速散热。",
+ "Still training: epoch {e} of {n}.": "仍在训练：第 {e} 轮，共 {n} 轮。",
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "目前最好的 {metric} 是 {v:.3f}，在第 {e} 轮。"
 }

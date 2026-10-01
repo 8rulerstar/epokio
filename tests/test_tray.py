@@ -79,3 +79,21 @@ def test_every_tray_phrase_is_used_and_no_language_has_extra_keys():
     assert not unused, unused
     for name, table in i18n.TABLE.items():
         assert set(table) <= set(i18n.EN), name
+
+
+def test_double_clicking_the_exe_opens_the_page_but_login_start_does_not(monkeypatch):
+    """★README는 '더블클릭하면 브라우저가 열린다'고 했지만 트레이 아이콘만 생겼다"""
+    import sys
+    import types
+    import webbrowser
+    from epokio import tray
+    opened = []
+    monkeypatch.setitem(sys.modules, "pystray", types.ModuleType("pystray"))
+    monkeypatch.setitem(sys.modules, "PIL", types.ModuleType("PIL"))
+    monkeypatch.setattr(tray, "ensure_agent", lambda url: (url, None))
+    monkeypatch.setattr(tray, "Tray", lambda agent: types.SimpleNamespace(run=lambda: None))
+    monkeypatch.setattr(webbrowser, "open", lambda u: opened.append(u))
+    tray.main(["--agent", "http://127.0.0.1:8787", "--open"])
+    assert len(opened) == 1 and opened[0].startswith("http://127.0.0.1:8787/")
+    tray.main(["--agent", "http://127.0.0.1:8787"])                 # 로그인 자동 시작('tray')
+    assert len(opened) == 1

@@ -184,5 +184,7 @@
  "Next time stop earlier, or use fewer epochs.": "Lần sau hãy dừng sớm hơn, hoặc dùng ít epoch hơn.",
  "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "Đã dừng ở epoch {n} trên {p}. Hãy tiếp tục để hoàn thành số epoch đã định.",
  "A new run with more epochs will probably score higher.": "Huấn luyện lại với nhiều epoch hơn có lẽ sẽ đạt điểm cao hơn.",
- "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "Quạt GPU đã chạy ở {pct}% trong {min} phút. GPU có thể chạy chậm lại để hạ nhiệt."
+ "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "Quạt GPU đã chạy ở {pct}% trong {min} phút. GPU có thể chạy chậm lại để hạ nhiệt.",
+ "Still training: epoch {e} of {n}.": "Vẫn đang huấn luyện: epoch {e} trên {n}.",
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "{metric} tốt nhất đến giờ là {v:.3f}, ở epoch {e}."
 }

@@ -20,7 +20,8 @@ struct RunClasses: Codable, Hashable {
         let map5095: Double?
         let weak: Bool
         let few: Bool
-        enum CodingKeys: String, CodingKey { case name, instances, precision, recall, mAP50, map5095 = "mAP50-95", weak, few }
+        var absent: Bool? = nil       // 검증셋에 하나도 없음(평균에서 빠진다). 옛 agent엔 없다
+        enum CodingKeys: String, CodingKey { case name, instances, precision, recall, mAP50, map5095 = "mAP50-95", weak, few, absent }
         func main(_ key: String) -> Double? { key == "mAP50" ? mAP50 : map5095 }
     }
 }
@@ -85,6 +86,10 @@ private struct ClassRow: View {
                     Text("few").font(.ui(10, weight: .semibold)).padding(.horizontal, 5).padding(.vertical, 1)
                         .background(Color.warn.opacity(0.15), in: .capsule).foregroundStyle(.warn)
                         .help(L("Few examples: the score is shaky"))
+                }
+                if row.absent == true {
+                    Text("not in validation set").font(.ui(10, weight: .semibold)).padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Color.secondary.opacity(0.15), in: .capsule).foregroundStyle(ink.soft)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

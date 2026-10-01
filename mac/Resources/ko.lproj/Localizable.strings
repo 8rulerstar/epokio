@@ -1368,3 +1368,4 @@
 "Ended" = "종료";
 "Ended at epoch %d. This log does not say how many epochs were planned." = "%d에폭에서 끝났습니다. 이 기록에는 계획한 에폭 수가 없습니다.";
 "GPU fan speed" = "GPU 팬 속도";
+"not in validation set" = "검증셋에 없음";

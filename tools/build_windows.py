@@ -65,7 +65,7 @@ if __name__ == "__main__":
         from epokio.onboard import autostart_main
         sys.exit(autostart_main(args[1:]))
     from epokio.tray import main            # 인자 없이 누르면 트레이(agent 는 알아서 띄운다)
-    sys.exit(main(args[1:] if args and args[0] == "tray" else args))
+    sys.exit(main(args[1:] if args and args[0] == "tray" else (args or ["--open"])))   # 더블클릭(인자 없음): 웹 화면도 연다
 '''
 
 

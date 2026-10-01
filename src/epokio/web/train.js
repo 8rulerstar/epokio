@@ -206,7 +206,7 @@ async function drawTrain() {
     e.ready ? " · Ultralytics " + esc(e.ultralytics) + accel(e) : " · " + t("needs {pkg}", { pkg: e.ultralytics ? "torch" : "ultralytics" })}</option>`).join("");
   const machine = esc(S.label || t("this machine"));
   let h = `<div class="card pane"><h2>${t("Train")}</h2><p class="hint">${t("Runs one at a time on {machine}. If something is already training, this waits in the queue.", { machine })}</p>
-    <div class="fields"><label class="field wide"><span>Python</span><select class="in" id="py">${opts}</select><small>${esc(env.path)}</small></label>
+    <div class="fields"><label class="field wide"><span>${t("Python")}</span><select class="in" id="py">${opts}</select><small>${esc(env.path)}</small></label>
     <label class="field wide"><span>${t("Name")}</span><input class="in" id="jobname" spellcheck="false" placeholder="${t("Taken from the data folder if empty")}"><small>${t("Shown in the queue.")}</small></label></div>
     <label class="hint" style="display:flex;align-items:center;gap:8px;margin:8px 0" title="${esc(t("Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time."))}">
       <input type="checkbox" id="snapshots"> ${t("Save predictions every 5 epochs")}</label>`;

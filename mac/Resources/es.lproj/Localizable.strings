@@ -1359,3 +1359,4 @@
 "Ended" = "Terminada";
 "Ended at epoch %d. This log does not say how many epochs were planned." = "Terminó en la época %d. Este registro no dice cuántas épocas estaban previstas.";
 "GPU fan speed" = "Velocidad del ventilador de la GPU";
+"not in validation set" = "no está en validación";

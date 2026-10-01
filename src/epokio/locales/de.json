@@ -184,5 +184,7 @@
  "Next time stop earlier, or use fewer epochs.": "Stoppe nächstes Mal früher oder nimm weniger Epochen.",
  "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "Das Training stoppte bei Epoche {n} von {p}. Setze es fort, um die geplanten Epochen abzuschließen.",
  "A new run with more epochs will probably score higher.": "Ein neuer Lauf mit mehr Epochen erzielt wahrscheinlich einen höheren Wert.",
- "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "Der GPU-Lüfter läuft seit {min} Min. mit {pct} %. Die GPU kann sich zum Abkühlen drosseln."
+ "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "Der GPU-Lüfter läuft seit {min} Min. mit {pct} %. Die GPU kann sich zum Abkühlen drosseln.",
+ "Still training: epoch {e} of {n}.": "Training läuft noch: Epoche {e} von {n}.",
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "Bester Wert {metric} bisher: {v:.3f} in Epoche {e}."
 }

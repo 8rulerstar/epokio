@@ -184,5 +184,7 @@
  "Next time stop earlier, or use fewer epochs.": "Next time stop earlier, or use fewer epochs.",
  "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.": "It stopped at epoch {n} of {p}. Resume it to finish the planned epochs.",
  "A new run with more epochs will probably score higher.": "A new run with more epochs will probably score higher.",
- "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off."
+ "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.": "GPU fan at {pct}% for {min} min. The GPU may slow down to cool off.",
+ "Still training: epoch {e} of {n}.": "Still training: epoch {e} of {n}.",
+ "Best {metric} so far is {v:.3f}, at epoch {e}.": "Best {metric} so far is {v:.3f}, at epoch {e}."
 }

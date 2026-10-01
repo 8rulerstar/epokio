@@ -37,15 +37,18 @@ def read(run_dir: Path) -> dict | None:
         main = cols.get("mAP50-95") or cols.get("mAP50")
         if not main:
             continue
-        vals = [r[main] for r in rows if isinstance(r.get(main), (int, float))]
+        # ★검증셋에 하나도 없는 클래스(instances 0)의 점수가 평균에 섞였다. 평균·약한 클래스 판정에서 뺀다
+        absent = lambda r: isinstance(r.get("instances"), (int, float)) and r["instances"] == 0
+        vals = [r[main] for r in rows if isinstance(r.get(main), (int, float)) and not absent(r)]
         mean = sum(vals) / len(vals) if vals else None
         table = []
         for r in rows:
             v = r.get(main)
-            few = isinstance(r.get("instances"), int) and r["instances"] < FEW
-            weak = mean is not None and isinstance(v, (int, float)) and len(vals) > 1 and v < mean * WEAK_SHARE
+            few = isinstance(r.get("instances"), (int, float)) and 0 < r["instances"] < FEW
+            weak = (mean is not None and isinstance(v, (int, float)) and len(vals) > 1 and not absent(r)
+                    and v < mean * WEAK_SHARE)
             table.append({"name": r["name"], "instances": r.get("instances"), "images": r.get("images"),
-                          **{c: r.get(k) for c, k in cols.items()}, "weak": weak, "few": few})
+                          **{c: r.get(k) for c, k in cols.items()}, "weak": weak, "few": few, "absent": absent(r)})
         table.sort(key=lambda t: (t.get("mAP50-95", t.get("mAP50")) is None, t.get("mAP50-95", t.get("mAP50")) or 0))
         out_heads.append({"head": head, "main": "mAP50-95" if "mAP50-95" in cols else "mAP50",
                           "mean": round(mean, 4) if mean is not None else None, "rows": table})
@@ -56,7 +59,8 @@ def note(c: dict | None) -> tuple[str, str] | None:
     """해설 한 줄(관찰, 다음에 해 볼 것): 가장 약한 클래스들. 없으면 None"""
     if not c or not c["heads"]:
         return None
-    h = c["heads"][0]
+    # pose·mask 학습은 그 머리 기준으로 말한다. ★box 평균으로 말해 pose 학습의 약한 클래스가 엇나갔다
+    h = next((x for x in c["heads"] if x["head"] != "box"), c["heads"][0])
     weak = [r for r in h["rows"] if r["weak"]]
     if not weak:
         return None

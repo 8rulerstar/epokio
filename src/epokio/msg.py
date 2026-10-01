@@ -77,5 +77,37 @@ def tag() -> str:
 
 
 def tr(template: str, **kw) -> str:
-    s = TABLE.get(_lang.get(), {}).get(template, template)
-    return s.format(**kw) if kw else s
+    lang = _lang.get()
+    s = TABLE.get(lang, {}).get(template, template)
+    s = s.format(**kw) if kw else s
+    return josa(s) if lang == "ko" else s
+
+
+# 한국어 조사: 번역문은 '이(가)·은(는)·을(를)·과(와)·(으)로'로 쓰고, 채워진 앞 글자의 받침을 보고 고른다.
+# ★'{b:.3f}로'가 4.860로(→으로), '{m}이(가)'가 그대로 화면에 나왔다
+_PAIRS = {"이(가)": ("이", "가"), "은(는)": ("은", "는"), "을(를)": ("을", "를"), "과(와)": ("과", "와")}
+_DIGIT = {"0": 1, "1": 2, "2": 0, "3": 1, "4": 0, "5": 0, "6": 1, "7": 2, "8": 2, "9": 0}   # 0 없음 · 1 받침 · 2 ㄹ받침
+_LATIN = {"l": 2, "r": 2, "m": 1, "n": 1}                                                   # 엘·알, 엠·엔
+
+
+def _batchim(ch: str) -> int:
+    """0: 받침 없음, 1: 받침 있음, 2: ㄹ 받침"""
+    if "가" <= ch <= "힣":
+        jong = (ord(ch) - 0xAC00) % 28
+        return 0 if jong == 0 else (2 if jong == 8 else 1)
+    if ch.isdigit():
+        return _DIGIT[ch]
+    return _LATIN.get(ch.lower(), 0)
+
+
+def josa(s: str) -> str:
+    import re
+
+    def pick(m):
+        prev = next((c for c in reversed(m.group(1)) if c.isalnum() or "가" <= c <= "힣"), "")
+        b = _batchim(prev) if prev else 0
+        p = m.group(2)
+        if p == "(으)로":
+            return m.group(1) + ("로" if b in (0, 2) else "으로")
+        return m.group(1) + _PAIRS[p][0 if b else 1]
+    return re.sub(r"(\S*?[^\s(])(이\(가\)|은\(는\)|을\(를\)|과\(와\)|\(으\)로)", pick, s)

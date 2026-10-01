@@ -88,6 +88,10 @@ def detail(run_dir: Path) -> dict | None:
     if got is None and not (run_dir / "args.yaml").exists():
         return None
     a = analysis.analyze(run_dir)
+    from .scan import read_run
+    live = read_run(run_dir)
+    if a and live and live.state in ("running", "starting"):
+        a = analysis.without_end_notes(a)                # 도는 중: 끝나야 말이 되는 해설은 빼고
     best = run_dir / "weights" / "best.pt"
     return {
         "path": str(run_dir),
@@ -149,7 +153,7 @@ def _explain(run_dir: Path) -> dict | None:
     from .scan import read_run
     try:
         r = read_run(run_dir)
-        status = {"failed": "failed", "stalled": "stalled"}.get(r.state if r else "", "finished")
+        status = {"failed": "failed", "stalled": "stalled", "running": "running", "starting": "running"}.get(r.state if r else "", "finished")
         res = explain.explain(run_dir, status)
         return {**res, "jev_request": explain.jev_request(res)}
     except Exception:

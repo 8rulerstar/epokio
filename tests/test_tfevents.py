@@ -320,3 +320,43 @@ def test_memory_stays_small_on_a_long_run(tmp_path):
     sc, walls = tfevents.read(f)
     assert len(sc) <= tfevents.KEEP_TRAIN + 20 and len(walls) <= tfevents.KEEP_TRAIN + 20
     assert sc[19999]["val_acc"] > 0.99 and "train_loss" in sc[19999]                 # 검증 걸음엔 그때의 학습 값도
+
+
+def test_tensorboard_runs_come_over_ssh_and_find_their_epochs_in_args(tmp_path, monkeypatch):
+    """★SSH 원격 보기가 tfevents를 안 가져와 서버의 TensorBoard 학습이 안 보였다. 계획 에폭은 같은 폴더 args.json에서"""
+    import json
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_ssh_source import FAKE_SSH
+    from epokio import ssh_source
+    fake = tmp_path / "fakessh.py"
+    fake.write_text(FAKE_SSH)
+    home = tmp_path / "server_home"
+    d = home / "exp" / "vit_run"
+    d.mkdir(parents=True)
+    (d / "args.json").write_text(json.dumps({"lr": 1e-3, "epochs": 30}))
+    t = time.time() - 100
+    _w_write(d / "events.out.tfevents.1700000000.gpu.1.0", [
+        (49, t, {"val_loss": 1.0, "val_acc": 0.5, "epoch": 0, "train_loss_epoch": 1.1}),
+        (99, t + 20, {"val_loss": 0.8, "val_acc": 0.7, "epoch": 1, "train_loss_epoch": 0.9}),
+    ])
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setattr(ssh_source, "MIRROR", tmp_path / "mirror")
+    monkeypatch.setattr(ssh_source, "_HAVE", {})
+    got = ssh_source.run_remote("gpu", {"auto": True}, ssh=[sys.executable, str(fake)])
+    ssh_source.apply("gpu", got)
+    runs = scan(ssh_source.mirror_dir("gpu"))
+    assert [(r.framework, r.epoch, r.total) for r in runs] == [("tensorboard", 2, 30)]
+
+
+def test_an_epoch_scalar_that_starts_at_one_is_not_shifted(tmp_path):
+    """★직접 1부터 적은 epoch 값에 Lightning처럼 +1을 해서 '20에폭 중 21에폭'이 됐다"""
+    d = tmp_path / "vit"
+    d.mkdir()
+    (d / "config.yaml").write_text("epochs: 20\n")
+    t = time.time() - 100
+    _w_write(d / "events.out.tfevents.1700000000.pc.1.0",
+             [(10 * e, t + e, {"epoch": e, "val/acc1": 50 + e}) for e in range(1, 21)])
+    r = read_run(d)
+    assert r.epoch == 20 and r.total == 20

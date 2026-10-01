@@ -146,3 +146,21 @@ def test_lineage_and_stage_are_only_for_runs_with_best_pt(tmp_path, monkeypatch)
     got = a.get("/run", {"path": [str(d)]})
     got = got[1] if isinstance(got, tuple) else got
     assert got["framework"] == "jsonlog" and "lineage" not in got and "stage" not in got
+
+
+def test_mae_log_finds_the_planned_epochs_in_a_saved_config(tmp_path):
+    """★log.txt에는 계획 에폭이 없어 진행률·남은 시간이 늘 비었다. 같은 폴더에 설정을 저장했으면 거기서"""
+    d = mae(tmp_path / "mae", [{"train_loss": 0.9, "epoch": e} for e in range(3)])
+    assert adapters.load(d).total is None
+    (d / "config.yaml").write_text("model: mae_vit_base\nepochs: 800\n")
+    assert adapters.load(d).total == 800
+
+
+def test_a_custom_csv_finds_its_planned_epochs_and_can_finish(tmp_path):
+    """★옆에 config.yaml(epochs: 3)을 둬도 3/? 로 남아 끝까지 가도 '끝남(✓)'이 안 됐다"""
+    d = tmp_path / "myrun"
+    d.mkdir()
+    (d / "train_log.csv").write_text("epoch,train_loss,val_acc\n1,1.0,0.5\n2,0.8,0.6\n3,0.7,0.7\n")
+    (d / "config.yaml").write_text("epochs: 3\n")
+    r = scan.read_run(d)
+    assert r.total == 3 and r.epoch == 3 and r.state == "done"

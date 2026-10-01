@@ -102,3 +102,13 @@ def test_diagnose_follows_the_request_language():
         msg.set_from_header(None)
     (hit,) = diagnose(log)
     assert hit["title"] == "A Python package is missing"
+
+
+def test_korean_particles_follow_the_word_before_them():
+    """★'{b:.3f}로'가 '4.860로'로, '{m}이(가)'가 괄호째 화면에 나왔다. 숫자·영문은 읽는 소리 기준"""
+    from epokio.msg import josa
+    assert josa("4.860(으)로 올랐습니다") == "4.860으로 올랐습니다"          # 영 → 받침
+    assert josa("0.85(으)로") == "0.85로" and josa("17(으)로") == "17로"      # 오 · 칠(ㄹ 받침은 '로')
+    assert josa("mAP50-95이(가) 높다") == "mAP50-95가 높다"
+    assert josa("val_loss은(는)") == "val_loss는" and josa("val_acc1을(를)") == "val_acc1을"
+    assert josa("defect_det과(와) 같은") == "defect_det와 같은" and josa("학습(으)로") == "학습으로"

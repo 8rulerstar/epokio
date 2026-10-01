@@ -15,6 +15,10 @@
   MMDetection · W&B local runs · MAE / DeiT / DINO logs · TensorBoard · your own CSV</a>, on this machine or a GPU server over SSH.
 </sub></p>
 
+| Mac | Windows | Linux or a GPU server |
+|---|---|---|
+| [Download the `.dmg`](https://github.com/8rulerstar/epokio/releases/latest), drag to Applications, open | [Download `Epokio.exe`](https://github.com/8rulerstar/epokio/releases/latest), double-click ([details](#on-windows-linux-or-your-phone)) | `pip install epokio` then `epokio watch --root runs/` in the terminal, or `epokio setup` for the web page ([details](#on-windows-linux-or-your-phone)) |
+
 <p align="center">
   <a href="#install">Install</a> ·
   <a href="#what-it-does">What it does</a> ·
@@ -74,7 +78,7 @@ and Increase Contrast.
 ### Menu bar
 
 * Progress, time left, and best score of every run, updated live
-* GPU, CPU and memory, like Activity Monitor (Apple Silicon and NVIDIA)
+* GPU, CPU and memory, like Activity Monitor (Apple Silicon and NVIDIA), plus fan speed on Macs with a fan and the GPU fan on NVIDIA machines. A warning when the fans stay near full speed during training
 * A notification when a run **finishes**, **fails** (loss became NaN), **stalls**, or **stops before its last epoch**
 * A calm resting view when nothing is training
 * **Just finished** card at the top: one click to the results
@@ -92,6 +96,10 @@ Click any run to see what happened, in one place:
 * **Scores** at the best epoch: precision, recall, F1, mAP50, mAP50-95, per head (box, pose, mask). Hover for what each one means.
 * **Curves** for loss and scores, live while training runs
 * **What stands out:** plain-language notes with a next step, such as *"Recall is much higher than precision. It finds most objects but raises many false alarms."*
+* **Per class:** precision, recall and mAP for each class, weakest first, with the ones well below the average highlighted. Saved at the end of runs Epokio starts; one click works it out for any other Ultralytics run
+* **The machine while training:** GPU, GPU memory, CPU, memory, temperature and fan recorded every 15 seconds for that run, with a note when the GPU was mostly waiting
+* **Predictions by epoch** (turn it on when you start a run): the same four validation images every 5 epochs, on a slider
+* **Data version:** which version of the dataset the run used (*Data v3 of 4*), and a warning with what changed if the data changed afterwards
 * **Result images** your framework saved (curves, confusion matrix, predictions next to your labels), also from remote machines
 * **How it was run:** for runs started from Epokio, the Python, PyTorch, Ultralytics and CUDA versions, the GPU, the git commit and the seed, so you can run it again the same way
 * **Next steps:** try this model, review its mistakes, train again with the same settings, or resume a stopped run from `weights/last.pt`
@@ -184,8 +192,11 @@ reach it; `--autostart` brings the tray back when you log in. Run it again any t
 nothing that is already right.
 
 **Nothing to install on the server?** In the Mac app, open **Settings → Machines → Over SSH** and pick a host
-from your `~/.ssh/config`. Epokio uses your SSH keys to copy the small log files (`results.csv` and similar)
-every 15 seconds, never images or weights. The server only needs `python3`. This is view only: to start
+from your `~/.ssh/config`. Epokio uses your SSH keys to check every 15 seconds and copy the log files that changed
+(`results.csv`, TensorBoard and W&B files and similar), never images or weights. The server only needs `python3` (3.6 or later)
+and key-based login (no password or one-time-code prompts). Nothing is written on the server and it needs no internet.
+It looks under your home folder; add other paths such as `/scratch/you/runs` under *Other folders* in the same settings. Hosts from `~/.ssh/config`,
+including `ProxyJump`, go through your own `ssh`. This is view only: to start
 training there, install the helper as above.
 
 Without `--lan` the helper listens on this machine only, which is what you want if you just came
@@ -235,8 +246,8 @@ py -m epokio setup --autostart
 
 (If typing `epokio` says "not recognized", use `py -m epokio` instead; it is the same command.)
 
-**On a Linux server (Ubuntu 24.04, no desktop, over SSH):** system `pip` refuses to install
-(PEP 668), so use a small virtual environment:
+**On a Linux server (Ubuntu 22.04 or 24.04, no desktop, over SSH):** on 24.04 the system `pip` refuses to install
+(PEP 668), so use a small virtual environment (on 22.04 it is optional but still tidy):
 
 ```bash
 sudo apt install python3-venv
@@ -336,7 +347,12 @@ Epokio reads the files your framework already writes. No logging code to add.
 | Weights & Biases (local files) | `wandb/run-*/run-*.wandb`, read without installing wandb. Runs that log an `epoch` value; the rest are step-only and are left out. Also over SSH | ✅ | script | |
 | Your own training loop | any CSV whose first column is `epoch` and that has a loss column (`train_log.csv`, `log.csv`, ...) | ✅ | script | |
 
-Adding another framework is one small adapter class in `src/epokio/adapters.py`.
+A run shows progress and time left when Epokio knows the planned epochs: from the framework's own files, or from a
+config saved next to the log (`args.yaml`, `args.json`, `config.yaml`, `config.json`, `hparams.yaml` with `epochs` or `max_epochs`).
+Logs counted in steps rather than epochs (W&B or TensorBoard without an `epoch` value, a CSV whose first column is `step`)
+are not shown yet. For Lightning, `CSVLogger` gives the cleanest result.
+
+Adding another framework is one small adapter class, listed in `src/epokio/adapters.py`.
 
 ## How it compares
 
@@ -347,13 +363,15 @@ Adding another framework is one small adapter class in `src/epokio/adapters.py`.
 | Where your data goes | **Stays on your machines** | Their cloud | Your server | Their cloud | Your machine (or a Hugging Face Space you choose) |
 | Always visible | **Menu bar, terminal, web page** | Browser tab, phone app | Browser tab | Browser tab | Browser tab |
 | Runs you started last week | **Shown right away** | Only if they were logged | Only if they were logged or converted | Only if trained there | Only if logged, or imported by hand from CSV or TensorBoard files |
-| Price (as of Aug 2026) | **Free** | W&B Pro from $60/month | Free software, you pay for the server (ClearML hosted Pro $15/user/month) | Free tier, Pro $29/seat/month, GPUs by the hour | Free |
+| Team sharing, model registry, step-level history, years of runs | Not the goal | **Yes** | **Yes** | **Yes** | Partly |
+| Price | Free, MIT | Free tier and paid plans | Free software, you run the server (hosted plans exist) | Free tier and paid plans | Free |
 
 Epokio also suggests the next run from what it sees in the curves (for example "still improving: train 2× longer from best.pt"),
-using simple rules on your machine rather than a cloud AI. Coming from Neptune, whose hosted service closed in March 2026?
-Epokio reads the files your framework already writes, so there is nothing to migrate.
+using simple rules on your machine rather than a cloud AI.
 
-Epokio is what you glance at while training runs on your own Mac or GPU box, with results you can act on right away.
+**Use it alongside a tracker, not instead of one.** If your team already logs to W&B or MLflow, keep doing that.
+Epokio reads W&B's local files and TensorBoard logs too, so it can show the same runs in your menu bar or terminal
+without another account or another logging call. It is what you glance at while training runs on your own Mac or GPU box.
 
 ## When something is off
 
@@ -375,6 +393,7 @@ Nothing leaves your machines unless you turn it on. The app talks only to helper
 | Result explanations, polished | Status, task, scores, setting numbers, language, the draft sentences | TypeSafe, only when the Assistant is on |
 | Explanations written on this Mac (macOS 26+) | Nothing | Stays on the Mac |
 | Update check (Sparkle), off in current releases until they are signed with an update key | App and macOS version | The project's GitHub releases |
+| Train tab, "set up Python" button | Downloads PyTorch, Ultralytics and their dependencies (nothing is uploaded) | PyPI and download.pytorch.org |
 
 Webhooks must be `https`. The TypeSafe key lives in your Keychain and both features are off until you
 turn them on. Error logs stay in `~/.epokio/logs` and are never sent anywhere.
@@ -392,6 +411,11 @@ Quitting the app also stops the helper it started. A helper you started yourself
    Or: `security delete-generic-password -s io.github.8rulerstar.epokio` (run it again until it says not found).
 5. If you installed Epokio with pip: `pip uninstall epokio`.
 
+**Windows:** `py -m epokio autostart --off` (or delete the Epokio shortcut in your Startup folder), quit the tray icon,
+delete `Epokio.exe`, then the folder `%USERPROFILE%\.epokio`, and `py -m pip uninstall epokio` if you used pip.
+**Linux:** `epokio autostart --off` (removes the tray entry); on a server set up with `--autostart`, also
+`systemctl --user disable --now epokio` and `rm ~/.config/systemd/user/epokio.service`. Then `rm -rf ~/.epokio` and `pip uninstall epokio`.
+
 ## Status
 
 The features above work today and have automated tests, and [CHANGELOG.md](CHANGELOG.md) lists what
@@ -408,7 +432,13 @@ Screenshots on this page use the sample runs the app can create for you.
 
 ## 한국어
 
-**Epokio**는 학습 진행 상황을 맥 메뉴바에서 바로 보는 앱입니다. 학습 코드를 고칠 필요도, 계정도 없습니다. 학습이 이미 기록하고 있는 폴더만 알려 주면 됩니다.
+**Epokio**는 학습 진행 상황을 맥 메뉴바, 윈도우·리눅스의 웹 화면과 트레이, 터미널에서 바로 보는 도구입니다. 학습 코드를 고칠 필요도, 계정도 없습니다. 학습이 이미 기록하고 있는 폴더만 알려 주면 됩니다.
+
+**윈도우에서 처음 쓴다면**
+1. [Releases](https://github.com/8rulerstar/epokio/releases/latest)에서 `Epokio.exe`를 받아 더블클릭합니다
+2. "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**을 누릅니다(서명하지 않은 앱이라 처음 한 번 뜹니다)
+3. 브라우저에 학습 목록이 열리고, 작업 표시줄 오른쪽 ^ 안에 Epokio 아이콘이 생깁니다. 보기만 할 때는 파이썬이 필요 없습니다
+4. 이 PC에서 학습도 시작하려면 [python.org](https://www.python.org/downloads/)에서 파이썬 3.10 이상을 설치하고(설치 첫 화면에서 **Add python.exe to PATH** 체크), 웹 화면 학습 탭의 파이썬 설치 버튼을 누릅니다. 설치가 끝났는데 학습 탭에 GPU가 보이지 않으면 NVIDIA 드라이버를 최신으로 올린 뒤 다시 확인하세요
 
 회사에서 YOLO를 학습시키면서 터미널을 계속 열어 "아직 살아 있나, 몇 에폭 남았나"를 확인하던 일이 싫어서 만들었습니다.
 
@@ -424,7 +454,7 @@ Screenshots on this page use the sample runs the app can create for you.
 * **대기열**: GPU마다 한 번에 하나씩(NVIDIA GPU가 여러 장이면 장마다 하나), 껐다 켜도 이어집니다
 * **자동 라벨링**: 결과는 `labels_auto/`에 따로 씁니다. 기존 라벨을 덮어쓰지 않습니다
 * **보고서**: 리더보드, Box·Pose별 P·R·F1·mAP, 자동 해설
-* **원격 GPU**: 서버에 아무것도 설치하지 않고 SSH로 보거나(설정 → 기계 → SSH로 보기), 윈도우·리눅스 학습 PC에서 `epokio setup --lan`(자동 시작·토큰 안내까지)으로 도우미를 띄워 맥에서 봅니다. 네트워크에 연 도우미는 보는 것도 토큰이 필요하고, 통신은 암호화되지 않으므로 SSH 터널이나 Tailscale을 권합니다. 다른 사람에게 보기만 허락하려면 `epokio agent --add-token 이름 --scope read`로 그 사람 몫의 읽기 전용 토큰을 만드세요(한 번만 보여 주고 해시로 저장, `--revoke-token`으로 취소)
+* **원격 GPU**: 서버에 아무것도 설치하지 않고 SSH로 보거나(설정 → 기계 → SSH로 보기), 윈도우·리눅스 학습 PC에서 `py -m epokio setup --lan`(자동 시작·토큰 안내까지)으로 도우미를 띄워 맥에서 봅니다. 네트워크에 연 도우미는 보는 것도 토큰이 필요하고, 통신은 암호화되지 않으므로 SSH 터널이나 Tailscale을 권합니다. 다른 사람에게 보기만 허락하려면 `py -m epokio agent --add-token 이름 --scope read`로 그 사람 몫의 읽기 전용 토큰을 만드세요(한 번만 보여 주고 해시로 저장, `--revoke-token`으로 취소)
 * **맥↔윈도우 한글 파일명**: NFD·NFC가 달라도 같은 파일로 찾아갑니다
 * **언어**: 맥 앱은 한국어·영어·일본어·중국어(간체·번체)·스페인어·프랑스어·독일어·포르투갈어(브라질)·베트남어. 고칠 곳은 이슈로 알려 주세요. 웹 화면은 한국어·영어
 
@@ -449,18 +479,20 @@ Screenshots on this page use the sample runs the app can create for you.
 | 검수·스윕 | 있음 | **있음** (웹) |
 | 라벨 고치기·자동 라벨링 시작 | 있음 | 없음 (맥 앱 전용) |
 
+파이썬으로 설치할 때(아래 명령은 윈도우 기준입니다. 맥·리눅스에서는 `py -m` 없이 `pip`, `epokio`로 씁니다. `epokio`를 "인식할 수 없습니다"가 나와도 이렇게 하면 됩니다):
+
 ```bash
-pip install "epokio[tray]"
-epokio setup --autostart
+py -m pip install "epokio[tray]"
+py -m epokio setup --autostart
 ```
 
-`epokio setup` 한 줄이면 됩니다. 학습 폴더를 알아서 찾고, 도우미를 **검은 창 없이** 띄우고,
+`py -m epokio setup` 한 줄이면 됩니다. 학습 폴더를 알아서 찾고, 도우미를 **검은 창 없이** 띄우고,
 브라우저를 열어 줍니다. `--autostart`를 붙이면 로그인할 때 트레이가 다시 뜹니다
-(끄려면 `epokio autostart --off`, 또는 트레이 메뉴의 *Start when I log in*).
+(끄려면 `py -m epokio autostart --off`, 또는 트레이 메뉴의 **로그인할 때 시작**).
 시작프로그램 폴더의 평범한 바로 가기라서 탐색기에서 직접 지워도 됩니다.
 경로를 칠 일도, 플래그를 외울 일도 없습니다. 몇 번을 다시 돌려도 안전합니다.
 
-맥에서 이 기계를 보려면 `--lan`을 더하세요. 그때 토큰이 같이 출력됩니다.
+맥이나 폰에서 이 기계를 보려면 `--lan`을 더하세요. 그때 토큰이 같이 출력됩니다. 윈도우가 네트워크 허용을 물으면 **개인 네트워크**에 체크하고 허용을 누르세요.
 `--label 실습-07`로 이 PC가 보일 이름을 정할 수 있습니다
 (여러 대를 한꺼번에 볼 때). SSH로 들어온 서버에서는 브라우저 대신 `ssh -L` 터널 명령을 알려 줍니다.
 
@@ -483,4 +515,8 @@ epokio watch                      # 터미널에서 보기
 3. 설정 삭제: `defaults delete io.github.8rulerstar.epokio`, `~/Library/Application Support/Epokio` 폴더가 있으면 삭제
 4. 키체인: 키체인 접근에서 이름이 `io.github.8rulerstar.epokio`인 항목 삭제(원격 기계 토큰, TypeSafe 키 `typesafe.api`). 또는 `security delete-generic-password -s io.github.8rulerstar.epokio`를 "찾을 수 없음"이 나올 때까지 반복
 5. pip으로 설치했다면 `pip uninstall epokio`
+
+윈도우: `py -m epokio autostart --off`(또는 시작프로그램 폴더의 Epokio 바로 가기 삭제), 트레이 아이콘 끝내기, `Epokio.exe` 삭제, `%USERPROFILE%\.epokio` 폴더 삭제, pip으로 깔았다면 `py -m pip uninstall epokio`.
+
+문제가 생기면 `py -m epokio doctor`(맥·리눅스는 `py -m epokio doctor`)가 버전, 도우미 상태, 보는 폴더, 로그 마지막 줄을 보여 줍니다. 토큰은 출력하지 않으니 그대로 붙여 질문하셔도 됩니다. 로그는 `~/.epokio/agent.log`(윈도우는 `%USERPROFILE%\.epokio\agent.log`)에 있습니다.
 

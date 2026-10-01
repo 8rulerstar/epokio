@@ -16,7 +16,7 @@ function perClassHTML(r, d) {
     const bar = (v) => v == null ? "–" : `<span class="clsbar" style="--w:${Math.round(v * 100)}%"></span>${v.toFixed(3)}`;
     h += (c.heads.length > 1 ? `<div style="font-weight:600;margin-top:8px">${PER_CLASS_HEADS[x.head] || esc(x.head)}</div>` : "")
       + `<table class="cls"><tr><th>${t("Class")}</th><th class="num">${t("Examples")}</th><th class="num">${t("Precision")}</th><th class="num">${t("Recall")}</th><th class="num">mAP50</th><th>${esc(x.main)}</th></tr>`
-      + x.rows.map((row, i) => `<tr class="${row.weak ? "weak" : ""}" style="animation-delay:${Math.min(i, 12) * 30}ms"><th>${esc(row.name)}${row.few ? ` <span class="pill" style="--c:var(--orange)" title="${esc(t("Few examples: the score is shaky"))}">${t("few")}</span>` : ""}</th>`
+      + x.rows.map((row, i) => `<tr class="${row.weak ? "weak" : ""}" style="animation-delay:${Math.min(i, 12) * 30}ms"><th>${esc(row.name)}${row.few ? ` <span class="pill" style="--c:var(--orange)" title="${esc(t("Few examples: the score is shaky"))}">${t("few")}</span>` : ""}${row.absent ? ` <span class="pill" style="--c:var(--soft)">${t("not in validation set")}</span>` : ""}</th>`
         + `<td class="num">${row.instances ?? "–"}</td><td class="num">${row.precision?.toFixed(3) ?? "–"}</td><td class="num">${row.recall?.toFixed(3) ?? "–"}</td><td class="num">${row.mAP50?.toFixed(3) ?? "–"}</td><td class="num">${bar(row[x.main])}</td></tr>`).join("")
       + `</table><p class="hint">${t("Class average")}: ${x.mean?.toFixed(3) ?? "–"}</p>`;
   }

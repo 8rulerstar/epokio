@@ -345,6 +345,16 @@ def analyze(run_dir: Path) -> Analysis | None:
     return Analysis(run_dir, len(rows), heads, [(o, t) for o, t, _ in found], imgs, [k for _, _, k in found], score)
 
 
+END_ONLY = {"still_improving", "plateau", "early_best"}   # 학습이 끝나야 말이 되는 해설
+
+
+def without_end_notes(a: "Analysis") -> "Analysis":
+    """도는 중인 학습용. ★진행 중인 DeiT 60/100에 '60에폭 중 60에폭이 최고, 에폭을 늘려라'라고 했다"""
+    from dataclasses import replace
+    keep = [i for i, k in enumerate(a.kinds) if k.get("kind") not in END_ONLY]
+    return replace(a, notes=[a.notes[i] for i in keep], kinds=[a.kinds[i] for i in keep])
+
+
 def next_run(kind: dict, args: dict, weights: str | None) -> dict | None:
     """해설 하나 → 바꿔 볼 설정 하나(울트라리틱스 학습 인자). 모르면 None. 화면은 이걸 학습 양식에 채운다
     (Ultralytics Platform의 "다음 학습 제안"을 규칙으로, 인터넷 없이)"""

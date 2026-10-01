@@ -229,7 +229,7 @@ async function drawRuns(periodic) {
   const g = ++S.gen;
   if (!S.runs.length) {
     // ★예전엔 연결이 끊겨도 "No runs yet"과 "--root 로 켜라"(두 번 눌러 켜는 사람에겐 없는 명령)를 보여 줬다
-    if (S.down) { setMain(`<div class="card empty"><b>${t("Can't reach Epokio on this machine.")}</b><br>${S.downWhy ? esc(S.downWhy) : t("Is the helper running? On Windows, start Epokio from the Start menu or the tray.")}</div>`, periodic); return; }
+    if (S.down) { setMain(`<div class="card empty"><b>${t("Can't reach Epokio on this machine.")}</b><br>${S.downWhy ? esc(S.downWhy) : t("Is the helper running? On Windows, look for the Epokio icon under ^ at the right end of the taskbar, or run Epokio.exe again.")}</div>`, periodic); return; }
     if (setMain(`<div class="card empty"><b>${t("No training runs found yet.")}</b><p class="hint">${t("Add the folder where your runs are saved (the one that holds <code>runs</code>, or <code>runs</code> itself).")}</p>
       <div class="inrow" style="max-width:520px;margin:0 auto"><input class="in" id="rootpath" aria-label="${t("Folder with runs")}" placeholder="C:\\Users\\you\\projects\\yolo\\runs" spellcheck="false"><button class="btn primary" id="addroot">${t("Add folder")}</button></div>
       <div id="rootmsg" role="status"></div></div>`, periodic)) wireAddRoot();

@@ -272,6 +272,7 @@ class Tray:
 def main(argv: list[str] | None = None):
     ap = argparse.ArgumentParser(prog="epokio tray", description="Training progress in the system tray (Windows, Linux).")
     ap.add_argument("--agent", default=None, help="agent address (default: this machine, started automatically)")
+    ap.add_argument("--open", action="store_true", help=argparse.SUPPRESS)   # exe를 더블클릭했을 때: 웹 화면도 연다
     a = ap.parse_args(argv)
     try:
         import pystray  # noqa: F401
@@ -285,6 +286,12 @@ def main(argv: list[str] | None = None):
         agent = port.local_url()
     if "127.0.0.1" in agent or "localhost" in agent:
         agent, proc = ensure_agent(agent)
+    if a.open:
+        # ★README는 '더블클릭하면 브라우저가 열린다'고 했는데 트레이 아이콘만 생겨(윈11은 ^ 안에 숨는다) 아무것도 안 뜬 것처럼 보였다.
+        #   로그인 자동 시작은 'tray' 인자로 켜지므로 여기 오지 않는다
+        import webbrowser
+        from . import auth
+        webbrowser.open(auth.page_url(agent))
     try:
         Tray(agent).run()
     finally:

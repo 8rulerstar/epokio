@@ -15,6 +15,7 @@
     "mean": "num",
     "rows": [
      {
+      "absent": "bool",
       "few": "bool",
       "images": "num",
       "instances": "num",
@@ -88,7 +89,7 @@
      "str"
     ],
     "summary": {
-     "kind": "str",
+     "kind": "NoneType",
      "lang": "str",
      "score": {
       "best_epoch": "num",
@@ -101,7 +102,7 @@
     }
    }
   },
-  "kind": "str",
+  "kind": "NoneType",
   "next": "NoneType",
   "score": {
    "best_epoch": "num",

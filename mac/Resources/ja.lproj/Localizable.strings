@@ -1359,3 +1359,4 @@
 "Ended" = "終了";
 "Ended at epoch %d. This log does not say how many epochs were planned." = "エポック %d で終了しました。このログには予定のエポック数がありません。";
 "GPU fan speed" = "GPU ファン速度";
+"not in validation set" = "検証セットにない";

@@ -133,3 +133,19 @@ def test_the_request_needs_a_watched_run_with_weights_and_data(tmp_path, monkeyp
     assert a.post("/classes", {"path": str(run)}) == (200, {"id": "j1"})
     kind, _, py, params = added[0]
     assert kind == "classes" and py == "/py" and params["run"] == str(run) and params["data"] == "coco8.yaml"
+
+
+def test_pose_runs_talk_about_the_pose_head_and_absent_classes_stay_out(tmp_path):
+    """★pose 학습인데 box 평균으로 말했고, 검증셋에 없는 클래스(instances 0)가 평균에 섞였다"""
+    k = KEYS + ["metrics/precision(P)", "metrics/recall(P)", "metrics/mAP50(P)", "metrics/mAP50-95(P)"]
+    rows = [{"name": "insulator", "instances": 40, **dict(zip(k, [.8, .8, .8, .60, .8, .8, .8, .50]))},
+            {"name": "clamp", "instances": 30, **dict(zip(k, [.8, .8, .8, .58, .5, .5, .5, .20]))},
+            {"name": "crossarm", "instances": 0, **dict(zip(k, [0, 0, 0, .52, 0, 0, 0, .52]))}]
+    (tmp_path / classes.FILE).write_text(json.dumps({"source": "train", "keys": k, "rows": rows}))
+    c = classes.read(tmp_path)
+    pose = next(h for h in c["heads"] if h["head"] == "pose")
+    assert pose["mean"] == 0.35                                    # crossarm(0개)은 평균에서 빠진다
+    cross = next(r for r in pose["rows"] if r["name"] == "crossarm")
+    assert cross["absent"] and not cross["weak"] and not cross["few"]
+    obs, _ = classes.note(c)
+    assert "clamp" in obs and "0.350" in obs                       # box 평균(0.59)이 아니라 pose 평균

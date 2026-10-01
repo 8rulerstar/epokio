@@ -30,7 +30,7 @@ const KO = {
   "The token did not work.": "토큰이 맞지 않습니다.", "The token stopped working.": "토큰이 더 이상 맞지 않습니다.",
   // 학습 기록
   "Can't reach Epokio on this machine.": "이 기계의 Epokio에 연결되지 않습니다.",
-  "Is the helper running? On Windows, start Epokio from the Start menu or the tray.": "도우미가 켜져 있는지 확인하세요. 윈도우에서는 시작 메뉴나 트레이에서 Epokio를 켜세요.",
+  "Is the helper running? On Windows, look for the Epokio icon under ^ at the right end of the taskbar, or run Epokio.exe again.": "도우미가 켜져 있는지 확인하세요. 윈도우에서는 작업 표시줄 오른쪽 ^ 안의 Epokio 아이콘을 확인하거나, Epokio.exe를 다시 실행하세요.",
   "No training runs found yet.": "아직 찾은 학습이 없습니다.",
   "Add the folder where your runs are saved (the one that holds <code>runs</code>, or <code>runs</code> itself).": "학습 결과가 저장되는 폴더를 추가하세요(<code>runs</code>가 들어 있는 폴더나 <code>runs</code> 폴더 자체).",
   "Add folder": "폴더 추가",
@@ -62,7 +62,7 @@ const KO = {
   // 알림
   "Training finished": "학습 완료", "Training failed": "학습 실패", "Training may have stopped": "학습이 멈춘 것 같음",
   "Stopped before the last epoch": "마지막 에폭 전에 끝남", "Training started": "학습 시작", "Job finished": "작업 완료", "Job failed": "작업 실패",
-  "Goal reached": "목표 점수 달성", "Disk almost full": "디스크 공간 부족", "GPU is very hot": "GPU가 매우 뜨거움", "Fans at full speed": "팬이 최고 속도로 돎", "Per class": "클래스별", "Machine while training": "학습하는 동안의 기계", "Predictions by epoch": "에폭별 예측", "data version": "데이터 버전", "What changed in the data": "데이터에서 바뀐 것", "The data changed after this run trained": "이 학습 뒤에 데이터가 바뀌었음", "Data v{n} of {of}": "데이터 v{n} / {of}", "Data {fp}": "데이터 {fp}", "Save predictions every 5 epochs": "5에폭마다 예측 사진 저장", "Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time.": "5에폭마다 검증 이미지 4장을 CPU로 예측해 모델이 배우는 과정을 볼 수 있게 합니다. 한 번에 1~2초 걸립니다.", "The same validation images, predicted as training went on. Drag to compare.": "같은 검증 이미지를 학습이 진행되며 예측한 것입니다. 끌어서 비교하세요.", "GPU memory": "GPU 메모리", "{n} min": "{n}분",
+  "Goal reached": "목표 점수 달성", "Disk almost full": "디스크 공간 부족", "GPU is very hot": "GPU가 매우 뜨거움", "Fans at full speed": "팬이 최고 속도로 돎", "Per class": "클래스별", "not in validation set": "검증셋에 없음", "Filter": "거르기", "Tags": "태그", "Updated": "갱신", "Select {name}": "{name} 고르기", "Python": "파이썬", "Epoch": "에폭", "Machine while training": "학습하는 동안의 기계", "Predictions by epoch": "에폭별 예측", "data version": "데이터 버전", "What changed in the data": "데이터에서 바뀐 것", "The data changed after this run trained": "이 학습 뒤에 데이터가 바뀌었음", "Data v{n} of {of}": "데이터 v{n} / {of}", "Data {fp}": "데이터 {fp}", "Save predictions every 5 epochs": "5에폭마다 예측 사진 저장", "Predicts 4 validation images on the CPU every 5 epochs, so you can watch the model learn. Costs a second or two each time.": "5에폭마다 검증 이미지 4장을 CPU로 예측해 모델이 배우는 과정을 볼 수 있게 합니다. 한 번에 1~2초 걸립니다.", "The same validation images, predicted as training went on. Drag to compare.": "같은 검증 이미지를 학습이 진행되며 예측한 것입니다. 끌어서 비교하세요.", "GPU memory": "GPU 메모리", "{n} min": "{n}분",
   "Recorded every 15 seconds while this run trained. Averages below.": "학습하는 동안 15초마다 기록했습니다. 아래는 평균입니다.",
   "Other runs trained at the same time, so these are shared numbers.": "같은 시간에 다른 학습도 돌아서, 함께 쓴 값입니다.", "GPU temperature": "GPU 온도", "SoC temperature": "SoC 온도", "Class": "클래스", "Examples": "사례", "few": "적음",
   "Which classes pull the score down. Runs Epokio starts save this at the end; for this one it takes one validation pass with best.pt.": "어느 클래스가 점수를 끌어내리는지 봅니다. Epokio로 시작한 학습은 끝날 때 저장하고, 이 학습은 best.pt로 검증을 한 번 돌리면 됩니다.",
@@ -153,7 +153,25 @@ const KO = {
 /// 화면 문장. {이름} 자리는 vars에서 채운다. 표에 없으면 영어 그대로
 function t(s, vars) {
   const out = LANG === "ko" && KO[s] != null ? KO[s] : s;
-  return vars ? out.replace(/\{(\w+)\}/g, (m, k) => k in vars ? String(vars[k]) : m) : out;
+  const filled = vars ? out.replace(/\{(\w+)\}/g, (m, k) => k in vars ? String(vars[k]) : m) : out;
+  return LANG === "ko" ? josa(filled) : filled;
+}
+/// 한국어 조사: 번역문의 '이(가)·은(는)·을(를)·과(와)·(으)로'를 앞 글자 받침으로 고른다(agent의 msg.josa와 같은 규칙).
+/// ★'{name}과(와)'·'{change}을(를)'이 괄호째 화면에 나왔다
+function josa(s) {
+  const DIGIT = { 0: 1, 1: 2, 2: 0, 3: 1, 4: 0, 5: 0, 6: 1, 7: 2, 8: 2, 9: 0 }, LATIN = { l: 2, r: 2, m: 1, n: 1 };
+  const bat = (c) => {
+    const k = c.charCodeAt(0) - 0xac00;
+    if (k >= 0 && k < 11172) { const j = k % 28; return j === 0 ? 0 : j === 8 ? 2 : 1; }
+    if (c >= "0" && c <= "9") return DIGIT[c];
+    return LATIN[c.toLowerCase()] || 0;
+  };
+  const PAIR = { "이(가)": ["이", "가"], "은(는)": ["은", "는"], "을(를)": ["을", "를"], "과(와)": ["과", "와"] };
+  return s.replace(/(\S*?[^\s(])(이\(가\)|은\(는\)|을\(를\)|과\(와\)|\(으\)로)/g, (m, before, p) => {
+    const last = [...before].reverse().find((c) => /[0-9A-Za-z가-힣]/.test(c)) || "";
+    const b = last ? bat(last) : 0;
+    return before + (p === "(으)로" ? (b === 0 || b === 2 ? "로" : "으로") : PAIR[p][b ? 0 : 1]);
+  });
 }
 /// 영어는 같은데 한국어가 자리에 따라 다른 말(예: 상태 "Training"=학습 중, 작업 종류 "Training"=학습). 키는 "자리|영어"
 const tc = (ctx, s, vars) => t(LANG === "ko" && KO[ctx + "|" + s] != null ? ctx + "|" + s : s, vars);

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.4 (2026-10-01)
+
+- **Fix: a run still training was explained as finished.** A run at epoch 60 of 100 was told "best at epoch 60 of 60, train longer". Runs in progress now say *Still training: epoch 60 of 100* and the best score so far, and notes that only make sense at the end (still improving, plateau, early best) wait until it ends. Finished runs count against the planned epochs.
+- **Fix: TensorBoard runs that log `epoch` from 1** were shifted by one ("epoch 21 of 20").
+- **Fix: your own CSV logs** now also read the planned epochs from a config next to them, so they show progress and turn *done*.
+- **Per-class notes for pose and segmentation runs** talk about the pose or mask scores, not the box ones. Classes with no examples in the validation set are left out of the average and marked *not in validation set*.
+- **Double-clicking `Epokio.exe` opens the web page** as well as the tray icon (starting at login does not).
+- Korean: particles after numbers and names are chosen by sound ("4.860으로", "mAP50-95가"), instead of fixed or shown as "이(가)". The few English labels left in the Korean web page are translated.
+- `datasets/` and two stray files that slipped into 0.5.0 to 0.5.3 are removed.
+- **TensorBoard runs over SSH.** The SSH view now brings back TensorBoard logs (and Keras-style `train/`, `validation/` folders) and saved configs, not only CSV and JSON logs.
+- **Progress for more logs.** The planned epochs are read from a config saved next to the log (`args.yaml/json`, `config.yaml/json`, `hparams.yaml`, `opt.yaml`), so MAE/DeiT `log.txt` and TensorBoard runs can show progress and time left.
+- README: a quick start for Mac, Windows and Linux on the first screen; SSH requirements spelled out; which logs are not shown yet (step-only); the comparison table without unsourced prices, with what trackers do better and how to use Epokio alongside one; the Train tab's downloads in the privacy table; uninstall on Windows and Linux. The Korean section now starts with Windows steps and names menu items as they appear in Korean.
+
 ## 0.5.3 (2026-10-01)
 
 - Runs from other frameworks no longer show *Where it came from* and *Put in use* with a note that `best.pt` is missing. Those are about Ultralytics weights and now appear only for runs that have them.

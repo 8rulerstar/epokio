@@ -25,7 +25,7 @@ def _row(tl, m, vl, lr=0.001):
 def test_good_run_still_improving(tmp_path):
     r = explain.explain(_run(tmp_path))
     assert r["kind"] == "still_improving"
-    assert "0.700" in r["text"] and "epoch 6 of 6" in r["text"]
+    assert "0.700" in r["text"] and "epoch 6 of 10" in r["text"]           # 계획 에폭(args.yaml epochs: 10). ★기록된 줄 수(6)를 썼다
 
 
 def test_overfit(tmp_path):
@@ -206,3 +206,10 @@ def test_no_learning_rate_claim_without_a_record(tmp_path):
     a = analysis.analyze(d)
     todo = dict(zip([k["kind"] for k in a.kinds], [t for _, t in a.notes]))["still_improving"]
     assert "learning rate" not in todo and "more epochs" in todo
+
+
+def test_a_run_still_training_is_not_told_to_train_longer(tmp_path):
+    """★진행 중인 DeiT 60/100에 '60에폭 중 60에폭이 최고, 에폭을 늘려라'라고 했다"""
+    r = explain.explain(_run(tmp_path), status="running")
+    assert r["status"] == "running" and r["text"].startswith("Still training: epoch 6 of 10.")
+    assert "so far" in r["text"] and r["kind"] != "still_improving" and "more epochs" not in r["text"]

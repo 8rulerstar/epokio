@@ -15,7 +15,7 @@ from . import analysis, msg
 
 # 여러 해설이 겹치면 먼저 말할 것. 발산이 있으면 나머지 해설은 의미가 약하다
 _PRIORITY = ["diverged", "nan_recovered", "overfit", "still_improving", "early_best", "loss_rise", "misses", "false_alarms"]
-STATUSES = ("finished", "failed", "stalled")
+STATUSES = ("finished", "failed", "stalled", "running")
 
 
 def _main_score(a) -> tuple[str, float, int] | None:
@@ -48,14 +48,24 @@ def explain(run_dir: Path, status: str = "finished", args: dict | None = None,
         best = run_dir / "weights" / "best.pt"
         weights = str(best) if best.exists() else None
 
+    from .scan import read_run
+    r = read_run(run_dir)
+    total = r.total if r and r.total else None               # 계획 에폭. ★'몇 에폭 중'에 기록된 줄 수를 써서 60/100이 '60 of 60'이 됐다
+    if status == "running":
+        a = analysis.without_end_notes(a)
     parts: list[str] = []
-    if status == "failed":
+    if status == "running":
+        parts.append(msg.tr("Still training: epoch {e} of {n}.", e=a.epochs, n=total or "?"))
+    elif status == "failed":
         parts.append(msg.tr("Training failed after {n} epochs.", n=a.epochs))
     elif status == "stalled":
         parts.append(msg.tr("Training seems to have stopped after {n} epochs.", n=a.epochs))
     sc = _main_score(a)
-    if sc:
-        parts.append(msg.tr("Best {metric} was {v:.3f} at epoch {e} of {n}.", metric=sc[0], v=sc[1], e=sc[2], n=a.epochs))
+    if sc and status == "running":
+        parts.append(msg.tr("Best {metric} so far is {v:.3f}, at epoch {e}.", metric=sc[0], v=sc[1], e=sc[2]))
+    elif sc:
+        parts.append(msg.tr("Best {metric} was {v:.3f} at epoch {e} of {n}.", metric=sc[0], v=sc[1], e=sc[2],
+                            n=max(total or 0, a.epochs)))
 
     order = sorted(range(len(a.notes)),
                    key=lambda i: _PRIORITY.index(a.kinds[i].get("kind")) if a.kinds[i].get("kind") in _PRIORITY else 99)

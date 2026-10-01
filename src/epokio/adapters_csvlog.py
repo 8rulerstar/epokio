@@ -7,7 +7,7 @@ from pathlib import Path
 import csv
 import io
 
-from .adapters_base import Adapter, Loaded, _num, _read_csv, _yaml_value, metric_column
+from .adapters_base import Adapter, Loaded, _num, _read_csv, _yaml_value, epochs_nearby, metric_column
 
 
 class Lightning(Adapter):
@@ -190,6 +190,7 @@ class CsvLog(Keras):
         # timm train.py 가 남기는 두 파일. utils/summary.py update_summary: epoch, train_*, eval_*, lr(원본 대조 2026-09-30)
         if f.name == "summary.csv" and (d / "args.yaml").exists():
             got.framework = "timm"
+        got.total = got.total or epochs_nearby(d)          # ★README엔 '옆 설정에서 찾는다'고 써 놓고 CSV에는 빠져 있었다
         return got
 
 
@@ -230,4 +231,4 @@ class JsonLines(Adapter):
         if not raw:
             return None
         eps = [int(float(r["epoch"])) for r in raw if "epoch" in r]
-        return Loaded(self.name, _epoch_rows(raw, 1 if eps and min(eps) == 0 else 0), f)
+        return Loaded(self.name, _epoch_rows(raw, 1 if eps and min(eps) == 0 else 0), f, total=epochs_nearby(d))

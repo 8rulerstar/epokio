@@ -62,15 +62,15 @@ function paintTable() {
   const dot = { running: "var(--good)", starting: "var(--good)", failed: "var(--bad)", stalled: "var(--warn)", done: "var(--brand)" };
   $("#main").innerHTML = `<div class="card" style="padding:14px">
     <div class="toolbar" style="margin:0 0 10px;flex-wrap:wrap">
-      <input id="tq" type="search" placeholder="Filter: lr0<0.01  batch>=16  tag:sample  coco" value="${esc(T.q)}" style="flex:1;min-width:200px"
+      <input id="tq" type="search" placeholder="${esc(t("Filter"))}: lr0<0.01  batch>=16  tag:sample  coco" value="${esc(T.q)}" style="flex:1;min-width:200px"
         title="name or text, key<value · key>=value · key=value · key!=value, tag:name. All must match.">
       <span class="hint" style="margin:0">${rows.length} of ${d.rows.length}</span>
       <button class="btn primary" id="tcmp" ${T.sel.size >= 2 && T.sel.size <= T_MAX ? "" : "disabled"}>Compare ${T.sel.size}</button>
     </div>
     <div style="overflow-x:auto"><table class="runs-table"><tr><th></th>${head("name", "Run")}${head("best", "Score")}${head("epoch", "Epochs")}
-      ${d.keys.map((k) => head(k, k)).join("")}<th>Tags</th>${head("idle", "Updated")}</tr>
+      ${d.keys.map((k) => head(k, k)).join("")}<th>${t("Tags")}</th>${head("idle", t("Updated"))}</tr>
       ${rows.map((r) => `<tr class="pick" data-path="${esc(r.path)}">
-        <td><input type="checkbox" class="tsel" ${T.sel.has(r.path) ? "checked" : ""} aria-label="Select ${esc(tName(r))}"></td>
+        <td><input type="checkbox" class="tsel" ${T.sel.has(r.path) ? "checked" : ""} aria-label="${esc(t("Select {name}", { name: tName(r) }))}"></td>
         <td><span class="dot" style="display:inline-block;margin:0 6px 0 0;--c:${dot[r.state] || "var(--soft)"}"></span>${r.star ? "⭐ " : ""}${esc(tName(r))}</td>
         <td class="num" style="${top != null && r.best === top ? "color:var(--brand);font-weight:600" : ""}">${r.best != null ? r.best.toFixed(4) : "–"}</td>
         <td class="num">${r.epoch}/${r.total ?? "?"}</td>

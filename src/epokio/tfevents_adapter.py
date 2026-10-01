@@ -83,7 +83,7 @@ class TensorBoard:                      # adapters.Adapter 모양(서로 import�
 
     def load(self, d):
         from . import tfevents as _tf   # 안에서 import: 어느 쪽을 먼저 불러도 순환이 안 깨지게
-        from .adapters_base import Loaded, _num, _yaml_value
+        from .adapters_base import Loaded, _num, epochs_nearby
         try:
             files = _files(d, {p.name for p in d.iterdir()})
         except OSError:
@@ -105,6 +105,8 @@ class TensorBoard:                      # adapters.Adapter 모양(서로 import�
         keras = any(t.lower().startswith("epoch_") for t in tags)
         epochs = sorted((s, v) for _, s, t, v, _ in evs if t == epoch_tag) if epoch_tag else []
         mode = "epoch" if epoch_tag or keras else "step"
+        # Lightning은 epoch를 0부터 적는다. 직접 1부터 적은 기록에 +1을 하면 '20에폭 중 21에폭'이 됐다
+        zero_based = bool(epochs) and min(v for _, v in epochs) == 0
 
         def x_of(step: int) -> int:
             if keras and not epoch_tag:
@@ -118,7 +120,7 @@ class TensorBoard:                      # adapters.Adapter 모양(서로 import�
                 if last is None:
                     return 1
                 if epoch_tag == "epoch" and float(last).is_integer():
-                    return int(last) + 1                     # Lightning: 0부터 세는 '지금 도는 에폭'
+                    return int(last) + 1 if zero_based else max(1, int(last))   # Lightning: 0부터 세는 '지금 도는 에폭'
                 return max(1, math.ceil(last))               # HF train/epoch: 0.5·1.0 → 1
             return step
 
@@ -141,14 +143,7 @@ class TensorBoard:                      # adapters.Adapter 모양(서로 import�
         args = {"x_axis": mode}
         if epoch_tag:
             args["epoch_tag"] = epoch_tag
-        total = None                                         # Lightning hparams.yaml의 계획 에폭
-        try:
-            hp = (d / "hparams.yaml").read_text(encoding="utf-8", errors="ignore") if (d / "hparams.yaml").exists() else ""
-        except OSError:
-            hp = ""
-        v = hp and (_yaml_value(hp, "max_epochs") or _yaml_value(hp, "num_train_epochs") or _yaml_value(hp, "epochs"))
-        if v and v.replace(".", "", 1).isdigit():
-            total = int(float(v))
+        total = epochs_nearby(d)                            # Lightning hparams.yaml, 또는 같은 폴더의 args·config
         done = None                                          # HF: 소수 에폭이라 줄의 에폭(올림)과 끝낸 에폭(내림)이 다르다
         if epoch_tag == "train/epoch" and epochs:
             done = int(math.floor(max(v for _, v in epochs) + 1e-6))

@@ -1359,3 +1359,4 @@
 "Ended" = "Beendet";
 "Ended at epoch %d. This log does not say how many epochs were planned." = "Bei Epoche %d beendet. Dieses Protokoll nennt nicht, wie viele Epochen geplant waren.";
 "GPU fan speed" = "GPU-Lüfterdrehzahl";
+"not in validation set" = "nicht in der Validierung";

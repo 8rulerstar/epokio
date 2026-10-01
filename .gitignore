@@ -22,3 +22,6 @@ mac/.swiftpm/
 
 # 도구가 만드는 격리 작업 공간(worktree). 저장소 내용이 아니다
 .claude/
+
+# 학습 검증 때 Ultralytics가 작업 폴더에 내려받는 예제 데이터(★0.5.0~0.5.3 공개본에 coco8이 들어갔다)
+datasets/

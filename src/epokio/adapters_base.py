@@ -95,3 +95,37 @@ _LOWER = re.compile(r"(^|_)(mae|mse|rmse|msle|mape|error|err|perplexity|wer|cer|
 
 def metric_column(key: str, val_side: bool) -> str:
     return f"{'val' if val_side else 'train'}/{key}_loss" if _LOWER.search(key) else f"metrics/{key}"
+
+
+_EPOCH_KEYS = ("epochs", "max_epochs", "num_epochs", "num_train_epochs", "n_epochs")
+_CONFIG_FILES = ("args.yaml", "args.json", "config.yaml", "config.json", "hparams.yaml", "opt.yaml")
+
+
+def epochs_nearby(d: Path) -> int | None:
+    """같은 폴더의 설정 파일에서 계획 에폭. 없으면 None(진행률·남은 시간을 못 낸다).
+    ★MAE·DeiT log.txt, Lightning TensorBoard 기록은 에폭 수를 스스로 남기지 않아 진행률이 늘 비었다"""
+    import json
+    for n in _CONFIG_FILES:
+        f = d / n
+        try:
+            if not f.is_file() or f.stat().st_size > 2_000_000:
+                continue
+            text = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if n.endswith(".json"):
+            try:
+                obj = json.loads(text)
+            except ValueError:
+                continue
+            vals = [obj.get(k) for k in _EPOCH_KEYS] if isinstance(obj, dict) else []
+        else:
+            vals = [_yaml_value(text, k) for k in _EPOCH_KEYS]
+        for v in vals:
+            try:
+                if v is not None and float(v) > 0:
+                    return int(float(v))
+            except (TypeError, ValueError):
+                continue
+    return None
+
