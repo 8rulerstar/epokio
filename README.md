@@ -186,7 +186,11 @@ Settings, Keychain items, Windows and Linux steps: [docs/uninstall.md](docs/unin
 ## Status
 
 The features above work today and have automated tests, and [CHANGELOG.md](CHANGELOG.md) lists what
-changed in each version. Bug reports and ideas are welcome as issues. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a
+changed in each version. Bug reports and ideas are welcome as issues.
+
+**Using Epokio?** A line in [Discussions](https://github.com/8rulerstar/epokio/discussions/categories/show-and-tell) about what you train with it helps more than you would think, even if nothing is wrong.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a
 pull request, and [docs/DESIGN.md](docs/DESIGN.md) for how the pieces fit together.
 
 The Mac app speaks English, Korean, Japanese, Chinese (Simplified and Traditional), Spanish, French, German, Portuguese (Brazil) and Vietnamese. Corrections are welcome as issues. It follows your Mac's language (or pick one in Settings → General). The web page speaks English and Korean and follows your browser, with a language button at the top.
