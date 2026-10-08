@@ -1365,3 +1365,8 @@
 "No new step for a while." = "しばらく新しいステップがありません。";
 "Ended at step %@. This log does not say how many steps were planned." = "ステップ %@ で終了しました。このログには予定のステップ数がありません。";
 "Stopped at step %@ before the last one." = "最終ステップ前のステップ %@ で停止しました。";
+"Step" = "ステップ";
+"Steps" = "ステップ";
+"Epoch / step" = "エポック / ステップ";
+"Epochs / steps" = "エポック / ステップ";
+"%d large log files: only the last part was loaded" = "大きなログファイル %d 件：末尾部分のみ読み込みました";

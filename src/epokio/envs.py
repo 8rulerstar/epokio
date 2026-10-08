@@ -118,7 +118,7 @@ def _on_path() -> list[str]:
         launcher = shutil.which("py")
         if launcher:
             try:
-                r = subprocess.run([launcher, "-0p"], capture_output=True, text=True, timeout=5,
+                r = subprocess.run([launcher, "-0p"], capture_output=True, text=True, errors="replace", timeout=5,   # 못 푸는 글자에 목록 전체가 죽지 않게
                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 for line in r.stdout.splitlines():
                     i = line.lower().find(":\\")

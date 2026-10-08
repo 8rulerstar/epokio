@@ -1365,3 +1365,8 @@
 "No new step for a while." = "Đã lâu không có bước mới.";
 "Ended at step %@. This log does not say how many steps were planned." = "Kết thúc ở bước %@. Nhật ký này không ghi số bước dự định.";
 "Stopped at step %@ before the last one." = "Dừng ở bước %@ trước bước cuối.";
+"Step" = "Bước";
+"Steps" = "Bước";
+"Epoch / step" = "Epoch / bước";
+"Epochs / steps" = "Epoch / bước";
+"%d large log files: only the last part was loaded" = "%d tệp nhật ký lớn: chỉ tải phần cuối";

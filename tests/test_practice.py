@@ -1,5 +1,6 @@
 """연습 학습: 진짜 학습과 같은 모양으로 기록하고, fail 모양은 실패로 끝나며, 값 범위를 좁힌다"""
 import subprocess
+from pathlib import Path
 import sys
 
 from epokio import practice, schema
@@ -10,7 +11,7 @@ def _run(tmp_path, monkeypatch, **p):
     src, out = practice.script({"seconds": 0.2, "epochs": 4, **p})
     f = tmp_path / "s.py"; f.write_text(src)
     r = subprocess.run([sys.executable, str(f)], capture_output=True, text=True, timeout=30)
-    return r, tmp_path / out.split("/")[-1]
+    return r, Path(out)                       # out은 이미 DIR 아래 전체 경로. 윈도우 경로는 "/"로 안 잘린다
 
 
 def test_good_run_writes_results_like_ultralytics(tmp_path, monkeypatch):

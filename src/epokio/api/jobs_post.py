@@ -4,7 +4,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .. import envs, msg, rundetail, runmeta
+from .. import autostart, envs, msg, rundetail, runmeta
 from ..inputs import python_ok
 from ..jobs import EXPORT_FORMATS
 from ..textnorm import resolve
@@ -96,7 +96,7 @@ def post(agent, route: str, body: dict):
     if route != "/jobs":
         return NOT_MINE
     if getattr(getattr(agent, "queue", None), "locked_out", False):
-        return 409, {"error": msg.tr("Another Epokio helper on this machine runs the queue. Stop it first (epokio agent --stop).")}
+        return 409, {"error": msg.tr("Another Epokio helper on this machine runs the queue. Stop it first ({cmd}).", cmd=autostart.cli("agent --stop"))}
     kind = body.get("kind")
     if kind not in ("train", "autolabel", "evaluate", "script", "setup", "export", "practice"):
         return 400, {"error": "kind must be train, autolabel, evaluate, script, setup, export or practice"}

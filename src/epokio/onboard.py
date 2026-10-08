@@ -25,6 +25,7 @@ import urllib.request
 from pathlib import Path
 
 from . import auth, autostart
+from .autostart import cli
 from .discover import find_roots, remember_roots, saved_roots
 
 PORT = 8787
@@ -216,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
             if add_roots_live(a.port, roots):
                 print("  Added the folder to it.")
             else:
-                print("  It did not take the folder. Restart it:  epokio agent --stop  then  epokio setup")
+                print(f"  It did not take the folder. Restart it:  {cli('agent --stop')}  then  {cli('setup')}")
     elif via_systemd:
         # ★여기서 띄우고 아래 systemd 서비스도 켜면 같은 포트에 둘이 떠서 서비스가 '실패'로 끝났다. systemd가 띄우게 둔다
         print("  The helper will be started by systemd (see below).")
@@ -225,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
         start_agent(roots, host, a.port)
         if not wait_for_agent(a.port):
             print("\n  The helper did not answer. Run this to see why:")
-            print(f"    epokio agent --port {a.port}")
+            print(f"    {cli('agent')} --port {a.port}")
             return 1
         print("  Started.")
 
@@ -253,13 +254,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  A helper is already running on port {a.port}. Stop it first, or the service cannot start.")
         elif not getattr(sys, "frozen", False) and importlib.util.find_spec("pystray") is None:
             # ★트레이 패키지 없이 켜 두면 로그인 때 트레이가 조용히 꺼져, 재부팅 뒤 아무것도 안 돌았다
-            print("  The tray needs one more package. Run:  python -m pip install \"epokio[tray]\"")
+            print("  The tray needs one more package. Run:  " + autostart.pip_cmd('"epokio[tray]"'))
             print("  then run setup again with --autostart.")
         else:
             try:
                 autostart.enable()
                 print("  The tray will start when you log in.")
-                print("    turn it off with:  epokio autostart --off")
+                print(f"    turn it off with:  {cli('autostart --off')}")
             except OSError as e:
                 print(f"  Could not set start at login: {e}")
 
@@ -294,13 +295,13 @@ def main(argv: list[str] | None = None) -> int:
         webbrowser.open(auth.page_url(url))        # 학습·대기열 탭이 잠금 없이 열린다
 
     if headless():                                   # 화면 없는 서버엔 트레이가 없다
-        print("\n  Next:  epokio watch    progress in this terminal")
+        print(f"\n  Next:  {cli('watch')}    progress in this terminal")
     elif sys.platform == "darwin":                    # ★맥에서도 트레이를 권했다. 트레이는 윈도우·리눅스용이고 맥은 메뉴바 앱이다
         print("\n  Next:  the Mac app (menu bar), see the README")
-        print("         epokio watch    progress in this terminal")
+        print(f"         {cli('watch')}    progress in this terminal")
     else:
-        print("\n  Next:  epokio tray     a tray icon with progress")
-        print("         epokio watch    the same thing in a terminal")
+        print(f"\n  Next:  {cli('tray')}     a tray icon with progress")
+        print(f"         {cli('watch')}    the same thing in a terminal")
     return 0
 
 
@@ -324,7 +325,7 @@ def autostart_main(argv: list[str] | None = None) -> int:
     if a.on and headless() and sys.platform.startswith("linux"):
         # ★화면 없는 서버에 트레이 바로 가기를 만들고 "로그인 때 뜬다"고 했지만 영영 안 떴다(setup은 이미 고쳤다)
         print("This machine has no desktop, so a tray cannot start here. Use a systemd service instead:")
-        print("  epokio setup --autostart")
+        print(f"  {cli('setup --autostart')}")
         return 1
     if a.on:
         p = autostart.enable()
@@ -333,5 +334,5 @@ def autostart_main(argv: list[str] | None = None) -> int:
         print("Off." if autostart.disable() else "It was not on.")
     else:
         print(f"{'On' if autostart.enabled() else 'Off'}.  ({autostart.entry()})")
-        print("  epokio autostart --on    /    --off")
+        print(f"  {cli('autostart --on')}    /    --off")
     return 0

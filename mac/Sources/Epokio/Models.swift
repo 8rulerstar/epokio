@@ -221,6 +221,8 @@ struct InboxItem: Codable, Identifiable, Hashable {
     let total: Int?
     let date: Date
     var read = false
+    var xAxis: String? = nil   // "step"이면 epoch·total이 step 번호. 옛 저장본엔 없다(nil = epoch)
+    var isStepAxis: Bool { xAxis == "step" }
 
     var title: String {
         switch kind {

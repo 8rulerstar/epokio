@@ -12,7 +12,7 @@ import json
 import secrets
 from pathlib import Path
 
-from . import config, envs, jsonfile, msg, rundetail, runmeta
+from . import autostart, config, envs, jsonfile, msg, rundetail, runmeta
 from .jobs import Queue
 from .watcher import Watcher
 from .scan import scan, unique
@@ -318,7 +318,7 @@ class Agent(Watcher):
                 self._scanned = None      # 대표 점수가 바뀌면 다시 훑는다(★감시 스레드의 다음 차례까지 옛 점수가 보였다)
             return 200, {"meta": runmeta.update(p, {k: v for k, v in body.items() if k != "path"})}
         if route.startswith("/jobs/") and getattr(getattr(self, "queue", None), "locked_out", False):
-            return 409, {"error": msg.tr("Another Epokio helper on this machine runs the queue. Stop it first (epokio agent --stop).")}
+            return 409, {"error": msg.tr("Another Epokio helper on this machine runs the queue. Stop it first ({cmd}).", cmd=autostart.cli("agent --stop"))}
         parts = route.strip("/").split("/")
         if len(parts) == 3 and parts[0] == "jobs":
             _, jid, action = parts

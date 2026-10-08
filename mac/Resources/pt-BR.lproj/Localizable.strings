@@ -1373,3 +1373,8 @@
 "No new step for a while." = "Nenhum passo novo há algum tempo.";
 "Ended at step %@. This log does not say how many steps were planned." = "Terminou no passo %@. Este registro não diz quantos passos estavam planejados.";
 "Stopped at step %@ before the last one." = "Parou no passo %@, antes do último.";
+"Step" = "Passo";
+"Steps" = "Passos";
+"Epoch / step" = "Época / passo";
+"Epochs / steps" = "Épocas / passos";
+"%d large log files: only the last part was loaded" = "%d arquivos de log grandes: só a parte final foi carregada";

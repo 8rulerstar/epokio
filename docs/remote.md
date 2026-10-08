@@ -7,10 +7,18 @@
 Train on a Windows or Linux machine, watch from your Mac.
 
 ```bash
-# on the training machine
+# on a Linux training machine
 pip install epokio
 epokio setup --lan --autostart
 ```
+
+```powershell
+# on a Windows training machine (Python installed with "Add python.exe to PATH")
+py -m pip install "epokio[tray]"
+py -m epokio setup --lan --autostart
+```
+
+No Python on Windows: run `Epokio.exe setup --lan --autostart` instead.
 
 `epokio setup` finds your training folders, starts the helper without a console window, prints the
 token to paste into the Mac app, and opens the page. `--lan` lets other machines on your network
@@ -24,8 +32,10 @@ and key-based login (no password or one-time-code prompts). Nothing is written o
 It looks under your home folder; add other paths such as `/scratch/you/runs` under *Other folders* in the same settings. Hosts from `~/.ssh/config`,
 including `ProxyJump`, go through your own `ssh`. Over SSH it reads the file names the supported formats use
 (`results.csv`, `log.txt`, `summary.csv`, `metrics.csv`, `trainer_state.json`, TensorBoard and W&B files and a few more),
-not any CSV name, and skips log files over 4 MB (20 MB for TensorBoard and W&B). This is view only: to start
-training there, install the helper as above.
+not any CSV name. The size limit is 4 MB for text logs and 20 MB for TensorBoard and W&B files (for a file it already has,
+the limit applies to the new part). A growing text log over the limit keeps its first line and the last 4 MB, then keeps
+appending. TensorBoard, W&B and config files over the limit are skipped. The Mac app and the web page's SSH panel say
+how many files were skipped or cut. This is view only: to start training there, install the helper as above.
 
 Without `--lan` the helper listens on this machine only, which is what you want if you just came
 for the web page and the tray.
@@ -74,6 +84,17 @@ py -m epokio setup --autostart
 
 (If typing `epokio` says "not recognized", use `py -m epokio` instead; it is the same command.)
 
+That finds your training folders, starts the helper with no console window, opens the page already
+unlocked, and makes the tray come back when you log in. With `--lan`, Windows asks whether Python may
+use the network: tick **Private networks** and click **Allow**, or your phone cannot connect. Turn that last part off again with
+`py -m epokio autostart --off`, or from the tray menu (*Start when I log in*). The entry is an ordinary
+shortcut in your Startup folder (`shell:startup` in the Run box), so you can also just delete it.
+
+**`Epokio.exe` without Python** accepts `setup`, `autostart`, `agent` and `tray`. In PowerShell, in the folder
+that holds it: `.\Epokio.exe setup --lan --autostart`, `.\Epokio.exe autostart --off`,
+`.\Epokio.exe agent --show-token`, `.\Epokio.exe agent --add-token alex --scope read`, `.\Epokio.exe agent --stop`.
+`doctor`, `alerts` and `watch` need `py -m pip install epokio`.
+
 **On a Linux server (Ubuntu 22.04 or 24.04, no desktop, over SSH):** on 24.04 the system `pip` refuses to install
 (PEP 668), so use a small virtual environment (on 22.04 it is optional but still tidy):
 
@@ -92,14 +113,10 @@ network only: `sudo ufw allow from 192.168.0.0/16 to any port 8787 proto tcp`. R
 folder (`/data`, `/mnt`, `/workspace`) are not found on their own, so pass `--root`. To log from your
 own training code with `epokio.start`, install Epokio into the **training** environment too.
 
-That finds your training folders, starts the helper with no console window, opens the page already
-unlocked, and makes the tray come back when you log in. With `--lan`, Windows asks whether Python may
-use the network: tick **Private networks** and click **Allow**, or your phone cannot connect. Turn that last part off again with
-`epokio autostart --off`, or from the tray menu (*Start when I log in*). The entry is an ordinary
-shortcut in your Startup folder, so you can also just delete it.
+## What you get without a Mac
 
-The label editor and starting auto-label jobs are in the Mac app. Everything else here works
-without one:
+The label editor and starting auto-label jobs are in the Mac app. The web page, terminal view, tray and
+phone push below work without one.
 
 **Your own training loop.** Not using Ultralytics, Hugging Face, Lightning or Keras? Two lines make it show up like any other run:
 
@@ -123,7 +140,7 @@ Logging never stops your training, even when the file is busy. In multi-GPU trai
 * **Review and Sweeps:** rank validation images by score and mark what went wrong, or run a sweep and see which values led to the best score.
 * **Alerts:** turn on phone alerts (ntfy, Slack, Discord or Telegram) without the Mac app.
 
-On the training PC the page opens unlocked from the tray or setup. On another device it asks for the machine's token once (setup prints it with `--lan`, or run `py -m epokio agent --show-token`), and the token stays in that browser. Train finds the Python environments on the machine (conda, python.org installs, project `.venv`s) and builds its settings from that environment's own Ultralytics.
+On the training PC the page opens unlocked from the tray or setup. On another device it asks for the machine's token once (setup prints it with `--lan`, or run `py -m epokio agent --show-token`; `Epokio.exe agent --show-token` without Python), and the token stays in that browser. Train finds the Python environments on the machine (conda, python.org installs, project `.venv`s) and builds its settings from that environment's own Ultralytics.
 
 **A terminal view.** On a server over SSH:
 

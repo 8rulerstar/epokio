@@ -6,7 +6,8 @@
 """
 from __future__ import annotations
 
-from .msg import tr
+from .msg import reset_unit, set_unit, tr
+from .scan_names import x_count
 
 import shutil
 import time
@@ -80,8 +81,17 @@ def _review_section(rev: dict) -> list[str]:
 
 
 def _run_section(r: Run, a: Analysis | None, asset_dir: Path | None, rev: dict | None = None, n: int = 0) -> list[str]:
+    # step 축 학습은 'epoch' 낱말을 'step'으로(진행·최고 지점 머리글). ★예전엔 step 학습도 'epoch 12000'이라 적었다
+    tok = set_unit(getattr(r, "x_axis", "epoch"))
+    try:
+        return _run_body(r, a, asset_dir, rev, n)
+    finally:
+        reset_unit(tok)
+
+
+def _run_body(r: Run, a: Analysis | None, asset_dir: Path | None, rev: dict | None, n: int) -> list[str]:
     out = [f"### {display_name(r)}", "",
-           f"{tr(STATE_EN.get(r.state, r.state))} · {tr('epoch')} {r.epoch}/{r.total or '?'} · {r.source}", ""]
+           f"{tr(STATE_EN.get(r.state, r.state))} · {tr('epoch')} {x_count(r)} · {r.source}", ""]
     if a is None:
         return out + ["_No results yet._", ""] + (_review_section(rev) if rev else [])
     if a.heads:
@@ -147,12 +157,17 @@ def build(runs: list[Run], asset_dir: Path | None = None, reviews: dict | None =
             k = (2, 0.0)
         rows.append((k, r, h))
     rows.sort(key=lambda t: t[0])
+    # 진행 열 머리글: 전부 step 학습일 때만 Step(섞이면 Epoch 그대로, 칸의 숫자 모양으로 구분된다)
+    all_step = bool(runs) and all(getattr(r, "x_axis", "epoch") == "step" for r in runs)
+    tok = set_unit("step" if all_step else "epoch")
+    col = tr("Epoch")
+    reset_unit(tok)
     out += ["## " + tr("Leaderboard"), "",
-            f"| # | {tr('Run')} | {tr('State')} | {tr('Epoch')} | {tr('Score')} | **F1** | {tr('Precision')} | {tr('Recall')} | mAP50-95 | {tr('Trend')} |",
+            f"| # | {tr('Run')} | {tr('State')} | {col} | {tr('Score')} | **F1** | {tr('Precision')} | {tr('Recall')} | mAP50-95 | {tr('Trend')} |",
             "|---|---|---|---|---|---|---|---|---|---|"]
     for i, (_, r, h) in enumerate(rows, 1):
         score = f"{fmt(r.best)} {r.metric_name.split('/')[-1]}{' ↓' if getattr(r, 'lower', False) else ''}" if r.best is not None else "–"
-        out.append(f"| {i} | {display_name(r)} | {tr(STATE_EN.get(r.state, r.state))} | {r.epoch}/{r.total or '?'} | {score} | "
+        out.append(f"| {i} | {display_name(r)} | {tr(STATE_EN.get(r.state, r.state))} | {x_count(r)} | {score} | "
                    f"**{fmt(h.f1 if h else None)}** | {fmt(h.precision if h else None)} | "
                    f"{fmt(h.recall if h else None)} | {fmt(h.map5095 if h else None)} | "
                    f"`{spark(r.history)}` |")
@@ -161,16 +176,19 @@ def build(runs: list[Run], asset_dir: Path | None = None, reviews: dict | None =
     if bad:
         out += ["## " + tr("Needs attention"), ""]
         for r in bad:
+            tok = set_unit(getattr(r, "x_axis", "epoch"))
             why = tr("loss became NaN") if r.state == "failed" else tr("no new epoch for a while")
+            reset_unit(tok)
             out.append(f"* **{display_name(r)}** ({r.source}): {why}")
         out.append("")
 
     out += ["## " + tr("Runs"), ""]
     for n, (_, r, _) in enumerate(rows, 1):
         out += _run_section(r, analyses[id(r)], asset_dir, reviews.get(str(r.path)), n)
-    out += ["---",
-            "_" + tr(FOOTNOTE) + "_",
-            "", "_" + tr("Report generated with [Epokio](https://github.com/8rulerstar/epokio), a menu bar training monitor.") + "_", ""]
+    # ★분류(스텝 CSV 등) 학습에도 '검출 F1' 각주가 붙었다. F1을 실제로 낸 헤드가 있을 때만
+    has_f1 = any(h.f1 is not None for a in analyses.values() if a for h in a.heads)
+    out += ["---"] + (["_" + tr(FOOTNOTE) + "_", ""] if has_f1 else []) + [
+            "_" + tr("Report generated with [Epokio](https://github.com/8rulerstar/epokio), a menu bar training monitor.") + "_", ""]
     return "\n".join(out)
 
 

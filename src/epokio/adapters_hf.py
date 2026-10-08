@@ -55,6 +55,8 @@ class HuggingFace(Adapter):
             st = json.loads(sp.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
+        if not isinstance(st, dict):          # ★배열 등 다른 JSON이면 .get에서 죽었다
+            return None
         warns = []
         hist = st.get("log_history")
         if not isinstance(hist, list):

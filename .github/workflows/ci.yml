@@ -10,6 +10,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:   # release.yml이 태그마다 이 매트릭스 전체를 먼저 돌린다
 
 permissions:
   contents: read

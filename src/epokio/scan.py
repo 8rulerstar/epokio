@@ -1,7 +1,7 @@
 """results.csv를 읽어 학습 상태를 만든다. 순수 계산, 화면·네트워크와 무관."""
 from __future__ import annotations
 
-import math
+import logging
 import os
 import time
 import unicodedata
@@ -99,16 +99,9 @@ def _read_total_epochs(run_dir: Path) -> int | None:
 
 
 from .scan_names import alias_of_sibling, display_name, fmt_dur, unique  # noqa: E402,F401  (옛 import 경로 유지)
+from .scan_timing import _to_float, recent_epoch_sec, recent_unit_sec  # noqa: E402,F401
 
 _pick_metric = schema.pick_metric      # 옛 이름(윈도우 쪽 코드·시험이 부른다)
-
-
-def _to_float(v) -> float | None:
-    try:
-        x = float(v)
-    except (TypeError, ValueError):
-        return None
-    return None if math.isnan(x) or math.isinf(x) else x
 
 
 @dataclass
@@ -124,14 +117,8 @@ class _Parsed:
     diverged: bool
     history: list[float]
     lower: bool = False            # 대표 점수가 낮을수록 좋은가(= not metric_higher. 사람이 고른 방향 또는 열 이름으로 추정)
-    epoch_sec: float | None = None     # 최근 에폭 한 번에 걸린 시간(중앙값). 멈춤 판정·ETA가 쓴다
-
-
-def recent_epoch_sec(rows: list[dict], n: int = 10) -> float | None:
-    """최근 n에폭의 에폭당 시간 중앙값(누적 time 열의 차이). 시간 열이 없거나 2행 미만이면 None"""
-    ts = [t for t in (_to_float(r.get("time")) for r in rows[-(n + 1):]) if t is not None]
-    d = sorted(b - a for a, b in zip(ts, ts[1:]) if b > a)
-    return d[len(d) // 2] if d else None
+    epoch_sec: float | None = None     # 최근 기록 한 줄 사이의 시간(중앙값). 멈춤 판정이 쓴다
+    unit_sec: float | None = None      # 최근 에폭(step 축이면 step) 하나에 걸린 시간(중앙값). ETA가 쓴다
 
 
 def stall_limits(epoch_sec: float | None) -> tuple[float, float]:
@@ -269,7 +256,7 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
         metric_name=mname or "",
         metric_higher=not lower, lower=lower,
         best=best, best_epoch=best_epoch, diverged=diverged,
-        epoch_sec=recent_epoch_sec(rows),
+        epoch_sec=recent_epoch_sec(rows), unit_sec=recent_unit_sec(rows),
     )
     if not parsed.elapsed:                     # 시간 열이 없는 프레임워크: 폴더가 생긴 뒤 흐른 시간
         try:
@@ -326,7 +313,7 @@ def read_run(run_dir: Path, now: float | None = None) -> Run | None:
     idle = max(now - updated, 0.0)
     total = loaded.total
 
-    per = p.epoch_sec or ((p.elapsed / p.epoch) if p.epoch and p.elapsed else None)
+    per = p.unit_sec or ((p.elapsed / p.epoch) if p.epoch and p.elapsed else None)
     stale = _stale_after(p, total)
     ended = max(stall_limits(p.epoch_sec)[1], stale * 3)   # 끝남: 최근 에폭의 10배와 멎음 문턱의 3배 중 큰 쪽
     if p.diverged:
@@ -344,7 +331,7 @@ def read_run(run_dir: Path, now: float | None = None) -> Run | None:
 
     eta = None
     if state == "running" and total and per:
-        eta = per * max(total - p.epoch, 0)                  # 최근 에폭 기준(초반 느린 에폭에 끌려가지 않게)
+        eta = per * max(total - p.epoch, 0)                  # 최근 칸 기준(초반 느린 에폭에 끌려가지 않게)
 
     return Run(
         name=unicodedata.normalize("NFC", run_dir.name),
@@ -385,13 +372,23 @@ def sort_runs(runs: list[Run]) -> list[Run]:
     return sorted(runs, key=lambda r: (STATE_ORDER.get(r.state, 9), r.idle))
 
 
+_broken: set[Path] = set()      # 읽다 예외가 난 학습 폴더(경고는 한 번만)
+
+
 def scan(root: Path, now: float | None = None, max_depth: int = MAX_DEPTH) -> list[Run]:
     runs = []
     # 이 폴더 아래에서 사라진 학습의 요약은 버린다(★지운 학습이 캐시에 영원히 남았다)
     seen = set()
     for d in _walk(root, max_depth):
         seen.add(d)
-        r = read_run(d, now=now)
+        try:
+            r = read_run(d, now=now)
+        except Exception as ex:   # ★기록 하나가 깨지면 예외가 폴더 전체로 올라가 정상 학습까지 다 사라지고 "느림"으로 보였다
+            if d not in _broken:
+                _broken.add(d)
+                logging.getLogger("epokio").warning("skipped %s: %s: %s", d, type(ex).__name__, ex)
+            continue
+        _broken.discard(d)
         if r:
             runs.append(r)
     for gone in [d for d in _cache if d not in seen and root in d.parents]:

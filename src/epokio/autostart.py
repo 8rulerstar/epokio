@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 NAME = "Epokio"
 
@@ -57,6 +57,23 @@ def self_command(sub: str = "tray") -> list[str]:
         if quiet.exists():
             exe = quiet
     return [str(exe), "-m", f"epokio.{sub}"]
+
+
+def cli(rest: str = "") -> str:
+    """사용자가 터미널에 그대로 쳐서 되는 명령. ★윈도우에선 Scripts 폴더가 PATH에 없어 `epokio`가
+    '인식되지 않는 명령'이었고, exe 사용자에게는 epokio 명령 자체가 없었다"""
+    if getattr(sys, "frozen", False):
+        head = ".\\" + (PureWindowsPath(sys.executable).name or "Epokio.exe")   # PowerShell은 .\ 없이 현재 폴더 exe를 안 찾는다
+    elif sys.platform == "win32":
+        head = "py -m epokio"
+    else:
+        head = "epokio"
+    return f"{head} {rest}".strip()
+
+
+def pip_cmd(rest: str) -> str:
+    """pip 설치 안내. 윈도우는 py 런처, 그 밖은 python3 -m pip"""
+    return f"{'py' if sys.platform == 'win32' else 'python3'} -m pip install {rest}"
 
 
 def child_env() -> dict:
@@ -142,7 +159,7 @@ def _write_lnk(path: Path, exe: str, args: list[str]) -> None:
            "EPOKIO_ARGS": subprocess.list2cmdline(args), "EPOKIO_CWD": str(Path.home())}
     try:
         r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-                           capture_output=True, text=True, timeout=30, env=env,
+                           capture_output=True, text=True, errors="replace", timeout=30, env=env,
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))   # 트레이 메뉴에서 켤 때 창이 번쩍이지 않게
         if r.returncode == 0 and path.exists():
             return

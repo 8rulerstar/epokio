@@ -13,6 +13,11 @@ const LANG = (() => {
   return (s || navigator.language || "en").toLowerCase().startsWith("ko") ? "ko" : "en";
 })();
 const KO = {
+  // SSH 서버(ssh.js)
+  "SSH servers": "SSH 서버", "Read now": "지금 읽기", "Connected": "연결됨", "Could not connect": "연결하지 못함", "Not read yet": "아직 읽지 않음",
+  "read {d} ago": "{d} 전에 읽음", "{n} log files over the size limit were skipped": "크기 제한을 넘은 로그 파일 {n}개를 건너뛰었습니다",
+  "{n} large log files: only the last part was loaded": "큰 로그 파일 {n}개는 끝부분만 받았습니다",
+  "and {n} more": "외 {n}개", "Too many folders to read": "읽을 폴더가 너무 많습니다",
   // 탭·상태
   "Runs": "학습 기록", "Train": "학습", "Queue": "대기열", "Compare": "비교", "Alerts": "알림",
   "Training": "학습 중", "Starting": "시작하는 중", "Stalled": "진행 없음", "Failed": "실패", "Stopped": "중단됨", "Ended": "종료", "Done": "완료",
@@ -54,7 +59,7 @@ const KO = {
   "Environment": "실행 환경", "Recorded when Epokio started this run.": "Epokio가 이 학습을 시작할 때 기록했습니다.",
   // 비교
   "Tick two to eight runs in the list.": "목록에서 학습을 2~8개 고르세요.", "Compare runs": "학습 비교",
-  "Run": "학습", "Epochs": "에폭", "Model": "모델",
+  "Run": "학습", "Epochs": "에폭", "Steps": "스텝", "Epochs / steps": "에폭 / 스텝", "Model": "모델",
   "These runs used different data.": "이 학습들은 데이터가 다릅니다.", "Their scores are not directly comparable.": "점수를 그대로 비교할 수 없습니다.",
   "Filter by name or #tag": "이름이나 #태그로 찾기", "All runs as a spreadsheet": "모든 학습을 표 파일로 받습니다",
   "Pick up to 4 runs": "최대 4개까지 고르세요", "No run matches.": "맞는 학습이 없습니다.",

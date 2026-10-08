@@ -125,7 +125,7 @@ final class Store {
         for e in events where !inbox.contains(where: { $0.id == "\(machine)|\(e.key)" }) {
             inbox.insert(InboxItem(id: "\(machine)|\(e.key)", kind: e.kind, runID: "\(machine)|\(e.run.path)",
                                    runName: e.run.displayName, machine: machine, best: e.run.best,
-                                   epoch: e.run.epoch, total: e.run.total, date: .now), at: 0)
+                                   epoch: e.run.epoch, total: e.run.total, date: .now, xAxis: e.run.x_axis), at: 0)
         }
         if inbox.count > 300 { inbox.removeLast(inbox.count - 300) }
         saveInbox()

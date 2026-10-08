@@ -45,7 +45,7 @@ struct CompareView: View {
                             }
                         }
                     }
-                    .chartXAxisLabel(L("Epoch"))
+                    .chartXAxisLabel(axisLabel(L("Epoch"), L("Step"), L("Epoch / step")))
             .chartYScale(domain: .automatic(includesZero: false))
             .chartXScale(domain: .automatic(includesZero: false))
                     .chartLegend(position: .bottom, alignment: .leading)
@@ -87,10 +87,16 @@ struct CompareView: View {
         Set(runs.compactMap { details[$0.id]?.versions?.data }).count > 1
     }
 
+    /// 가로축 이름: 전부 step이면 step, 섞이면 둘 다
+    private func axisLabel(_ epoch: String, _ step: String, _ mixed: String) -> String {
+        let steps = runs.filter(\.isStepAxis).count
+        return steps == 0 ? epoch : steps == runs.count ? step : mixed
+    }
+
     private var table: some View {
         Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 8) {
             GridRow {
-                ForEach([L("Training run"), L("Epochs"), L("Precision"), L("Recall"), "F1", "mAP50-95", L("Data"), L("Settings")], id: \.self) {
+                ForEach([L("Training run"), axisLabel(L("Epochs"), L("Steps"), L("Epochs / steps")), L("Precision"), L("Recall"), "F1", "mAP50-95", L("Data"), L("Settings")], id: \.self) {
                     Text(verbatim: $0).font(.ui(11.5, weight: .semibold)).foregroundStyle(ink.soft).lineLimit(1).fixedSize()
                 }
             }

@@ -54,6 +54,8 @@ async function fillPythons(sel) {
 const isStep = (r) => r?.x_axis === "step";
 const xnum = (r, v) => v == null ? "?" : isStep(r) ? Number(v).toLocaleString(LOCALE) : v;
 const xprog = (r) => t(isStep(r) ? "step {e}/{n}" : "epoch {e}/{n}", { e: xnum(r, r.epoch), n: xnum(r, r.total) });
+/// 여러 학습의 단위 이름: 전부 step이면 step, 섞이면 둘 다
+const axisLabel = (runs, epoch, step, mixed) => { const n = runs.filter(isStep).length; return t(n === 0 ? epoch : n === runs.length ? step : mixed); };
 const xname = (r) => isStep(r) ? (v) => t("step {n}", { n: xnum(r, v) }) : undefined;
 /// 짧은 알림(아래 가운데). bad면 빨강
 function toast(text, bad, action) {
@@ -116,6 +118,7 @@ async function refreshOnce(periodic) {
     const [r, s, e] = await Promise.all([api("runs?lite=1"), api("system"), api("events?since=" + S.evSeq)]);
     S.label = r.label; S.runs = r.runs.sort((a, b) => (RANK[a.state] ?? 9) - (RANK[b.state] ?? 9) || a.idle - b.idle);
     S.sys = s.now;
+    await loadSSH();                                                    // SSH 서버 상태(목록 아래 칸). ★맥 앱에만 있었다
     // 알림은 새로 온 것만 받는다(★매 4초 200개를 통째로 받았다). agent를 다시 켜면 번호가 1부터 다시 시작한다
     // boot가 바뀌면 다시 켠 것이다. ★번호만 보면, 탭을 숨긴 사이 새 번호가 옛 커서를 넘어서면 앞의 알림을 조용히 건너뛰었다
     if ((e.boot && S.boot && e.boot !== S.boot) || e.seq < S.evSeq) { S.boot = e.boot; S.evSeq = 0; S.events = []; S.seen = 0; LS.epokioSeen = 0; return refreshOnce(periodic); }
@@ -259,8 +262,9 @@ async function drawRuns(periodic) {
   const more = base.length - shown.length;
   const qbox = `<div class="inrow" style="margin:6px 8px 0"><input class="in" id="runq" type="search" aria-label="${t("Filter by name or #tag")}" placeholder="${t("Filter by name or #tag")}" value="${esc(S.q || "")}" spellcheck="false"></div>`
     + (S.q && !base.length ? `<p class="hint" style="margin:8px 12px">${t("No runs match {q}.", { q: esc(S.q) })} <button class="more" id="runqclear" style="margin:0">${t("Clear")}</button></p>` : "");
-  if (!setMain(`<div class="layout"><div class="card list" data-keep="runlist">${qbox}<div class="seg" style="margin:6px 8px"><button type="button" id="sortstate" aria-pressed="${!S.sortScore}" class="${S.sortScore ? "" : "on"}">${t("Newest")}</button><button type="button" id="sortscore" aria-pressed="${!!S.sortScore}" class="${S.sortScore ? "on" : ""}">${t("Best score")}</button><button type="button" id="addfolder" title="${t("Watch another folder of runs")}">+ ${t("Folder")}</button></div>${shown.map((x, i) => rowHTML(x, i)).join("")}${more > 0 ? `<button class="btn small" id="morerows" style="margin:10px">${t("Show {n} more", { n: more })}</button>` : ""}</div>
+  if (!setMain(`<div class="layout"><div class="card list" data-keep="runlist">${qbox}<div class="seg" style="margin:6px 8px"><button type="button" id="sortstate" aria-pressed="${!S.sortScore}" class="${S.sortScore ? "" : "on"}">${t("Newest")}</button><button type="button" id="sortscore" aria-pressed="${!!S.sortScore}" class="${S.sortScore ? "on" : ""}">${t("Best score")}</button><button type="button" id="addfolder" title="${t("Watch another folder of runs")}">+ ${t("Folder")}</button></div>${shown.map((x, i) => rowHTML(x, i)).join("")}${more > 0 ? `<button class="btn small" id="morerows" style="margin:10px">${t("Show {n} more", { n: more })}</button>` : ""}${sshHTML()}</div>
     <div class="card detail" data-keep="detail">${detailHTML(r, d)}</div></div>`, periodic)) return;
+  wireSSH();
   // 폰에서는 목록 아래에 상세가 있다. ★눌러도 화면이 안 바뀌는 것처럼 보였다
   // 손잡이는 목록에 하나만(줄마다 달지 않는다)
   $(".list").onclick = (e) => {

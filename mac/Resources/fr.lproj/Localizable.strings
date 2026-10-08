@@ -1365,3 +1365,8 @@
 "No new step for a while." = "Pas de nouvelle étape depuis un moment.";
 "Ended at step %@. This log does not say how many steps were planned." = "Terminée à l’étape %@. Ce journal n’indique pas combien d’étapes étaient prévues.";
 "Stopped at step %@ before the last one." = "Arrêtée à l’étape %@ avant la dernière.";
+"Step" = "Étape";
+"Steps" = "Étapes";
+"Epoch / step" = "Époque / étape";
+"Epochs / steps" = "Époques / étapes";
+"%d large log files: only the last part was loaded" = "%d fichiers journaux volumineux : seule la dernière partie a été chargée";

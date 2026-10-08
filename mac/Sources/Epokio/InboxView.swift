@@ -57,9 +57,9 @@ struct InboxView: View {
         let p = NSSavePanel(); p.nameFieldStringValue = "epokio-notifications.csv"
         guard p.runModal() == .OK, let url = p.url else { return }
         let f = ISO8601DateFormatter()
-        var csv = "time,event,run,machine,epoch,total,best\n"
+        var csv = "time,event,run,machine,epoch,total,best,x_axis\n"   // x_axis=step이면 epoch·total 칸이 step 번호
         for i in store.inbox {
-            csv += "\(f.string(from: i.date)),\(i.kind),\"\(i.runName)\",\(i.machine),\(i.epoch),\(i.total.map(String.init) ?? ""),\(i.best.map { String(format: "%.4f", $0) } ?? "")\n"
+            csv += "\(f.string(from: i.date)),\(i.kind),\"\(i.runName)\",\(i.machine),\(i.epoch),\(i.total.map(String.init) ?? ""),\(i.best.map { String(format: "%.4f", $0) } ?? ""),\(i.isStepAxis ? "step" : "epoch")\n"
         }
         writeExport(csv, to: url, store)
     }
@@ -114,7 +114,8 @@ struct InboxRow: View {
 
     private var detail: String {
         if item.isMachine { return item.runName + (item.machine != "local" ? "  ·  " + item.machine : "") }
-        var parts = [item.runName, L("epoch %@", "\(item.epoch)/\(item.total.map(String.init) ?? "?")")]
+        let count = "\(item.epoch)/\(item.total.map(String.init) ?? "?")"
+        var parts = [item.runName, item.isStepAxis ? L("step %@", count) : L("epoch %@", count)]
         if let b = item.best { parts.append(L("best %@", String(format: "%.4f", b))) }
         if item.machine != "local" { parts.append(item.machine) }
         return parts.joined(separator: "  ·  ")

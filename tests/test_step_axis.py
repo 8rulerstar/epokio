@@ -107,3 +107,24 @@ def test_notes_for_a_step_run_say_step(tmp_path):
         msg.set_from_header("en")
     assert "스텝" in ko and "에폭" not in ko
     assert msg.tr("epoch {n}", n=1) == "epoch 1"                              # 해설이 끝나면 단위가 돌아온다
+
+
+def test_step_runs_are_not_labelled_epoch_in_exports_and_compare():
+    """알림함·CSV·비교 축이 step 학습도 'epoch'라 적던 것. 소스 문자열로 확인한다"""
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    mac = root / "mac" / "Sources" / "Epokio"
+    web = root / "src" / "epokio" / "web"
+    models = (mac / "Models.swift").read_text(encoding="utf-8")
+    assert "var xAxis: String? = nil" in models                     # 옛 알림함 저장본도 읽힌다
+    assert "xAxis: e.run.x_axis" in (mac / "Store.swift").read_text(encoding="utf-8")
+    inbox = (mac / "InboxView.swift").read_text(encoding="utf-8")
+    assert "best,x_axis" in inbox and 'L("step %@", count)' in inbox
+    assert '"path", "x_axis"]' in (mac / "RunsCSV.swift").read_text(encoding="utf-8")
+    cmp_ = (mac / "CompareView.swift").read_text(encoding="utf-8")
+    assert 'axisLabel(L("Epoch"), L("Step"), L("Epoch / step"))' in cmp_ and 'L("Epochs / steps")' in cmp_
+    js = (web / "compare.js").read_text(encoding="utf-8")
+    assert 'axisLabel(runs, "Epochs", "Steps", "Epochs / steps")' in js and '"path", "x_axis"]' in js
+    assert 'axisLabel(rows, "Epochs"' in (web / "table.js").read_text(encoding="utf-8")
+    assert '"Epochs / steps": "에폭 / 스텝"' in (web / "lang.js").read_text(encoding="utf-8")
+    assert 'labelled "epoch"' not in (root / "README.md").read_text(encoding="utf-8")

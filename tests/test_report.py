@@ -177,3 +177,35 @@ def test_report_attaches_review_of_that_run(tmp_path, monkeypatch):
     assert code == 200
     md = Path(body["path"]).read_text(encoding="utf-8")
     assert "Human review" in md and "model wrong 1" in md
+
+
+# ── step 축 학습 ──────────────────────────────
+
+def test_step_run_report_says_step(tmp_path):
+    """★step으로 적는 학습(x_axis=step)도 보고서가 'epoch 12000/100000'이라 적었다."""
+    r = make_run(tmp_path, "llm")
+    r.x_axis, r.epoch, r.total, r.state = "step", 12000, 100000, "stalled"
+    md = report.build([r])
+    assert "| Step |" in md and "12,000/100,000" in md and "step 12,000/100,000" in md
+    assert "Best step" in md and "no new step for a while" in md
+    assert "epoch" not in md.lower().replace("epokio", "")
+
+
+def test_mixed_runs_keep_epoch_column(tmp_path):
+    a, b = make_run(tmp_path, "a"), make_run(tmp_path, "b")
+    b.x_axis, b.epoch, b.total = "step", 5000, None
+    md = report.build([a, b])
+    assert "| Epoch |" in md and "5,000/?" in md and "2/2" in md
+
+
+def test_detection_f1_footnote_only_with_detection_metrics(tmp_path):
+    """★분류 학습만 있는 보고서에도 '검출 F1' 각주가 붙었다."""
+    det = make_run(tmp_path, "det")
+    assert report.FOOTNOTE in report.build([det])
+    cls = make_run(tmp_path, "cls")
+    (cls.path / "results.csv").write_text(
+        "epoch,train/loss,metrics/accuracy_top1,metrics/accuracy_top5\n1,1.0,0.5,0.9\n2,0.8,0.7,0.95\n",
+        encoding="utf-8")
+    cls.metric_name = "metrics/accuracy_top1"
+    md = report.build([cls])
+    assert "cls" in md and report.FOOTNOTE not in md

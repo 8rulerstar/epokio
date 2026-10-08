@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1 (2026-10-08)
+
+- **Fix: one broken log hid every run in its folder.** A CSV row with more columns than the header, or a `trainer_state.json` that is not an object, made the whole watched folder show no runs (and be reported as slow). The broken run is now skipped and written to the helper's log.
+- **Fix: time left for step-based runs was far too long.** It multiplied the time between log rows by the steps left, so a run logging every 100 steps showed *1d 1h* for 15 minutes. It now uses the time per step (or per epoch).
+- **Releases wait for the full CI** on macOS, Windows and Linux before anything is published.
+- Docs: how to open the web page from a phone (`ssh -L`, Tailscale or `--lan`), and the Korean README rewritten to match the English one.
+- **SSH servers panel on the web page:** each host's state, a *Read now* button, and how many log files were skipped or cut.
+- **Over SSH, a growing text log over the size limit keeps its first line and the tail** and keeps appending, instead of being skipped.
+- **Step runs are labeled *step*** in the inbox, the CSV export, Compare and the report.
+- Docs: Windows commands for `Epokio.exe` without Python, the SSH size limits, a TensorBoard column and local MLflow and Aim in the comparison, the Python download in the privacy table, and Korean README fixes.
+
 ## 0.6.0 (2026-10-01)
 
 - **Send a test alert.** A **Send a test** button on the web page's Alerts (`POST /webhooks/test`), and `epokio alerts --add/--remove/--list/--test` to manage phone alerts from a terminal with no helper running.
@@ -15,7 +26,7 @@
 - **Loss-only runs** (MAE-style pretraining) say that only the loss was checked, and warn when the training loss keeps rising.
 - **Classes missing from the validation set** go to the bottom of the per-class table without a made-up 0.000 score, with a note to add examples.
 - Korean: curve legends and head names are translated, and *Pose* is 포즈.
-- README: what "fails" and "stalls" cover (a crash shows up as stalled), which files the SSH view reads and its size limits, that the machine record uses the first GPU.
+- Docs: the README says what "fails" and "stalls" cover (a crash shows up as stalled) and which files the SSH view reads and its size limits; docs/studio.md says the machine record uses the first GPU.
 
 ## 0.5.4 (2026-10-01)
 

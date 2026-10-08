@@ -1365,3 +1365,8 @@
 "No new step for a while." = "Seit einer Weile kein neuer Schritt.";
 "Ended at step %@. This log does not say how many steps were planned." = "Bei Schritt %@ beendet. Dieses Protokoll nennt nicht, wie viele Schritte geplant waren.";
 "Stopped at step %@ before the last one." = "Bei Schritt %@ vor dem letzten gestoppt.";
+"Step" = "Schritt";
+"Steps" = "Schritte";
+"Epoch / step" = "Epoche / Schritt";
+"Epochs / steps" = "Epochen / Schritte";
+"%d large log files: only the last part was loaded" = "%d große Logdateien: nur der letzte Teil wurde geladen";

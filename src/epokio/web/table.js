@@ -67,7 +67,7 @@ function paintTable() {
       <span class="hint" style="margin:0">${rows.length} of ${d.rows.length}</span>
       <button class="btn primary" id="tcmp" ${T.sel.size >= 2 && T.sel.size <= T_MAX ? "" : "disabled"}>Compare ${T.sel.size}</button>
     </div>
-    <div style="overflow-x:auto"><table class="runs-table"><tr><th></th>${head("name", "Run")}${head("best", "Score")}${head("epoch", "Epochs")}
+    <div style="overflow-x:auto"><table class="runs-table"><tr><th></th>${head("name", "Run")}${head("best", "Score")}${head("epoch", axisLabel(rows, "Epochs", "Steps", "Epochs / steps"))}
       ${d.keys.map((k) => head(k, k)).join("")}<th>${t("Tags")}</th>${head("idle", t("Updated"))}</tr>
       ${rows.map((r) => `<tr class="pick" data-path="${esc(r.path)}">
         <td><input type="checkbox" class="tsel" ${T.sel.has(r.path) ? "checked" : ""} aria-label="${esc(t("Select {name}", { name: tName(r) }))}"></td>

@@ -70,10 +70,10 @@ def doctor(argv: list[str] | None = None) -> int:
     print(f"  installed at {info['install']}")
     hp = info["helper"]
     if hp["running"]:
-        warn = "" if hp["epokio"] == info["epokio"] else f"   ! different from this install; run `epokio setup` to restart it"
+        warn = "" if hp["epokio"] == info["epokio"] else f"   ! different from this install; run `{autostart.cli('setup')}` to restart it"
         print(f"  helper: running on port {hp['port']} | {hp['epokio']} | label {hp['label']}{warn}")
     else:
-        print(f"  helper: NOT running on port {hp['port']}  (start it with `epokio setup`)")
+        print(f"  helper: NOT running on port {hp['port']}  (start it with `{autostart.cli('setup')}`)")
     w = info["watching"] or {}
     if "runs" in w:
         print(f"  watching {w['runs']} runs in {len(w['roots'])} folders:")

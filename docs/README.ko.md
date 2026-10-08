@@ -1,91 +1,201 @@
-[English README](../README.md)
+<p align="center">
+  <img src="images/icon.png" width="128" alt="Epokio 아이콘">
+</p>
 
-# Epokio (한국어)
+<h1 align="center">Epokio</h1>
 
-**Epokio**는 학습 진행 상황을 맥 메뉴바, 윈도우·리눅스의 웹 화면과 트레이, 터미널에서 바로 보는 도구입니다. 학습 코드를 고칠 필요도, 계정도 없습니다. 학습이 이미 기록하고 있는 폴더만 알려 주면 됩니다.
+<p align="center">
+  내 컴퓨터나 원격 GPU 서버에서 도는 ML 학습을 지켜봅니다. 맥에서는 메뉴바 앱으로, 윈도우·리눅스·폰에서는 웹 화면으로.<br>
+  학습 코드를 고칠 필요도, 계정도 없습니다. 학습이 이미 기록을 남기는 폴더만 알려 주면 됩니다.
+</p>
 
-**윈도우에서 처음 쓴다면**
-1. [Releases](https://github.com/8rulerstar/epokio/releases/latest)에서 `Epokio.exe`를 받아 더블클릭합니다
-2. "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**을 누릅니다(서명하지 않은 앱이라 처음 한 번 뜹니다)
-3. 브라우저에 학습 목록이 열리고, 작업 표시줄 오른쪽 ^ 안에 Epokio 아이콘이 생깁니다. 보기만 할 때는 파이썬이 필요 없습니다
-4. 이 PC에서 학습도 시작하려면 [python.org](https://www.python.org/downloads/)에서 파이썬 3.10 이상을 설치하고(설치 첫 화면에서 **Add python.exe to PATH** 체크), 웹 화면 학습 탭의 파이썬 설치 버튼을 누릅니다. 설치가 끝났는데 학습 탭에 GPU가 보이지 않으면 NVIDIA 드라이버를 최신으로 올린 뒤 다시 확인하세요
+<p align="center">
+  <img src="images/menubar-characters.gif" width="600" alt="학습 속도에 맞춰 메뉴바에서 뛰는 캐릭터">
+</p>
 
-회사에서 YOLO를 학습시키면서 터미널을 계속 열어 "아직 살아 있나, 몇 에폭 남았나"를 확인하던 일이 싫어서 만들었습니다.
+<p align="center">
+  <a href="#빠른-시작">빠른 시작</a> ·
+  <a href="#읽는-형식">형식</a> ·
+  <a href="#알림">알림</a> ·
+  <a href="#ssh로-원격-기계-보기">SSH</a> ·
+  <a href="#한계">한계</a> ·
+  <a href="../README.md">English</a>
+</p>
 
-* **메뉴바에서 한눈에**: 모든 학습의 진행률·남은 시간·최고 점수, GPU·CPU·메모리. 캐릭터가 학습 속도에 맞춰 뛰고, 멈추면 같이 멈춥니다. 학습이 없을 때는 CPU·GPU·AI 도구 사용량을 따라 달리게 할 수 있습니다(설정 → 모양). 완료·실패(NaN)·진행 없음·일찍 멈춤 알림
-* **끝나면 이유를 말해 줍니다**: "최고 mAP50-95는 40에폭 중 7에폭의 0.662입니다. 정밀도 0.86이 재현율 0.73보다 훨씬 높습니다. 잘못 찾는 것보다 놓치는 것이 많습니다. 신뢰도 문턱을 낮추거나 놓친 경우의 예시를 더하세요." 계산은 이 기계 안에서 합니다
-* **Studio 창**: 초보자는 `data.yaml`을 끌어다 놓고 시작 버튼만 누르면 됩니다. 전문가는 ultralytics 설정 전부를 설명과 함께 볼 수 있습니다. 거의 모든 동작에 단축키가 있고, **⌘K**로 무엇이든 찾아갑니다
-* **읽는 형식**: Ultralytics YOLO, Hugging Face Trainer, PyTorch Lightning, Keras, timm, MMDetection 등 OpenMMLab, W&B 로컬 기록(wandb 설치 없이), MAE·DeiT·DINO 계열 `log.txt`, TensorBoard, 첫 열이 epoch인 CSV. 학습 코드는 고치지 않습니다
-* **학습 결과 자세히**: 클래스별 정밀도·재현율·mAP(약한 클래스 강조), 학습하는 동안의 GPU·CPU·메모리·온도·팬 기록, 에폭별 예측 사진(켰을 때), 데이터 버전("데이터 v3 / 4", 학습 뒤 데이터가 바뀌면 경고)
-* **팬**: 팬 있는 맥은 본체 팬, 윈도우·리눅스는 NVIDIA GPU 팬. 학습 중 팬이 최고 속도 가까이 5분 넘게 돌면 알림
-* **어떻게 돌렸나**: Epokio로 시작한 학습은 파이썬·PyTorch·Ultralytics·CUDA 판, GPU, git 커밋, seed를 남겨 같은 조건으로 다시 돌릴 수 있습니다
-* **라벨 고치기**: 이미지 위에 YOLO 박스를 보여 주고 바로 고칩니다. 박스 그리기·옮기기, 확대·이동, 키보드로 클래스 고르기(열 개가 넘으면 검색), 고치는 대로 저절로 저장. 모델이 만든 박스와 내가 확인한 박스를 구분해 보여 줍니다
-* **연습 모드**: GPU도 데이터도 없이 가짜 학습을 돌려 화면을 익히고, 첫 진짜 학습은 짧은 안내를 따라 합니다. 어느 쪽도 진짜 학습을 멋대로 시작하지 않습니다
-* **대기열**: GPU마다 한 번에 하나씩(NVIDIA GPU가 여러 장이면 장마다 하나), 껐다 켜도 이어집니다
-* **자동 라벨링**: 결과는 `labels_auto/`에 따로 씁니다. 기존 라벨을 덮어쓰지 않습니다
-* **보고서**: 리더보드, Box·Pose별 P·R·F1·mAP, 자동 해설
-* **원격 GPU**: 서버에 아무것도 설치하지 않고 SSH로 보거나(설정 → 기계 → SSH로 보기), 윈도우·리눅스 학습 PC에서 `py -m epokio setup --lan`(자동 시작·토큰 안내까지)으로 도우미를 띄워 맥에서 봅니다. 네트워크에 연 도우미는 보는 것도 토큰이 필요하고, 통신은 암호화되지 않으므로 SSH 터널이나 Tailscale을 권합니다. 다른 사람에게 보기만 허락하려면 `py -m epokio agent --add-token 이름 --scope read`로 그 사람 몫의 읽기 전용 토큰을 만드세요(한 번만 보여 주고 해시로 저장, `--revoke-token`으로 취소)
-* **맥↔윈도우 한글 파일명**: NFD·NFC가 달라도 같은 파일로 찾아갑니다
-* **언어**: 맥 앱은 한국어·영어·일본어·중국어(간체·번체)·스페인어·프랑스어·독일어·포르투갈어(브라질)·베트남어. 고칠 곳은 이슈로 알려 주세요. 웹 화면은 한국어·영어
+---
 
-설치: macOS 15 이상. [릴리스](https://github.com/8rulerstar/epokio/releases/latest)에서 `.dmg`를 받아 응용 프로그램 폴더로 끌어다 놓고 열면 끝입니다. 도우미(agent)와 작은 파이썬이 앱 안에 들어 있어 맥에서는 `pip install`이 필요 없습니다. 학습을 시작하려면 ultralytics와 torch가 든 파이썬 환경이 따로 필요합니다.
-윈도우는 같은 곳의 `Epokio.exe`를 받아 두 번 누르면 됩니다(보기만 할 때는 파이썬이 필요 없습니다).
-소스에서 직접 빌드하려면 Xcode 26 이상이 필요합니다(빌드한 앱은 macOS 15에서도 돕니다).
+## 하는 일
 
-처음 열 때: 아직 공증(notarization)을 받지 않아 macOS가 막습니다. 한 번 열어 경고를 닫은 뒤 **시스템 설정 → 개인정보 보호 및 보안**에서 아래로 내려 Epokio 옆 **그래도 열기**를 누르고 암호로 확인하세요. macOS 15부터는 우클릭 → 열기로 넘어가지지 않습니다.
+* **이미 있는 기록을 읽습니다.** Ultralytics, Hugging Face Trainer, Lightning, Keras, timm, OpenMMLab, W&B 로컬 파일, TensorBoard 이벤트 파일, MAE·DeiT 계열 `log.txt`, 직접 만든 CSV. [읽는 형식](#읽는-형식) 참고.
+* **진행률, 남은 시간, 최고 점수를 메뉴바에** 실시간으로. 학습이 끝나거나, 실패하거나(NaN loss), 멈추거나(비정상 종료·메모리 부족도 이렇게 드러납니다), 마지막 에폭 전에 그치면 알려 줍니다.
+* **폰 알림**: ntfy, Slack, Discord, 텔레그램 웹훅으로 학습 기계가 직접 보냅니다. 시험 보내기 버튼으로 도착하는지 확인할 수 있습니다.
+* **SSH로 원격 기계 보기**: 서버에 아무것도 설치하지 않습니다. 기록마다 새로 붙은 꼬리만 가져옵니다.
+* **클래스별 점수**(클래스마다 정밀도·재현율·mAP, 약한 것부터)와 다음에 무엇을 바꿀지 쉬운 말로 적은 메모.
+* **step 단위 학습**(`epoch` 없는 W&B, TensorBoard step 스칼라, 첫 열이 `step`·`iter`·`iteration`인 CSV)은 진행률을 step으로 보여 줍니다.
+* **비교, 검수, 학습 시작**은 Studio 창이나 웹 화면에서. 자세한 내용은 [studio.md](studio.md).
 
-### 맥이 없어도 되는 것
+## 빠른 시작
 
-맥 앱은 보는 방법 중 하나입니다. 학습 기계에 도우미만 깔면 맥 없이도 이만큼 됩니다.
-
-| | 맥 앱 | 웹 화면 · 트레이 · 터미널 |
+| 맥 | 윈도우 | 리눅스, GPU 서버 |
 |---|---|---|
-| 진행률·남은 시간·최고 점수 | 있음 | **있음** |
-| 성적·곡선·자동 해설·결과 그림 | 있음 | **있음** (웹) |
-| 학습 비교 | 있음 | **있음** (웹) |
-| 끝났을 때 알림 | 맥 알림 | **폰 푸시**(ntfy·Slack·Discord·텔레그램), 윈도우·리눅스 트레이 알림 |
-| GPU·CPU·메모리 | 있음 | **있음** |
-| 학습 시작·대기열 | 있음 | **있음** (웹, 기계 토큰을 한 번 붙여 넣으면). 파이썬 자동 설치(NVIDIA면 CUDA), 출발 전 데이터 점검, 실패 원인·고칠 방법, 남은 시간, 다시 학습 |
-| 검수·스윕 | 있음 | **있음** (웹) |
-| 라벨 고치기·자동 라벨링 시작 | 있음 | 없음 (맥 앱 전용) |
+| [`.dmg` 받기](https://github.com/8rulerstar/epokio/releases/latest), 응용 프로그램 폴더로 끌어다 놓고 열기 | [`Epokio.exe` 받기](https://github.com/8rulerstar/epokio/releases/latest), 더블클릭 | `pip install epokio` 후 터미널에서 `epokio watch --root runs/`, 웹 화면은 `epokio setup` |
 
-파이썬으로 설치할 때(아래 명령은 윈도우 기준입니다. 맥·리눅스에서는 `py -m` 없이 `pip`, `epokio`로 씁니다. `epokio`를 "인식할 수 없습니다"가 나와도 이렇게 하면 됩니다):
+* **맥:** macOS 15 이상. 아직 공증을 받지 않아 처음엔 막힙니다. 한 번 열어 경고를 닫고 **시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기**. macOS 26에서 아이콘이 안 보이면 **시스템 설정 → 메뉴 막대**에서 허용하세요.
+* **윈도우:** 서명하지 않은 앱이라 처음 한 번 SmartScreen이 막을 수 있습니다. **추가 정보 → 실행**. 보기만 할 때는 파이썬이 필요 없고, 학습 탭에서 학습을 시작하려면 파이썬 3.10 이상이 필요합니다.
+* **리눅스 서버:** Ubuntu 24.04에서는 가상환경을 쓰세요(PEP 668). SSH로 들어온 서버에서는 setup이 브라우저 대신 `ssh -L` 터널 명령을 알려 줍니다.
+* **폰에서 웹 화면 보기:** 학습 기계에서 `--lan`을 붙여 setup을 돌리고(`epokio setup --lan`, 윈도우는 `py -m epokio setup --lan`) setup이 출력한 주소로 들어갑니다. 붙이지 않으면 도우미는 그 기계 안에서만 답합니다. SSH 터널로 들어가도 됩니다.
+
+윈도우, 리눅스, 트레이 아이콘, 원격 도우미의 전체 절차: [remote.md](remote.md)(영어).
+
+## 화면
+
+<p align="center">
+  <img src="images/popover-light.png" width="330" alt="메뉴바 팝오버, 밝은 화면">
+  <img src="images/popover-dark.png" width="330" alt="메뉴바 팝오버, 어두운 화면">
+</p>
+
+<p align="center">
+  <img src="images/studio-run-detail.png" width="620" alt="학습 하나의 화면: 점수, 곡선, 다음에 해 볼 것">
+</p>
+
+<p align="center">
+  <img src="images/studio-compare.png" width="620" alt="비교: 여러 학습을 한 그래프에, 점수와 달랐던 설정만">
+</p>
+
+**자원 사용.** 맥에서 학습 폴더 50개를 지켜보는 백그라운드 도우미 하나만 재면 메모리(RSS) 약 45MB, CPU는 1분에 0.25초 미만으로 거의 0%입니다.
+
+## 읽는 형식
+
+프레임워크가 이미 쓰는 파일을 읽습니다. 기록 코드를 더할 필요가 없습니다.
+
+| 프레임워크 | 읽는 것 | 보기·결과·비교 | 학습 시작 | 자동 라벨링·검수 |
+|---|---|---|---|---|
+| Ultralytics YOLO | `results.csv`, `args.yaml` | ✅ | ✅ | ✅ |
+| Hugging Face Trainer | `trainer_state.json`(`checkpoint-*` 안도) | ✅ | 스크립트 | |
+| PyTorch Lightning | `CSVLogger`의 `metrics.csv`, `hparams.yaml` | ✅ | 스크립트 | |
+| Keras | `CSVLogger` 파일(`training.log`, `history.csv`) | ✅ | 스크립트 | |
+| TensorBoard 기록 | `events.out.tfevents.*` 스칼라, TensorFlow 없이 읽음. `epoch` 태그가 있으면 에폭, 없으면 step 기준 | ✅ | 스크립트 | |
+| 비전 연구 코드(MAE, DeiT, DINO, BEiT, ConvNeXt) | 에폭마다 JSON 한 줄인 `log.txt` | ✅ | 스크립트 | |
+| timm `train.py` | `summary.csv`(`eval_top1`이 주 점수), `args.yaml` | ✅ | 스크립트 | |
+| OpenMMLab(MMDetection 3.x, MMPretrain, MMSegmentation) | `vis_data/scalars.json`, 저장된 설정의 `max_epochs`(에폭 기반 학습만) | ✅ | 스크립트 | |
+| Weights & Biases(로컬 파일) | `wandb/run-*/run-*.wandb`, wandb 설치 없이 읽음. `epoch` 값이 기록돼 있으면 에폭, 없으면 `_step` 기준. SSH로도 | ✅ | 스크립트 | |
+| 직접 만든 학습 루프 | 첫 열이 `epoch`·`step`·`iter`·`iteration`이고 loss 열이 있는 CSV | ✅ | 스크립트 | |
+
+진행률과 남은 시간을 내려면 전체 길이를 알아야 합니다. 에폭 수는 프레임워크 자체 파일이나 기록 옆 설정 파일
+(`args.yaml`, `args.json`, `config.yaml`, `config.json`, `hparams.yaml`, `opt.yaml`)에서, step 학습은 같은 파일의
+`max_steps`, `total_steps`, `max_iters` 같은 전체 step 수에서 읽습니다. 다른 프레임워크를 더하려면 작은 어댑터 클래스
+하나면 되고, 목록은 `src/epokio/adapters.py`에 있습니다. 직접 만든 루프에서 `epokio.start`로 기록하는 방법은 [remote.md](remote.md).
+
+## 알림
+
+알림은 학습 기계가 직접 보내므로 맥이 꺼져 있어도 옵니다. 웹훅은 `https`여야 합니다.
+[ntfy](https://ntfy.sh) 주소(예: `https://ntfy.sh/비밀-주제`)나 Slack, Discord, 텔레그램 웹훅을 넣으세요.
+
+* **맥 앱:** 설정 → 알림.
+* **웹 화면:** **알림**에서 넣고 **시험 보내기**로 도착하는지 확인합니다(도우미의 `POST /webhooks/test`).
+* **터미널:** 도우미가 떠 있지 않아도 됩니다(SSH로만 들어가는 서버에서 편합니다).
 
 ```bash
-py -m pip install "epokio[tray]"
-py -m epokio setup --autostart
+# 맥·리눅스
+epokio alerts --add https://ntfy.sh/비밀-주제
+epokio alerts --list
+epokio alerts --test        # 저장된 웹훅마다 시험 메시지 하나
+epokio alerts --remove https://ntfy.sh/비밀-주제
 ```
 
-`py -m epokio setup` 한 줄이면 됩니다. 학습 폴더를 알아서 찾고, 도우미를 **검은 창 없이** 띄우고,
-브라우저를 열어 줍니다. `--autostart`를 붙이면 로그인할 때 트레이가 다시 뜹니다
-(끄려면 `py -m epokio autostart --off`, 또는 트레이 메뉴의 **로그인할 때 시작**).
-시작프로그램 폴더의 평범한 바로 가기라서 탐색기에서 직접 지워도 됩니다.
-경로를 칠 일도, 플래그를 외울 일도 없습니다. 몇 번을 다시 돌려도 안전합니다.
-
-맥이나 폰에서 이 기계를 보려면 `--lan`을 더하세요. 그때 토큰이 같이 출력됩니다. 윈도우가 네트워크 허용을 물으면 **개인 네트워크**에 체크하고 허용을 누르세요.
-`--label 실습-07`로 이 PC가 보일 이름을 정할 수 있습니다
-(여러 대를 한꺼번에 볼 때). SSH로 들어온 서버에서는 브라우저 대신 `ssh -L` 터널 명령을 알려 줍니다.
-
-웹 화면은 브라우저 언어를 따라 한국어로 나오고, 위쪽 버튼으로 바꿀 수 있습니다.
-도우미는 IP 주소, `localhost`, 이 PC 이름으로 시작하는 주소(`pc.lan`, Tailscale 이름 등)로 접속하면 답합니다.
-그 밖의 이름으로 쓰려면 이 PC에 `EPOKIO_ALLOWED_HOSTS=이름1,이름2`를 설정하세요(악성 웹페이지의 DNS 리바인딩 막기).
-
-```bash
-epokio tray                       # 트레이 아이콘만 따로
-epokio watch                      # 터미널에서 보기
+```powershell
+# 윈도우 (--list, --remove도 같은 방식)
+py -m epokio alerts --add https://ntfy.sh/비밀-주제
+py -m epokio alerts --test
 ```
 
-도우미는 외부 패키지를 쓰지 않습니다. 학습용 파이썬을 건드리는 게 걱정되면 **별도 가상환경에 깔아도**
-똑같이 동작합니다. TLS가 없으니 집·회사 안쪽 네트워크에서만 쓰고, 밖에서 볼 때는 SSH 터널이나 Tailscale을 쓰세요.
+## SSH로 원격 기계 보기
 
-제거: 앱을 끝내면 앱이 띄운 도우미도 같이 끝납니다. 터미널에서 직접 띄운 도우미는 그대로 둡니다.
+맥 앱에서 **설정 → 기계 → SSH로 보기**를 열고 `~/.ssh/config`의 호스트를 고릅니다(`ProxyJump` 포함).
+서버에는 아무것도 설치하거나 쓰지 않습니다.
 
-1. Epokio를 끝내고 `Epokio.app`을 휴지통으로
-2. 데이터 폴더 삭제: `rm -rf ~/.epokio` (토큰, 대기열, 알림함, 기록, Epokio가 받은 파이썬). 옛 이름 폴더 `~/.trainbar`가 남아 있으면 그것도 지워도 됩니다
-3. 설정 삭제: `defaults delete io.github.8rulerstar.epokio`, `~/Library/Application Support/Epokio` 폴더가 있으면 삭제
-4. 키체인: 키체인 접근에서 이름이 `io.github.8rulerstar.epokio`인 항목 삭제(원격 기계 토큰, TypeSafe 키 `typesafe.api`). 또는 `security delete-generic-password -s io.github.8rulerstar.epokio`를 "찾을 수 없음"이 나올 때까지 반복
-5. pip으로 설치했다면 `pip uninstall epokio`
+* **조건:** 서버에 `python3` 3.6 이상, 키 로그인(암호나 일회용 코드를 묻지 않아야 합니다). 서버에 인터넷은 필요 없습니다.
+* **가져오는 것:** 알려진 기록 이름(`results.csv`, `log.txt`, `summary.csv`, `metrics.csv`, `trainer_state.json`, TensorBoard·W&B 파일 등)과 저장된 설정뿐이고, 이미지나 가중치는 가져오지 않습니다. 15초마다 확인하며, 바뀌지 않은 파일은 건너뛰고 늘어나기만 하는 기록은 새로 붙은 꼬리만 보냅니다.
+* **크기 한도:** 글자 기록 4MB, TensorBoard·W&B 파일 20MB(이미 받은 파일은 새로 붙은 부분에 적용). 계속 늘어나는 글자 기록이 한도를 넘으면 첫 줄과 끝 4MB만 받고 이어 붙입니다. 한도를 넘은 TensorBoard·W&B·설정 파일은 건너뜁니다. 몇 개를 건너뛰었거나 잘랐는지는 맥 앱과 웹 화면 SSH 칸이 알려 줍니다.
+* 홈 폴더 아래를 찾습니다. `/scratch/you/runs` 같은 경로는 *다른 폴더*에 더하세요.
+* 보기 전용입니다. 그 기계에서 학습을 시작하려면 도우미를 설치합니다. 리눅스는 `pip install epokio` 후 `epokio setup --lan --autostart`, 윈도우는 `py -m pip install "epokio[tray]"` 후 `py -m epokio setup --lan --autostart`(파이썬 없이: `Epokio.exe setup --lan --autostart`). 토큰, `--lan`, 네트워크 안전: [remote.md](remote.md).
 
-윈도우: `py -m epokio autostart --off`(또는 시작프로그램 폴더의 Epokio 바로 가기 삭제), 트레이 아이콘 끝내기, `Epokio.exe` 삭제, `%USERPROFILE%\.epokio` 폴더 삭제, pip으로 깔았다면 `py -m pip uninstall epokio`.
+## 한계
 
-문제가 생기면 `py -m epokio doctor`(맥·리눅스는 `epokio doctor`)가 버전, 도우미 상태, 보는 폴더, 로그 마지막 줄을 보여 줍니다. 토큰은 출력하지 않으니 그대로 붙여 질문하셔도 됩니다. 로그는 `~/.epokio/agent.log`(윈도우는 `%USERPROFILE%\.epokio\agent.log`)에 있습니다.
+* 에폭 없이 iteration 기반으로 도는 OpenMMLab 학습은 읽지 않습니다.
+* SSH로는 알려진 기록 이름만 읽고, 아무 CSV나 읽지는 않습니다. 크기 한도를 넘은 바이너리 기록과 설정은 건너뜁니다.
+* 직접 만든 CSV 이름이 `results.csv`, `metrics.csv`, `epokio_log.csv`이면 Ultralytics, Lightning, `epokio.start` 쪽 읽기로 넘어가 직접 만든 CSV로 읽히지 않습니다. 다른 이름을 쓰세요.
+* 위 자원 수치는 백그라운드 도우미 하나만, 바뀌지 않는 학습 폴더 50개를 맥에서 잰 값입니다(RSS 약 45MB, CPU 1분에 0.25초 미만).
+* 라벨 편집기와 자동 라벨링 시작은 맥 전용입니다. 웹 화면은 보기, 학습, 대기열, 비교, 검수, 스윕, 알림을 다룹니다.
+* 맥 앱은 공증, 윈도우 앱은 서명을 받지 않아 둘 다 처음 실행할 때 경고가 뜹니다.
+* 도우미는 암호화되지 않은 HTTP로 통신합니다. `--lan`보다 SSH 터널이나 Tailscale을 권합니다.
+
+## 다른 도구와 비교
+
+| | Epokio | TensorBoard | 클라우드 트래커(W&B, Comet) | MLflow, Aim | Ultralytics Platform | Trackio |
+|---|---|---|---|---|---|---|
+| 학습 스크립트 수정 | **없음** | 프레임워크가 이벤트 파일을 쓰면 없음 | 기록 호출 추가, 또는 내장 연동(HF Trainer, Ultralytics)으로 설정 하나 | 기록 호출 추가(MLflow는 autolog 있음) | Ultralytics는 없음: API 키로 로컬 학습을 전송 | `trackio.init`·`log` 호출 추가, 또는 TensorBoard·CSV 기록 가져오기 |
+| 계정·서버 | **없음** | 없음 | 계정 | 로컬은 없음(`mlflow ui`, `aim up`), 또는 직접 운영하는 서버 | 계정 | 없음 |
+| 데이터가 가는 곳 | **내 기계에 남음** | 내 기계 | 그쪽 클라우드 | 로컬 폴더(`./mlruns`, `.aim`) 또는 내 서버 | 그쪽 클라우드 | 내 기계(또는 직접 고른 Hugging Face Space·Dataset) |
+| 늘 보이는 곳 | **메뉴바, 터미널, 트레이** | `tensorboard --logdir` 뒤 브라우저 탭 | 브라우저 탭, 폰 앱(iOS) | 브라우저 탭 | 브라우저 탭 | 브라우저 탭 |
+| 한 화면에서 읽는 형식 | **Ultralytics, HF, Lightning, Keras, timm, OpenMMLab, W&B, TensorBoard, CSV** | 자기 이벤트 파일 | 자기 기록(W&B는 TensorBoard 동기화 가능) | 자기 기록(Aim은 TensorBoard·MLflow·W&B 기록 변환) | Ultralytics | 자기 기록(TensorBoard·CSV 가져오기) |
+| 팀 공유, 모델 레지스트리 | 목표가 아님 | 없음 | **있음** | 내 서버에서 공유, 레지스트리는 MLflow만 | **있음** | 일부 |
+| step 단위 그래프 | step 기반 학습은 진행률을 step으로 | **있음** | **있음** | **있음** | 에폭 단위 | **있음** |
+| 가격 | 무료, MIT | 무료 | 무료 등급과 유료 요금제 | 무료 소프트웨어(호스팅 요금제 있음) | 무료 등급과 유료 요금제 | 무료 |
+
+Epokio는 학습이 끝나거나 실패하거나 멈추면 스스로 알림(맥, 트레이, 폰 웹훅)을 보내고, 곡선을 보고 다음 학습을 제안합니다(예: "아직 좋아지는 중: best.pt에서 2배 더 길게").
+클라우드 AI가 아니라 내 기계 안의 간단한 규칙으로 계산합니다.
+
+**트래커를 대신하지 말고 옆에 두고 쓰세요.** 팀이 이미 W&B나 MLflow에 기록한다면 그대로 하세요.
+Epokio는 W&B 로컬 파일과 TensorBoard 기록도 읽으므로, 계정이나 기록 호출을 더하지 않고 같은 학습을 메뉴바나 터미널에 보여 줍니다.
+내 맥이나 GPU 기계에서 학습이 도는 동안 흘끗 보는 용도입니다.
+
+## 개인정보
+
+직접 켜지 않는 한 아무것도 기계 밖으로 나가지 않습니다. 앱은 내가 띄운 도우미와만 통신합니다.
+
+| 선택 기능 | 보내는 것 | 가는 곳 |
+|---|---|---|
+| 웹훅(ntfy, Slack, Discord, 텔레그램) | 학습 이름, 에폭, 최고 점수, 사건 | 내가 넣은 주소 |
+| 어시스턴트(말로 하는 명령) | 입력한 문장, 최근 학습 최대 12개의 이름 | 내 API 키로 TypeSafe |
+| 결과 해설 다듬기 | 상태, 작업 종류, 점수, 설정 숫자, 언어, 초안 문장 | TypeSafe, 어시스턴트를 켰을 때만 |
+| 이 맥에서 쓰는 해설(macOS 26 이상) | 없음 | 맥 안에 남음 |
+| 업데이트 확인(Sparkle), 업데이트 키로 서명하기 전까지 현재 배포판에서는 꺼짐 | 앱과 macOS 버전 | 프로젝트의 GitHub 릴리스 |
+| 맥 앱의 파이썬 준비 | 독립 실행형 파이썬을 내려받음(올리는 것 없음) | github.com/astral-sh/python-build-standalone |
+| 문제 보고(맥 앱), 열기를 눌렀을 때만 | `errors.log` 끝부분(홈 폴더는 `~`로 표시)을 채운 GitHub 새 이슈 페이지를 엶. 페이지가 열릴 때 github.com에 닿고, 고치거나 탭을 닫아도 됨 | github.com |
+| 학습 탭의 "파이썬 설치" 버튼 | PyTorch, Ultralytics와 의존 패키지를 내려받음(올리는 것 없음) | PyPI, download.pytorch.org |
+
+웹훅은 `https`여야 합니다. TypeSafe 키는 키체인에 있고 두 기능 모두 켜기 전까지 꺼져 있습니다.
+오류 기록은 `~/.epokio/logs`에 남고, 문제 보고에서 열기를 눌렀을 때만 밖으로 나갑니다.
+
+## 이상할 때
+
+* `epokio doctor`(`pip install epokio` 필요, `Epokio.exe`에는 `doctor`가 없습니다. 윈도우는 `py -m epokio doctor`)가 Epokio가 보는 것을 출력합니다.
+  버전, 도우미가 도는지(어느 버전인지), 지켜보는 폴더, 찾은 파이썬 환경, 로그 마지막 줄. 토큰은 출력하지 않으니 버그 보고에 그대로 붙여도 됩니다(원본 데이터는 `--json`).
+* 도우미는 `~/.epokio/agent.log`(1MB, 이전 사본 하나 보관, 윈도우는 `%USERPROFILE%\.epokio\agent.log`)에 오류 원인을 적습니다.
+* 업그레이드한 뒤에는 `epokio setup`을 다시 돌리세요. 옛 버전으로 도는 도우미를 다시 띄웁니다.
+  이 기계의 도우미는 `epokio agent --stop`(윈도우는 `py -m epokio agent --stop` 또는 `Epokio.exe agent --stop`)으로 끕니다.
+
+## 제거
+
+Epokio를 끝내고 `Epokio.app`을 휴지통으로 옮기고, 직접 띄운 도우미를 끈 뒤(`epokio agent --stop`, 앱이 띄운 것은 앱이 끕니다) `rm -rf ~/.epokio`, pip으로 설치했다면 `pip uninstall epokio`.
+설정, 키체인 항목, 윈도우·리눅스 절차: [uninstall.md](uninstall.md).
+
+## 더 보기
+
+아래 문서는 영어입니다.
+
+* [studio.md](studio.md): 메뉴바, 캐릭터, 결과, Studio 창
+* [remote.md](remote.md): 원격 도우미, 토큰, 윈도우, 리눅스, 트레이, 터미널 보기, 직접 만든 학습 루프
+* [mcp.md](mcp.md): AI 어시스턴트(MCP)와 말로 하는 명령
+* [uninstall.md](uninstall.md): 전체 제거
+* [DESIGN.md](DESIGN.md): 구성 요소가 맞물리는 방식
+
+## 상태
+
+위 기능은 지금 동작하고 자동 테스트가 있습니다. 버전마다 바뀐 점은 [CHANGELOG.md](../CHANGELOG.md)에 있습니다.
+버그 보고와 아이디어는 이슈로 환영합니다. 풀 리퀘스트 전에는 [CONTRIBUTING.md](../CONTRIBUTING.md)를, 구조는 [DESIGN.md](DESIGN.md)를 보세요.
+
+맥 앱은 영어, 한국어, 일본어, 중국어(간체·번체), 스페인어, 프랑스어, 독일어, 포르투갈어(브라질), 베트남어를 지원하고 맥 언어를 따릅니다(설정 → 일반에서 고를 수도 있습니다). 번역 수정은 이슈로 알려 주세요. 웹 화면은 영어와 한국어로, 브라우저 언어를 따르고 위쪽 버튼으로 바꿀 수 있습니다.
+
+라이선스: [MIT](../LICENSE).

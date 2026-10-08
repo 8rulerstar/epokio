@@ -278,7 +278,7 @@ def main(argv: list[str] | None = None):
         import pystray  # noqa: F401
         import PIL      # noqa: F401
     except ImportError:
-        sys.exit("The tray needs pystray and Pillow:  pip install \"epokio[tray]\"")
+        sys.exit("The tray needs pystray and Pillow:  " + autostart.pip_cmd('"epokio[tray]"'))
     i18n.use(i18n.system_language())            # 윈도우 표시 언어를 따른다
     agent, proc = a.agent, None
     if agent is None:

@@ -31,6 +31,12 @@ jobs:
           [ "$tag" = "$py" ] && [ "$tag" = "$mac" ]
           grep -q "^## $tag" CHANGELOG.md || { echo "CHANGELOG.md has no '## $tag' section"; exit 1; }
 
+  # ★0.6.0은 윈도우 CI가 빨간 채로 PyPI에 나갔다(이 파일은 우분투 한 곳에서만 시험했다).
+  #   3개 OS 매트릭스 CI가 통과해야 릴리스를 만든다
+  ci:
+    needs: check
+    uses: ./.github/workflows/ci.yml
+
   python:
     needs: check
     runs-on: ubuntu-latest
@@ -99,7 +105,7 @@ jobs:
           path: mac/build/Epokio-*.dmg
 
   github-release:
-    needs: [python, windows-exe, mac-dmg]
+    needs: [ci, python, windows-exe, mac-dmg]
     runs-on: ubuntu-latest
     permissions:
       contents: write

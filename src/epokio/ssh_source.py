@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import locale
 import logging
 import os
 import re
@@ -63,7 +64,12 @@ def config_hosts(path: Path | None = None) -> list[str]:
 
 def load() -> list[dict]:
     try:
-        hs = json.loads(CONFIG.read_text())
+        raw = CONFIG.read_bytes()
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode(locale.getpreferredencoding(False), errors="replace")   # 예전 판이 이 기계의 기본 인코딩으로 쓴 파일
+        hs = json.loads(text)
         return [h for h in hs if isinstance(h, dict) and valid_host(h.get("host", ""))]
     except (OSError, ValueError):
         return []
@@ -72,7 +78,8 @@ def load() -> list[dict]:
 def save(hosts: list[dict]) -> None:
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     tmp = CONFIG.with_suffix(".tmp")
-    tmp.write_text(json.dumps(hosts, ensure_ascii=False, indent=1))
+    # utf-8로. ★인코딩 없이 써서 한국어 윈도우에선 cp949였고, cp949에 없는 글자가 들어오면 저장이 실패했다
+    tmp.write_text(json.dumps(hosts, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(CONFIG)
 
 
@@ -150,12 +157,17 @@ def apply(host: str, got: dict, now: float | None = None) -> int:
         for name, pair in (r.get("files") or {}).items():
             if _safe_rel(name):
                 _put(host, str(r["path"]), d / name, name, pair, float(pair[0]) + skew, skipped)
+                t = _TAIL.get(host, {}).get((str(r["path"]), name))
+                if t and (d / name).exists():                    # 끝부분만 가진 파일: 앞 기록이 빠졌다고 알린다
+                    kept = (d / name).stat().st_size - t[0]
+                    skipped.append({"path": str(r["path"]), "name": name, "size": kept + t[1], "kept": kept})
     if base.is_dir() and not got.get("truncated"):               # 서버에서 지운 학습은 여기서도
         for f in list(base.rglob("*")):                          # ★다 못 본 스캔으로 지우면 멀쩡한 학습이 화면에서 사라진다
-            if f.is_file() and not any(k == f.parent or k in f.parents for k in keep):
+            if f.is_file() and f.name != _PARENT_FILE and not any(k == f.parent or k in f.parents for k in keep):
                 f.unlink(missing_ok=True)
     before = {(x["path"], x["name"]) for x in _SKIPPED.get(host, [])}
     _SKIPPED[host] = skipped
+    skipped = [x for x in skipped if "kept" not in x]
     if skipped and {(x["path"], x["name"]) for x in skipped} != before:     # 15초마다 같은 경고를 쌓지 않는다
         log.warning("ssh %s: skipped %d log file(s) over the size limit: %s", host, len(skipped),
                     ", ".join(x["path"] + "/" + x["name"] for x in skipped[:5]))
@@ -166,9 +178,11 @@ def _put(host: str, rpath: str, f: Path, name: str, pair: list, mt: float, skipp
     """파일 하나를 비춤에 쓴다. 모양은 ssh_remote.py 머리말"""
     kind = pair[2] if len(pair) > 2 else None
     have = _HAVE.setdefault(host, {}).setdefault(rpath, {})
+    tails = _TAIL.setdefault(host, {})
     if kind == "too_large":                                   # 한도를 넘어 안 왔다: 알리고, 있던 비춤은 그대로
         skipped.append({"path": rpath, "name": name, "size": int(pair[3])})
         have.pop(name, None)
+        tails.pop((rpath, name), None)
         return
     f.parent.mkdir(parents=True, exist_ok=True)
     if pair[1] is None:                                       # 서버: 지난번과 같다. 비춤이 남아 있으면 그대로
@@ -178,14 +192,20 @@ def _put(host: str, rpath: str, f: Path, name: str, pair: list, mt: float, skipp
         return
     if kind in ("append", "append_b64"):                      # 뒤에 붙은 조각만 왔다
         data = pair[1].encode("utf-8") if kind == "append" else base64.b64decode(pair[1])
-        if not f.exists() or f.stat().st_size != int(pair[3]):
+        t = tails.get((rpath, name), (0, 0))
+        if not f.exists() or f.stat().st_size != int(pair[3]) - t[1] + t[0]:
             have.pop(name, None)                              # 이 Mac 쪽이 어긋났다: 다음번엔 통째로
             _FULL.setdefault(host, set()).add((rpath, name))
+            tails.pop((rpath, name), None)
             return
         with open(f, "ab") as fh:
             fh.write(data)
     else:
         data = base64.b64decode(pair[1]) if kind == "b64" else pair[1].encode("utf-8")
+        if kind == "tail":                                    # 첫 줄 + 끝부분: (첫 줄 길이, 서버에서 끝부분 시작 위치)
+            tails[(rpath, name)] = (int(pair[4]), int(pair[3]))
+        else:
+            tails.pop((rpath, name), None)
         if not f.exists() or f.read_bytes() != data:          # 개행을 바꾸지 않고 바이트 그대로(윈도우)
             tmp = f.with_name(f.name + ".tmp")
             tmp.write_bytes(data)
@@ -197,10 +217,12 @@ def _put(host: str, rpath: str, f: Path, name: str, pair: list, mt: float, skipp
 
 _HAVE: dict[str, dict[str, dict[str, float]]] = {}      # 호스트 → 원격 폴더 → 파일 → 받은 원격 수정 시각
 _FULL: dict[str, set] = {}                               # 호스트 → 이어 받기가 어긋나 통째로 다시 받을 (폴더, 파일)
+_TAIL: dict[str, dict] = {}                              # 호스트 → (폴더, 파일) → (비춤 앞 첫 줄 길이, 서버 쪽 끝부분 시작)
 _SKIPPED: dict[str, list] = {}                           # 호스트 → 지난 읽기에서 한도를 넘어 건너뛴 파일
 
 
 def skipped(host: str) -> list[dict]:
+    """한도를 넘은 기록 파일. "kept"가 있으면 건너뛴 게 아니라 끝부분(kept 바이트)만 받아 이어 가는 중"""
     return list(_SKIPPED.get(host, []))
 
 
@@ -225,6 +247,12 @@ def have_for(host: str) -> dict:
         keep = {}
         for n, m in files.items():
             fp = _print(d / n) if d is not None and (path, n) not in full else None
+            t = _TAIL.get(host, {}).get((path, n))
+            if fp and t:                                         # 서버 기준 크기로, 처음 지문은 없음(끝 k바이트만 맞춰 본다)
+                k = min(4096, fp[0] - t[0])
+                with open(d / n, "rb") as fh:
+                    fh.seek(fp[0] - k)
+                    fp = [fp[0] - t[0] + t[1], None, hashlib.md5(fh.read(k)).hexdigest()[:16], k]
             if fp:
                 keep[n] = [m] + fp
         if keep:
@@ -261,7 +289,27 @@ def local_dir(host: str, remote: str) -> Path | None:
     if not parts or ".." in parts or "." in parts:
         return None
     parent = "\\".join(parts[:-1]) if win else "/" + "/".join(parts[:-1])
-    return mirror_dir(host) / urllib.parse.quote(parent, safe="") / _local_name(parts[-1])
+    return _parent_dir(host, parent) / _local_name(parts[-1])
+
+
+_PARENT_FILE = ".remote-parent"
+
+
+def _parent_dir(host: str, parent: str) -> Path:
+    """부모 경로 한 칸. 윈도우에서 길면 짧은 이름으로 두고 원래 경로를 그 안의 .remote-parent에 적는다(remote_path가 읽는다).
+    ★윈도우는 경로 260자 제한이라, 서버 경로를 통째로 옮긴 이름이 길면 비춤 파일을 못 만들어 그 학습이 안 보였다"""
+    q = urllib.parse.quote(parent, safe="")
+    if sys.platform != "win32" or len(q) <= 60:
+        return mirror_dir(host) / q
+    d = mirror_dir(host) / ("~" + hashlib.sha1(parent.encode("utf-8")).hexdigest()[:12])
+    f = d / _PARENT_FILE
+    if not f.exists():
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            f.write_text(parent, encoding="utf-8")
+        except OSError:
+            pass
+    return d
 
 
 def host_of(path: str) -> str | None:
@@ -278,7 +326,13 @@ def remote_path(path: str) -> str:
     rest = path[len(str(MIRROR)) + 1:].split(os.sep)
     if len(rest) < 3:
         return ""
-    parent = urllib.parse.unquote(rest[1])
+    if rest[1].startswith("~"):                                   # 길어서 줄인 부모 경로(_parent_dir)
+        try:
+            parent = (MIRROR / rest[0] / rest[1] / _PARENT_FILE).read_text(encoding="utf-8")
+        except OSError:
+            return ""
+    else:
+        parent = urllib.parse.unquote(rest[1])
     name = urllib.parse.unquote(rest[2]) if sys.platform == "win32" else rest[2]
     sep = "\\" if _win_path(parent) else "/"
     return parent.rstrip(sep) + sep + sep.join([name] + rest[3:])

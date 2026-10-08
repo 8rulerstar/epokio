@@ -29,7 +29,7 @@ def _predict(agent, body):
             "conf": float(body.get("conf", 0.25)), "device": device or None}
     try:
         r = subprocess.run([body.get("python", ""), "-c", SCRIPT, json.dumps(args)],
-                           capture_output=True, text=True, timeout=180,
+                           capture_output=True, text=True, errors="replace", timeout=180,   # 오류 메시지의 못 푸는 글자에 요청이 죽지 않게
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))   # 윈도우에서 검은 창 안 뜨게
     except (OSError, subprocess.TimeoutExpired) as e:
         return 500, {"error": str(e)}

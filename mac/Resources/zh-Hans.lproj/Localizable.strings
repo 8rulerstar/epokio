@@ -1371,3 +1371,8 @@
 "No new step for a while." = "一段时间没有新的训练步。";
 "Ended at step %@. This log does not say how many steps were planned." = "在第 %@ 步结束。此日志没有记录计划的步数。";
 "Stopped at step %@ before the last one." = "在最后一步前的第 %@ 步停止。";
+"Step" = "步";
+"Steps" = "步数";
+"Epoch / step" = "轮次 / 步";
+"Epochs / steps" = "轮次 / 步数";
+"%d large log files: only the last part was loaded" = "%d 个大型日志文件：只加载了最后一部分";

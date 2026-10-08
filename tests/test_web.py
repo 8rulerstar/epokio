@@ -505,3 +505,29 @@ def test_the_package_ships_every_file_the_page_loads():
     assert refs
     missing = [f for f in refs if not any(fnmatch.fnmatch("web/" + f, p) for p in pats)]
     assert not missing, missing
+
+
+def test_web_shows_ssh_servers_like_the_mac_app():
+    """SSH 서버 상태(연결·마지막으로 읽은 때·오류·학습 수·건너뛴 큰 로그)가 맥 앱에만 있었다(2026-10-01). 같은 GET /ssh를 읽는다"""
+    js = (WEB / "ssh.js").read_text(encoding="utf-8")
+    html = PAGE.read_text(encoding="utf-8")
+    assert "web/ssh.js" in html and html.index("web/ssh.js") < html.index("web/main.js")
+    assert 'api("ssh")' in js and 'apiPost("ssh/refresh")' in js
+    for k in ("st.ok", "st.error", "st.at", "st.runs", "st.skipped", "x.name", "x.size"):
+        assert k in js, k
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    assert "await loadSSH()" in app and "${sshHTML()}" in app and "wireSSH();" in app
+    css = (WEB / "style.css").read_text(encoding="utf-8")
+    assert ".sshrow:hover" in css and ".sshn.bump" in css and ":not(.sshn)" in css
+
+
+def test_ssh_api_status_carries_skipped(monkeypatch):
+    """웹 칸이 읽는 모양: hosts[].status.skipped = [{path,name,size}]"""
+    from epokio.api import ssh as ssh_api
+    from epokio import ssh_source
+    monkeypatch.setattr(ssh_source, "load", lambda: [{"host": "gpu1", "paths": [], "auto": True, "on": True}])
+    monkeypatch.setattr(ssh_source, "config_hosts", lambda: ["gpu1"])
+    st = {"ok": True, "error": None, "runs": 3, "at": 1.0, "skipped": [{"path": "/r", "name": "big.csv", "size": 99}]}
+    agent = type("A", (), {"ssh": type("P", (), {"status": {"gpu1": st}})()})()
+    out = ssh_api.get(agent, "/ssh", {})
+    assert out["hosts"][0]["status"]["skipped"][0] == {"path": "/r", "name": "big.csv", "size": 99}

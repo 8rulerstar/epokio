@@ -1374,3 +1374,8 @@
 "No new step for a while." = "한동안 새 스텝이 없습니다.";
 "Ended at step %@. This log does not say how many steps were planned." = "%@스텝에서 끝났습니다. 이 기록에는 계획한 스텝 수가 없습니다.";
 "Stopped at step %@ before the last one." = "마지막 스텝 전, %@스텝에서 멈췄습니다.";
+"Step" = "스텝";
+"Steps" = "스텝";
+"Epoch / step" = "에폭 / 스텝";
+"Epochs / steps" = "에폭 / 스텝";
+"%d large log files: only the last part was loaded" = "큰 기록 파일 %d개: 끝부분만 불러옴(앞쪽 기록 없음)";

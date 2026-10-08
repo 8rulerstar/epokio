@@ -15,7 +15,7 @@ func csvCell(_ v: String) -> String {
 }
 
 func runsCSV(_ runs: [Run]) -> String {
-    let cols = ["name", "state", "epoch", "total", "best", "best_epoch", "metric_name", "framework", "source", "tags", "path"]
+    let cols = ["name", "state", "epoch", "total", "best", "best_epoch", "metric_name", "framework", "source", "tags", "path", "x_axis"]   // x_axis=step이면 epoch·total·best_epoch가 step 번호
     // ★한 식에 몰아 쓰면 컴파일러가 타입을 못 정한다(CI에서 시간 초과). 칸을 하나씩 채운다
     let rows: [String] = runs.map { (r: Run) -> String in
         var c: [String] = [r.displayName, r.state, String(r.epoch)]
@@ -27,6 +27,7 @@ func runsCSV(_ runs: [Run]) -> String {
         c.append(r.source)
         c.append((r.meta?.tags ?? []).joined(separator: " "))
         c.append(r.path)
+        c.append(r.isStepAxis ? "step" : "epoch")
         return c.map(csvCell).joined(separator: ",")
     }
     let lines: [String] = [cols.joined(separator: ",")] + rows

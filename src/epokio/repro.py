@@ -39,8 +39,9 @@ def _clean_env() -> dict:
 
 def _run(cmd: list[str], cwd: str | None = None) -> str | None:
     try:
+        # git·pip은 utf-8로 낸다. ★기본 인코딩(한국어 윈도우 cp949)으로 풀어 한글 주석이 있는 diff가 깨지거나 기록이 통째로 실패했다
         p = subprocess.run(cmd, cwd=cwd, env=_clean_env(), capture_output=True, text=True,
-                           timeout=TIMEOUT, stdin=subprocess.DEVNULL)
+                           encoding="utf-8", errors="replace", timeout=TIMEOUT, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError):
         return None
     return p.stdout if p.returncode == 0 else None

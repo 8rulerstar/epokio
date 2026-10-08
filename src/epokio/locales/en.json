@@ -126,7 +126,7 @@
  "{gb} GB free on the disk with {folder}": "{gb} GB free on the disk with {folder}",
  "{gpu} at {c} °C": "{gpu} at {c} °C",
  "{gpu} memory {used} of {total} GB": "{gpu} memory {used} of {total} GB",
- "Another Epokio helper on this machine runs the queue. Stop it first (epokio agent --stop).": "Another Epokio helper on this machine runs the queue. Stop it first (epokio agent --stop).",
+ "Another Epokio helper on this machine runs the queue. Stop it first ({cmd}).": "Another Epokio helper on this machine runs the queue. Stop it first ({cmd}).",
  "This run was moved after training (it was saved at {old}). Ultralytics would continue there, so use Train again instead.": "This run was moved after training (it was saved at {old}). Ultralytics would continue there, so use Train again instead.",
  "Score": "Score",
  "This run cannot be resumed": "This run cannot be resumed",

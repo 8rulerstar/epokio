@@ -6,6 +6,10 @@
   [시각, 글자] / [시각, b64, "b64"]  통째
   [시각, 글자, "append", 위치] / [시각, b64, "append_b64", 위치]   위치(이 Mac이 가진 크기)부터 뒤만
   [시각, None, "too_large", 크기]   한도(글자 4MB, 바이너리 20MB)를 넘어 건너뜀. 이어 받기면 한도는 붙은 조각에만
+  [시각, 글자, "tail", 시작, 첫 줄 길이, 크기]   처음 보는 늘어나는 글자 기록이 한도를 넘음: 첫 줄(CSV 머리) + 끝 한도만큼
+      (줄 경계부터). 시작 = 서버 파일에서 끝 조각이 시작하는 위치. 바이너리(tfevents·wandb)는 레코드를 안전하게
+      다시 맞출 수 없어 too_large 그대로
+  HAVE의 처음 4KB 지문이 None이면 끝 조각만 가진 쪽이다: 마지막 k바이트(HAVE 다섯째 값) 지문만 맞춰 본다
 """
 
 REMOTE = r'''
@@ -33,7 +37,7 @@ def grab(p, n, st, h, limit, binary):
     # 늘기만 하는 파일: 이 Mac이 가진 앞부분(크기·처음 4KB·마지막 4KB 지문)이 그대로면 뒤에 붙은 것만 보낸다
     with open(p, "rb") as f:
         if len(h) >= 4 and appendable(n) and 0 < h[1] <= st.st_size and \
-                digest(f, 0, min(4096, h[1])) == h[2] and digest(f, max(0, h[1] - 4096), h[1]) == h[3]:
+                (h[2] is None or digest(f, 0, min(4096, h[1])) == h[2]) and digest(f, max(0, h[1] - (h[4] if len(h) > 4 else 4096)), h[1]) == h[3]:
             if st.st_size - h[1] > limit: return [st.st_mtime, None, "too_large", st.st_size - h[1]]
             f.seek(h[1])
             data = f.read(st.st_size - h[1])
@@ -41,6 +45,15 @@ def grab(p, n, st, h, limit, binary):
                 try: return [st.st_mtime, data.decode("utf-8"), "append", h[1]]
                 except UnicodeDecodeError: pass        # 글자 중간에서 잘렸다: 바이트 그대로
             return [st.st_mtime, base64.b64encode(data).decode("ascii"), "append_b64", h[1]]
+        if st.st_size > limit and appendable(n) and not binary:     # 늘어나는 글자 기록: 끝부분만 받아 이어 간다
+            f.seek(0)
+            first = f.readline(65536)
+            f.seek(st.st_size - limit)
+            f.readline()                                     # 잘린 첫 줄은 버린다
+            start = f.tell()
+            if first.endswith(b"\n") and len(first) < start < st.st_size:
+                try: return [st.st_mtime, (first + f.read(st.st_size - start)).decode("utf-8"), "tail", start, len(first), st.st_size]
+                except UnicodeDecodeError: pass              # 바이트가 바뀌면 이어 받기 위치가 어긋난다
         if st.st_size > limit: return [st.st_mtime, None, "too_large", st.st_size]   # 말없이 건너뛰지 않고 알린다
         f.seek(0)
         data = f.read()

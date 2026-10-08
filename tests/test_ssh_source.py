@@ -172,7 +172,7 @@ def test_crlf_files_are_mirrored_as_is(env):
 # ── 늘어나는 파일은 뒤만, 너무 큰 파일은 알린다 ──
 @pytest.fixture
 def tail(env, monkeypatch):
-    for k in ("_HAVE", "_FULL", "_SKIPPED"):
+    for k in ("_HAVE", "_FULL", "_SKIPPED", "_TAIL"):
         monkeypatch.setattr(ssh_source, k, {})
     fake, run = env
 
@@ -235,7 +235,7 @@ def test_local_mirror_out_of_step_resends_full(tail):
 def test_oversized_file_is_reported(tail, monkeypatch):
     read, run = tail
     monkeypatch.setattr(ssh_source, "REMOTE", ssh_source.REMOTE.replace("4000000", "1000"))
-    (run / "args.yaml").write_bytes(b"x: 1\n" * 400)  # write_text would be CRLF on Windows (2400 bytes)
+    (run / "args.yaml").write_bytes(b"x: 1\n" * 400)                   # write_text는 윈도우에서 CRLF라 2400B
     got = read()
     assert got["args.yaml"][2:] == ["too_large", 2000]
     assert ssh_source.skipped("gpu") == [{"path": str(run), "name": "args.yaml", "size": 2000}]
@@ -247,3 +247,27 @@ def test_oversized_file_is_reported(tail, monkeypatch):
     monkeypatch.setattr(ssh_source, "run_remote", lambda *a, **k: {"now": time.time(), "runs": [
         {"path": str(run), "files": {"args.yaml": [1, None, "too_large", 2000]}}]})
     assert ssh_source.Poller(ssh="ssh").poll_once({"host": "gpu"})["skipped"][0]["name"] == "args.yaml"
+
+
+def test_oversized_growing_log_keeps_the_tail(tail, monkeypatch):
+    read, run = tail
+    monkeypatch.setattr(ssh_source, "REMOTE", ssh_source.REMOTE.replace("4000000", "1000").replace("20000000", "1000"))
+    head = b"epoch,metrics/mAP50-95(B),train/box_loss\n"
+    (run / "results.csv").write_bytes(head + b"".join(b"%d,0.5,1.0\n" % i for i in range(300)))
+    (run / "args.yaml").write_bytes(b"x: 1\n" * 400)                    # 설정은 늘지 않는다: 그대로 건너뜀
+    (run / "events.out.tfevents.1.host").write_bytes(b"\x00" * 2000)   # 바이너리는 레코드를 다시 못 맞춘다
+    got = read()
+    assert got["results.csv"][2] == "tail"
+    assert got["args.yaml"][2] == "too_large" and got["events.out.tfevents.1.host"][2] == "too_large"
+    f = ssh_source.local_dir("gpu", str(run)) / "results.csv"
+    rest = f.read_bytes()[len(head):]
+    assert f.read_bytes().startswith(head) and b"\n" + rest in (run / "results.csv").read_bytes()   # 줄 경계부터
+    assert (run / "results.csv").read_bytes().endswith(rest) and len(rest) <= 1000
+    sk = {x["name"]: x for x in ssh_source.skipped("gpu")}
+    assert sk["results.csv"]["kept"] == len(rest) and sk["results.csv"]["size"] == os.stat(run / "results.csv").st_size
+    assert "kept" not in sk["args.yaml"] and "kept" not in sk["events.out.tfevents.1.host"]
+    for i in range(3):                                                   # 그 뒤로는 붙은 것만 받아 이어 간다
+        bump(run / "results.csv", b"%d,0.9,0.1\n" % (900 + i))
+        assert read()["results.csv"][2] == "append"
+    assert f.read_bytes() == head + rest + b"900,0.9,0.1\n901,0.9,0.1\n902,0.9,0.1\n"
+    assert {x["name"]: x for x in ssh_source.skipped("gpu")}["results.csv"]["size"] == os.stat(run / "results.csv").st_size

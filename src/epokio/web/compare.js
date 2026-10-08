@@ -23,8 +23,8 @@ async function drawCompare(periodic) {
     const top = same && vals.length ? (runs[0].lower ? Math.min(...vals) : Math.max(...vals)) : null;
     right = `<div style="display:flex;align-items:center;gap:10px"><h2 style="margin:0;font-size:18px">${t("Compare runs")}</h2>
       <select id="ck" style="margin-left:auto;font:inherit;padding:4px 8px;border-radius:8px">${keys.map((k) => `<option value="${esc(k)}" ${k === S.cmpKey ? "selected" : ""}>${esc(pretty(k, ds.find((d) => d && d.column_info && d.column_info[k])))}</option>`).join("")}</select></div>`
-      + chart(runs.map((r, i) => ({ name: display(r), x: ds[i]?.columns.epoch || [], y: ds[i]?.columns[S.cmpKey] || [], color: COLORS[i] })))
-      + `<table style="margin-top:14px"><tr><th>${t("Run")}</th><th>${t("Epochs")}</th><th>${t("Score")}</th><th>${t("Precision")}</th><th>${t("Recall")}</th><th>F1</th><th>mAP50-95</th><th>${t("Model")}</th></tr>`
+      + chart(runs.map((r, i) => ({ name: display(r), x: ds[i]?.columns.epoch || [], y: ds[i]?.columns[S.cmpKey] || [], color: COLORS[i] })), { xname: runs.every(isStep) ? xname(runs[0]) : undefined })
+      + `<table style="margin-top:14px"><tr><th>${t("Run")}</th><th>${axisLabel(runs, "Epochs", "Steps", "Epochs / steps")}</th><th>${t("Score")}</th><th>${t("Precision")}</th><th>${t("Recall")}</th><th>F1</th><th>mAP50-95</th><th>${t("Model")}</th></tr>`
       + runs.map((r, i) => { const h = ds[i]?.heads[0] || {}; const a = ds[i]?.args || {};
           return `<tr><td>${esc(display(r))}</td><td class="num">${xnum(r, r.epoch)}/${xnum(r, r.total)}</td><td class="num ${top != null && r.best === top ? "win" : ""}" title="${esc(pretty(r.metric_name))}">${f3(r.best)}${r.lower ? " ↓" : ""}</td><td class="num">${f3(h.precision)}</td><td class="num">${f3(h.recall)}</td>
           <td class="num ${h.f1 != null && h.f1 === best ? "win" : ""}">${f3(h.f1)}</td><td class="num">${f3(h.map5095)}</td><td>${esc((a.model || "").split(/[\\/]/).pop())}</td></tr>`; }).join("") + `</table>`;
@@ -155,7 +155,7 @@ function wireSettingsTable(periodic) {
 }
 function downloadCSV() {
   // lower: best가 낮을수록 좋은 점수인가(★없으면 0.2가 최고인지 최악인지 알 수 없었다)
-  const cols = ["name", "state", "epoch", "total", "best", "best_epoch", "metric_name", "lower", "framework", "source", "tags", "path"];
+  const cols = ["name", "state", "epoch", "total", "best", "best_epoch", "metric_name", "lower", "framework", "source", "tags", "path", "x_axis"];   // x_axis=step이면 epoch·total·best_epoch가 step 번호
   const cell = (v) => {
     let s = String(v ?? "");
     if (/^[=+\-@\t\r]/.test(s) && isNaN(+s)) s = "'" + s;          // 엑셀이 수식으로 실행하지 않게(학습 이름·태그는 남이 정할 수 있다)
@@ -164,7 +164,7 @@ function downloadCSV() {
   // 거른 것이 있으면 보이는 학습만(★거른 뒤에도 전부 내보냈다)
   // 설정 표를 연 적이 있으면 설정 열도 싣는다(★점수와 설정을 한 파일에서 볼 수 없었다)
   const keys = S.sweep?.keys || [], args = new Map((S.sweep?.runs || []).map((x) => [x.path, x.args]));
-  const rows = filteredRuns().map((r) => [...cols.map((c) => cell(c === "name" ? display(r) : c === "tags" ? (r.meta?.tags || []).join(" ") : r[c])),
+  const rows = filteredRuns().map((r) => [...cols.map((c) => cell(c === "name" ? display(r) : c === "tags" ? (r.meta?.tags || []).join(" ") : c === "x_axis" ? (isStep(r) ? "step" : "epoch") : r[c])),
     ...keys.map((k) => cell(args.get(r.path)?.[k]))].join(","));
   const blob = new Blob(["\ufeff" + [[...cols, ...keys].map(cell).join(","), ...rows].join("\r\n")], { type: "text/csv;charset=utf-8" });   // BOM: 엑셀이 한글을 안 깨게
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);

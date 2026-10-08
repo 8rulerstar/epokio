@@ -48,7 +48,10 @@ def _read_csv(p: Path) -> list[dict]:
         text = p.read_text(encoding="utf-8-sig", errors="ignore")
         if text and not text.endswith(("\n", "\r")) and key[2]:
             text = text[: text.rfind("\n") + 1] if "\n" in text else ""
-        rows = [{(k or "").strip(): (v or "").strip() for k, v in r.items()} for r in csv.DictReader(io.StringIO(text, newline=""))]
+        # ★헤더보다 열이 많은 줄은 DictReader가 넘친 값을 None 열쇠에 리스트로 담는다. 그걸 strip하다 죽어서
+        #   그 폴더의 학습이 전부 화면에서 사라졌다. 넘친 값은 버린다
+        rows = [{(k or "").strip(): (v or "").strip() for k, v in r.items() if k is not None}
+                for r in csv.DictReader(io.StringIO(text, newline=""))]
         _CSV_CACHE[p] = hit = (key, rows)
     return [dict(r) for r in hit[1]]
 

@@ -10,9 +10,20 @@
 </p>
 
 <p align="center">
+  <a href="https://pypi.org/project/epokio/"><img src="https://img.shields.io/pypi/v/epokio" alt="PyPI"></a>
+  <a href="https://github.com/8rulerstar/epokio/releases/latest"><img src="https://img.shields.io/github/v/release/8rulerstar/epokio?label=macOS%20app" alt="macOS app release"></a>
+  <a href="https://github.com/8rulerstar/epokio/actions/workflows/ci.yml"><img src="https://github.com/8rulerstar/epokio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/pypi/l/epokio" alt="License"></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/menubar-characters.gif" width="600" alt="A character runs in the menu bar at the speed of your training">
+</p>
+
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/menubar-info-toggle-dark.gif">
-    <img src="docs/images/menubar-info-toggle.gif" width="600" alt="The menu bar item switching between progress, time left and best score">
+    <img src="docs/images/menubar-info-toggle.gif" width="600" alt="The menu bar item showing progress, epoch and time left as you switch them on">
   </picture>
 </p>
 
@@ -34,7 +45,7 @@
 * **Phone alerts** through ntfy, Slack, Discord or Telegram webhooks, sent by the training machine itself, with a test button to check they arrive.
 * **Remote machines over SSH** with nothing installed on the server: only the new tail of each log is copied.
 * **Per-class scores** (precision, recall, mAP per class, weakest first) and a plain-language note on what to change next.
-* **Step-based runs** (W&B without `epoch`, TensorBoard step scalars, a CSV whose first column is `step` or `iter`) show progress in steps.
+* **Step-based runs** (W&B without `epoch`, TensorBoard step scalars, a CSV whose first column is `step`, `iter` or `iteration`) show progress in steps.
 * **Compare, review and train** from the Studio window or the web page. Details in [docs/studio.md](docs/studio.md).
 
 ## Quick start
@@ -46,6 +57,7 @@
 * **Mac:** macOS 15 or later. The app is not notarized yet: open it once, close the warning, then **System Settings → Privacy & Security → Open Anyway**. On macOS 26, allow it in **System Settings → Menu Bar** if the icon is missing.
 * **Windows:** SmartScreen may warn about an unsigned app the first time: **More info → Run anyway**. Watching needs no Python; training from the Train tab needs Python 3.10 or later.
 * **Linux server:** use a virtual environment on Ubuntu 24.04 (PEP 668). Over SSH, setup prints an `ssh -L` tunnel command instead of opening a browser.
+* **Phone:** the web page listens on this machine only. To open it from a phone, use that `ssh -L` tunnel or Tailscale, or start the helper with `--lan` (it then asks for a token; see [docs/remote.md](docs/remote.md)).
 
 Full steps for Windows, Linux, the tray icon and remote helpers: [docs/remote.md](docs/remote.md).
 
@@ -64,7 +76,7 @@ Full steps for Windows, Linux, the tray icon and remote helpers: [docs/remote.md
   <img src="docs/images/studio-compare.png" width="620" alt="Compare: one chart for several runs, their scores, and only the settings that differed">
 </p>
 
-**Resource use.** Measured on a Mac watching 50 runs: about 45 MB of memory (RSS) and about 0.23 s of CPU per minute, which is close to 0%.
+**Resource use.** The background helper alone, watching 50 run folders on a Mac: about 45 MB of memory (RSS) and under 0.25 s of CPU per minute, close to 0%.
 
 ## Supported formats
 
@@ -111,15 +123,16 @@ Nothing is installed or written on the server.
 
 * **Requirements:** `python3` 3.6 or later on the server and key-based login (no password or one-time-code prompts). No internet needed there.
 * **What is copied:** only known log names (`results.csv`, `log.txt`, `summary.csv`, `metrics.csv`, `trainer_state.json`, TensorBoard and W&B files and a few more) and saved configs, never images or weights. Every 15 seconds; unchanged files are skipped and logs that only grow send just the new tail.
-* **Size limit:** text logs over 4 MB and TensorBoard or W&B files over 20 MB are skipped (for a growing file, the limit applies to the new part). The Mac app shows a warning with how many files were skipped instead of dropping them silently.
+* **Size limit:** 4 MB for text logs, 20 MB for TensorBoard and W&B files (for a file Epokio already has, the limit applies to the new part). A growing text log over the limit keeps its first line and the last 4 MB, then keeps appending. TensorBoard, W&B and config files over the limit are skipped. The Mac app and the web page's SSH panel say how many files were skipped or cut.
 * It looks under your home folder; add paths such as `/scratch/you/runs` under *Other folders*.
-* This is view only. To start training on that machine, install the helper: `pip install epokio && epokio setup --lan --autostart`. Tokens, `--lan` and network safety: [docs/remote.md](docs/remote.md).
+* This is view only. To start training on that machine, install the helper: on Linux `pip install epokio` then `epokio setup --lan --autostart`; on Windows `py -m pip install "epokio[tray]"` then `py -m epokio setup --lan --autostart` (no Python: `Epokio.exe setup --lan --autostart`). Tokens, `--lan` and network safety: [docs/remote.md](docs/remote.md).
 
 ## Limits
 
-* **Step runs are labelled "epoch" in a few places.** The Mac app's notification inbox and its CSV export, the runs CSV export, and the compare chart's axis label still say "epoch" even when the numbers are steps.
 * OpenMMLab iteration-based runs (no epoch) are not read.
-* Over SSH, only the known log file names are read, not any CSV, and files over the size limit are skipped.
+* Over SSH, only the known log file names are read, not any CSV. Binary logs and configs over the size limit are skipped.
+* Your own CSV named `results.csv`, `metrics.csv` or `epokio_log.csv` is left to the Ultralytics, Lightning and `epokio.start` readers, so it is not read as your own CSV. Use another name.
+* The resource numbers above are for the background helper alone, measured on a Mac with 50 run folders that were not changing (about 45 MB RSS, under 0.25 s of CPU per minute).
 * The label editor and starting auto-label jobs are Mac only. The web page covers watching, training, the queue, compare, review, sweeps and alerts.
 * The Mac app is not notarized and the Windows app is not signed, so both warn on first launch.
 * The helper speaks plain HTTP. Prefer an SSH tunnel or Tailscale over `--lan`.
@@ -127,17 +140,18 @@ Nothing is installed or written on the server.
 
 ## How it compares
 
-| | Epokio | Cloud trackers (W&B, Comet) | Self-hosted trackers (MLflow, ClearML, Aim) | Ultralytics Platform | Trackio |
-|---|---|---|---|---|---|
-| Code changes in your training script | **None** | Add logging calls | Add logging calls | Train on their platform | Add `trackio.init` and `log` calls |
-| Account or server | **None** | Account | Your own server | Account | None |
-| Where your data goes | **Stays on your machines** | Their cloud | Your server | Their cloud | Your machine (or a Hugging Face Space you choose) |
-| Always visible | **Menu bar, terminal, web page** | Browser tab, phone app | Browser tab | Browser tab | Browser tab |
-| Runs you started last week | **Shown right away** | Only if they were logged | Only if they were logged or converted | Only if trained there | Only if logged, or imported by hand from CSV or TensorBoard files |
-| Team sharing, model registry, step-level history, years of runs | Not the goal | **Yes** | **Yes** | **Yes** | Partly |
-| Price | Free, MIT | Free tier and paid plans | Free software, you run the server (hosted plans exist) | Free tier and paid plans | Free |
+| | Epokio | TensorBoard | Cloud trackers (W&B, Comet) | MLflow, Aim | Ultralytics Platform | Trackio |
+|---|---|---|---|---|---|---|
+| Code changes in your training script | **None** | None if your framework writes event files | Add logging calls, or one setting via built-in integrations (HF Trainer, Ultralytics) | Add logging calls (MLflow has autolog) | None for Ultralytics: streams local training with an API key | Add `trackio.init` and `log` calls, or import TensorBoard/CSV logs |
+| Account or server | **None** | None | Account | None locally (`mlflow ui`, `aim up`), or your own server | Account | None |
+| Where your data goes | **Stays on your machines** | Your machine | Their cloud | Local folder (`./mlruns`, `.aim`) or your server | Their cloud | Your machine (or a Hugging Face Space and Dataset you choose) |
+| Always visible | **Menu bar, terminal, tray** | Browser tab after `tensorboard --logdir` | Browser tab, phone app (iOS) | Browser tab | Browser tab | Browser tab |
+| Formats in one view | **Ultralytics, HF, Lightning, Keras, timm, OpenMMLab, W&B, TensorBoard, CSV** | Its own event files | Their own logs (W&B can sync TensorBoard) | Their own logs (Aim converts TensorBoard, MLflow, W&B logs) | Ultralytics | Its own logs (imports TensorBoard and CSV) |
+| Team sharing, model registry | Not the goal | No | **Yes** | Sharing on your server; registry in MLflow only | **Yes** | Partly |
+| Per-step charts | Progress in steps for step-based runs | **Yes** | **Yes** | **Yes** | Per epoch | **Yes** |
+| Price | Free, MIT | Free | Free tier and paid plans | Free software (hosted plans exist) | Free tier and paid plans | Free |
 
-Epokio also suggests the next run from what it sees in the curves (for example "still improving: train 2× longer from best.pt"),
+Epokio also sends its own alerts (Mac, tray, and phone webhooks) when a run finishes, fails or stalls, and suggests the next run from what it sees in the curves (for example "still improving: train 2× longer from best.pt"),
 using simple rules on your machine rather than a cloud AI.
 
 **Use it alongside a tracker, not instead of one.** If your team already logs to W&B or MLflow, keep doing that.
@@ -155,23 +169,25 @@ Nothing leaves your machines unless you turn it on. The app talks only to helper
 | Result explanations, polished | Status, task, scores, setting numbers, language, the draft sentences | TypeSafe, only when the Assistant is on |
 | Explanations written on this Mac (macOS 26+) | Nothing | Stays on the Mac |
 | Update check (Sparkle), off in current releases until they are signed with an update key | App and macOS version | The project's GitHub releases |
+| Mac app, setting up Python | Downloads a standalone Python (nothing is uploaded) | github.com/astral-sh/python-build-standalone |
+| Report Issue (Mac app), only when you click Open | Opens a GitHub new-issue page with the end of `errors.log` (home folder shown as `~`) filled in, so it reaches github.com when the page opens; you can edit it or close the tab | github.com |
 | Train tab, "set up Python" button | Downloads PyTorch, Ultralytics and their dependencies (nothing is uploaded) | PyPI and download.pytorch.org |
 
 Webhooks must be `https`. The TypeSafe key lives in your Keychain and both features are off until you
-turn them on. Error logs stay in `~/.epokio/logs` and are never sent anywhere.
+turn them on. Error logs stay in `~/.epokio/logs` and leave only through Report Issue, when you click Open.
 
 ## When something is off
 
-* `epokio doctor` prints what Epokio sees: its version, whether the helper is running (and which version),
+* `epokio doctor` (needs `pip install epokio`; `Epokio.exe` has no `doctor`) prints what Epokio sees: its version, whether the helper is running (and which version),
   the folders it watches, the Python environments it found and the last lines of its log. It never prints
   the token, so you can paste the output into a bug report (`--json` for the raw data).
 * The helper writes `~/.epokio/agent.log` (1 MB, one old copy kept), with the reason behind any error.
 * After upgrading, run `epokio setup` again: it restarts a helper that is still running the old version.
-  `epokio agent --stop` stops the helper on this machine.
+  `epokio agent --stop` (or `Epokio.exe agent --stop`) stops the helper on this machine.
 
 ## Uninstall
 
-Quit Epokio, move `Epokio.app` to the Trash, then `rm -rf ~/.epokio` and `pip uninstall epokio` if you used pip.
+Quit Epokio, move `Epokio.app` to the Trash, stop a helper you started yourself (`epokio agent --stop`; the app stops the one it started), then `rm -rf ~/.epokio` and `pip uninstall epokio` if you used pip.
 Settings, Keychain items, Windows and Linux steps: [docs/uninstall.md](docs/uninstall.md).
 
 ## More
