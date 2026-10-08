@@ -405,3 +405,24 @@ def test_health_on_this_machine_says_how_to_show_the_token(agent_url):
     h = json.loads(fetch(base + "/health")[1])
     assert h["token_cmd"] == autostart.short_home(autostart.cli("agent --show-token")) and h["token_cmd"].endswith("agent --show-token")
 
+
+
+def test_shutdown_closes_the_listening_socket_not_only_the_loop(tmp_path, monkeypatch):
+    """맥 CI: /shutdown이 serve_forever만 멈추고 듣는 소켓은 열어 둬서, 맥·리눅스는 프로세스가 끝날 때까지 연결을
+    받아(backlog) stop_agent가 '안 꺼졌다'고 봤다(윈도우는 통과해 놓쳤다). 소켓까지 닫는다"""
+    import time as _t
+    import urllib.request
+    from epokio import auth as _auth
+    monkeypatch.setattr(_auth, "TOKEN_FILE", tmp_path / "token")
+    monkeypatch.setattr(Agent, "ROOTS_FILE", tmp_path / "roots.json")
+    a = Agent.__new__(Agent)
+    a.roots, a.label = [], "t"
+    srv = QuietServer(("127.0.0.1", 0), make_handler(a))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    req = urllib.request.Request(f"http://127.0.0.1:{srv.server_address[1]}/shutdown", data=b"{}", method="POST",
+                                 headers={"Authorization": "Bearer " + _auth.token(), "Content-Type": "application/json"})
+    urllib.request.urlopen(req, timeout=5).read()
+    end = _t.time() + 5
+    while srv.socket.fileno() != -1 and _t.time() < end:
+        _t.sleep(0.05)
+    assert srv.socket.fileno() == -1

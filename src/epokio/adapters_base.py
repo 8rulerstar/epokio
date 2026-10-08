@@ -44,7 +44,9 @@ def _read_csv(p: Path) -> list[dict]:
     st = p.stat()
     key = (st.st_mtime_ns, st.st_size, time.time() - st.st_mtime < 10)
     hit = _CSV_CACHE.get(p)
-    if hit is None or hit[0] != key:
+    # ★2초 안에 바뀐 파일은 캐시를 믿지 않는다. 시계 단위가 거친 곳(윈도우는 약 16ms)에서 같은 크기로 다시 쓰면
+    #   시각·크기가 그대로라 옛 내용을 돌려줬다(열 이름만 바뀐 CSV가 옛 대표 점수로 보였다). 도는 학습은 어차피 매번 바뀐다
+    if hit is None or hit[0] != key or time.time() - st.st_mtime < 2.0:
         text = p.read_text(encoding="utf-8-sig", errors="ignore")
         if text and not text.endswith(("\n", "\r")) and key[2]:
             text = text[: text.rfind("\n") + 1] if "\n" in text else ""

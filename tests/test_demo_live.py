@@ -4,7 +4,13 @@ from epokio import demo
 
 
 def _rows(p):
-    return len((p / "results.csv").read_text().splitlines()) - 1
+    # 윈도우: 쓰는 쪽이 바꿔치기하는 순간에 열면 PermissionError(또는 잠깐 없음). 그때는 다시 본다
+    for _ in range(50):
+        try:
+            return len((p / "results.csv").read_text().splitlines()) - 1
+        except (PermissionError, FileNotFoundError):
+            time.sleep(0.01)
+    return -1
 
 
 def test_live_rows_grow_and_finish(tmp_path, monkeypatch):

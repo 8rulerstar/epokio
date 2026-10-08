@@ -86,6 +86,10 @@ def test_unchanged_runs_are_not_read_again(tmp_path, monkeypatch):
     d.mkdir(parents=True)
     (d / "args.yaml").write_text("epochs: 5\n")
     (d / "results.csv").write_text("epoch,time,metrics/mAP50-95(B)\n1,1,0.1\n2,2,0.2\n")
+    import os
+    import time as _t
+    old = _t.time() - 60                         # 방금(2초 안) 바뀐 파일은 캐시를 안 믿으므로, 1분 전에 쓴 파일로
+    os.utime(d / "results.csv", (old, old))
     reads = []                                   # _parse가 어댑터를 골라 파일을 읽은 횟수
     real_detect = adapters.detect
 
@@ -388,3 +392,20 @@ def test_keras_reads_the_planned_epochs_from_a_config_next_to_the_log(tmp_path):
     (d / "config.json").write_text(json.dumps({"epochs": 20}), encoding="utf-8")
     r = read_run(d)
     assert r.framework == "keras" and r.epoch == 2 and r.total == 20
+
+
+def test_a_file_rewritten_with_the_same_size_in_the_same_clock_tick_is_read_again(tmp_path):
+    """윈도우 CI: 같은 폴더의 training.log를 열 이름만 바꿔(같은 크기) 곧바로 다시 쓰면 시각·크기가 그대로라
+    옛 내용(val_rmse)을 돌려줬다. 2초 안에 바뀐 파일은 캐시를 믿지 않는다"""
+    import os
+    from epokio.scan import read_run
+    d = tmp_path / "runs" / "reg"
+    d.mkdir(parents=True)
+    f = d / "training.log"
+    f.write_text("epoch,loss,val_loss,val_rmse\n0,9,8,5\n1,5,4,2\n")
+    st = f.stat()
+    assert read_run(d).metric_name == "metrics/val_rmse"
+    f.write_text("epoch,loss,val_loss,val_msle\n0,9,8,5\n1,5,4,2\n")
+    os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns))           # 시계 단위가 거친 곳처럼 시각이 그대로
+    assert f.stat().st_size == st.st_size
+    assert read_run(d).metric_name == "metrics/val_msle"

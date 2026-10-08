@@ -278,7 +278,15 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
                 if route == "/shutdown":            # when replacing an old helper with a new version (setup, tray, epokio agent --stop)
                     self._send(200, {"ok": True})
                     import threading
-                    threading.Thread(target=self.server.shutdown, daemon=True).start()
+                    srv = self.server
+
+                    def stop():
+                        # Stop serving, then close the listening socket too. Without the close, macOS and Linux
+                        # keep accepting connections into the backlog until the process exits, so stop_agent
+                        # (which waits for the port to refuse connections) saw a stopped helper as still running.
+                        srv.shutdown()
+                        srv.server_close()
+                    threading.Thread(target=stop, daemon=True).start()
                     log.info("stopping on request")
                     return
                 code, payload = agent.post(route, body)

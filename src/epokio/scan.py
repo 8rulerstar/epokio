@@ -187,7 +187,7 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
     if hit:
         try:
             st = hit[0].stat()
-            if (st.st_mtime, st.st_size, dir_mtime, ov) == hit[1]:
+            if (st.st_mtime, st.st_size, dir_mtime, ov) == hit[1] and time.time() - st.st_mtime > 2.0:   # ★방금 바뀐 파일은 시각·크기가 같아도 다시(아래 _read_csv)
                 return hit[2], hit[3]
         except OSError:
             pass
