@@ -235,7 +235,7 @@ def test_local_mirror_out_of_step_resends_full(tail):
 def test_oversized_file_is_reported(tail, monkeypatch):
     read, run = tail
     monkeypatch.setattr(ssh_source, "REMOTE", ssh_source.REMOTE.replace("4000000", "1000"))
-    (run / "args.yaml").write_text("x: 1\n" * 400)
+    (run / "args.yaml").write_bytes(b"x: 1\n" * 400)  # write_text would be CRLF on Windows (2400 bytes)
     got = read()
     assert got["args.yaml"][2:] == ["too_large", 2000]
     assert ssh_source.skipped("gpu") == [{"path": str(run), "name": "args.yaml", "size": 2000}]
