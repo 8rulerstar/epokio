@@ -10,6 +10,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from . import analysis, classes, schema, sysrec
+from .auth import without_secrets
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
 # 화면에 먼저 보여 줄 순서. 나머지 그림은 이름순으로 뒤에 붙는다
@@ -61,6 +62,26 @@ def _columns(run_dir: Path) -> dict[str, list]:
     return cols
 
 
+def _score_pick(run_dir: Path, cols: dict, live) -> dict:
+    """대표 점수가 어느 열이고 왜인지. chosen: 사람이 고름(이 학습 또는 위 폴더), 아니면 자동과 그 이유(schema.pick_metric_why)"""
+    from .runmeta import key as meta_key
+    from .scan import _overrides, find_override
+    col = live.metric_name if live else ""
+    ov = find_override(_overrides(), run_dir, meta_key)
+    if ov and ov[0] == col:
+        own = bool(_overrides().get(meta_key(str(run_dir))))
+        return {"column": col, "why": "chosen" if own else "chosen_folder", "lower": bool(live.lower)}
+    _, why = schema.pick_metric_why(list(cols))
+    return {"column": col, "why": why if col else "none", "lower": bool(live.lower) if live else False}
+
+
+def _x_step(cols: dict, got) -> dict:
+    """step 축 학습은 x 열을 step이라고 부른다(★/run에 'epoch'로 나가 에폭인 줄 알았다). epoch은 옛 앱·화면이 읽는 같은 값"""
+    if got is None or (got.args or {}).get("x_axis") != "step" or "epoch" not in cols:
+        return cols
+    return {"step": cols["epoch"], **cols}
+
+
 def images(run_dir: Path) -> list[str]:
     have = {p.name for p in run_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS}
     first = [n for n in FIRST if n in have]
@@ -97,7 +118,9 @@ def detail(run_dir: Path) -> dict | None:
         "path": str(run_dir),
         "name": run_dir.name,
         "framework": got.framework if got else "ultralytics",
-        "columns": (cols := _columns(run_dir) if got else {}),
+        "columns": (cols := _x_step(_columns(run_dir) if got else {}, got)),
+        "x_axis": "step" if got and (got.args or {}).get("x_axis") == "step" else "epoch",
+        "score_pick": _score_pick(run_dir, cols, live),
         "column_info": schema.column_info(cols),        # 화면은 열 이름을 직접 해석하지 않는다
         "heads": [{k: v for k, v in asdict(h).items() if k != "f1_curve"} for h in a.heads] if a else [],
         "notes": _notes_with_next(a, _args(run_dir) or (got.args if got else {}), str(best) if best.exists() else None,
@@ -107,10 +130,11 @@ def detail(run_dir: Path) -> dict | None:
         "snapshots": snapshots(run_dir),                 # 에폭별 예측 사진(켠 학습만)
         "system": rec,                                    # 학습하는 동안의 GPU·CPU·메모리·온도·팬(sysrec.py). 옛 학습·남의 기계는 None
         "images": images(run_dir),
-        "args": _args(run_dir) or (got.args if got else {}),      # 화면에 보여 줄 주요 설정
+        # 설정을 싣는 칸은 비밀처럼 보이는 키를 뺀다(auth.without_secrets). ★/run은 토큰 없이 열려 api_key가 그대로 보였다
+        "args": without_secrets(_args(run_dir) or (got.args if got else {})),      # 화면에 보여 줄 주요 설정
         # "다시 학습"이 채울 모든 설정. ★주요 11개만 옮겨서 seed·lrf·mosaic·close_mosaic 등이 기본값으로 돌아갔다
-        "all_args": _args(run_dir, None),
-        "env": _env(run_dir),                                     # 어떤 환경에서 돌았나(epokio_env.json, Epokio 대기열 학습만)
+        "all_args": without_secrets(_args(run_dir, None)),
+        "env": without_secrets(_env(run_dir)),                    # 어떤 환경에서 돌았나(epokio_env.json, Epokio 대기열 학습만)
         "weights": str(best) if best.exists() else None,
         "weights_mb": round(best.stat().st_size / 1e6, 2) if best.exists() else None,   # 두 목표 스윕("작은 모델")이 읽는다
         # 이어 하기에 쓸 체크포인트(ultralytics가 에폭마다 쓴다). 멈추거나 끊긴 학습을 처음부터 다시 돌리지 않게
@@ -142,9 +166,12 @@ def _repro(run_dir: Path) -> dict | None:
     """재현 기록(epokio_repro.json). 학습이 이 앱 대기열에서 돌았으면 있다. 없으면 지금 상태로 대충 채운 것(partial)"""
     from . import repro, repro_runs
     try:
-        return repro.read(run_dir) or repro_runs.posthoc(run_dir, write=False)
+        got = repro.read(run_dir) or repro_runs.posthoc(run_dir, write=False)
     except Exception:
         return None
+    if isinstance(got, dict) and isinstance(got.get("params"), dict):
+        got = {**got, "params": without_secrets(got["params"])}     # 대기열 작업의 설정 전부(비밀 키가 들 수 있다)
+    return got
 
 
 def _explain(run_dir: Path) -> dict | None:

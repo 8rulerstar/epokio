@@ -283,7 +283,14 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
             out.append((tr("The score stopped improving after epoch {e} of {n}. The last {k} epochs added nothing.",
                            e=best_ep, n=nx, k=nx - best_ep),
                         _early_stop(framework), {"kind": "plateau", "best_epoch": best_ep}))
-    if best_ep is not None and n >= 10 and best_ep <= max(2, nx * 0.15):
+    # 4c) 점수가 한 번도 안 움직였다(라벨이 깨져 mAP가 매 에폭 0 등). ★첫 에폭이 '최고'가 되어 '너무 이른 최고점, lr0를 낮춰라'고 했다
+    seen = [v for v in sc[1] if v is not None] if sc else []
+    if len(seen) >= 5 and max(seen) == min(seen):
+        out.append((tr("{m} stayed at {v:.3f} in every epoch. The score never moved.", m=sc[0].split("/", 1)[-1], v=seen[0]),
+                    tr("Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). "
+                       "A score that never moves usually means the model is not learning from the labels."),
+                    {"kind": "flat_score"}))
+    elif best_ep is not None and n >= 10 and best_ep <= max(2, nx * 0.15):
         out.append((tr("The best score came very early (epoch {e} of {n}).", e=best_ep, n=nx),
                     tr("The learning rate may be too high, or the start weights already fit the data."), {"kind": "early_best"}))
 
@@ -314,7 +321,8 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
                         tr("Lower the learning rate or check for broken labels."), {"kind": "nan_recovered"}))
     # ★손실이 NaN으로 끝났는데 점수가 0.1로 떨어진 걸 '과적합일 수 있다'고 먼저 말했다. 발산이면 그게 원인이다
     if any(k.get("kind") == "diverged" for *_, k in out):
-        out = [x for x in out if x[2].get("kind") not in ("overfit", "loss_rise", "plateau", "still_improving", "early_best")]
+        out = [x for x in out if x[2].get("kind") not in ("overfit", "loss_rise", "plateau", "still_improving", "early_best",
+                                                          "flat_score")]
     if not sc and not out and (up := _train_loss_rising(rows)):
         out.append((tr("Training loss has been rising since epoch {e} ({a:.3f} to {b:.3f}).", e=_epoch(rows, up[0]), a=up[1], b=up[2]),
                     tr("Check the learning rate schedule and the data loader. A loss that climbs for this long rarely recovers."),

@@ -10,14 +10,14 @@ import time
 from pathlib import Path
 
 from .. import rundetail
+from ..auth import SECRET_KEY as SECRET
 from ..scan import scan, unique
 from . import NOT_MINE
 
 # 값이 학습마다 다른 설정만 싣는다. 기록용 설정은 뺀다
 SKIP = {"name", "project", "save_dir", "exist_ok", "resume", "mode", "task", "val", "plots", "verbose",
         "save", "save_period", "save_json", "show", "workers", "device", "cache"}
-# 비밀일 수 있는 키(값을 싣지 않는다). ★열어 두어 LAN의 누구나 wandb 키를 읽을 수 있었다
-SECRET = re.compile(r"(key|token|secret|passw|api|auth|credential|cookie|session)", re.IGNORECASE)
+# 비밀일 수 있는 키(값을 싣지 않는다)는 auth.SECRET_KEY 한 곳. ★열어 두어 LAN의 누구나 wandb 키를 읽을 수 있었다
 _lock = threading.Lock()                # 동시에 온 요청이 둘 다 다시 계산하지 않게
 
 

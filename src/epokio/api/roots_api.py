@@ -17,6 +17,10 @@ def too_broad(path: Path) -> bool:
 
 
 def get(agent, route: str, q: dict):
+    # 보기: 아무 토큰이나(읽기 전용도). 더하기·빼기(POST)는 실행 토큰만(403 read-only).
+    # ★GET이 없어 토큰 없이는 401, 읽기 토큰으로는 404가 나와 무엇이 틀렸는지 헷갈렸다
+    if route == "/roots":
+        return {"roots": [str(r) for r in agent.roots], "missing_roots": [str(r) for r in agent.roots if not r.exists()]}
     return NOT_MINE
 
 
@@ -25,10 +29,16 @@ def post(agent, route: str, body: dict):
         raw = str(body.get("path") or "").strip()
         if not raw:                                   # ★빈 경로는 "."(홈)이 되어 홈 전체를 훑었다
             return 400, {"error": "path required"}
-        path = Path(resolve(raw)).expanduser().resolve()
-        if not path.is_dir():
+        from ..roots import is_glob
+        if is_glob(raw):                              # 무늬('/data/*/runs'): 훑을 때마다 펼친다. 끝 칸이 * 뿐이면 너무 넓다
+            path = Path(raw).expanduser()
+            if path.name.strip("*") == "":
+                return 400, {"error": "that pattern is too broad; end it with the runs folder name, e.g. /data/*/runs"}
+        else:
+            path = Path(resolve(raw)).expanduser().resolve()
+        if not is_glob(raw) and not path.is_dir():
             return 400, {"error": "not a folder"}
-        if too_broad(path):                           # ★"/"·홈 자체를 받으면 새로고침마다 디스크를 훑었다
+        if not is_glob(raw) and too_broad(path):                           # ★"/"·홈 자체를 받으면 새로고침마다 디스크를 훑었다
             return 400, {"error": "that folder is too broad; choose the folder where runs are saved (usually 'runs')"}
         agent._runs_cache = None
         if path in getattr(agent, "removed", set()):

@@ -2,6 +2,7 @@
  "Training finished": "Đã huấn luyện xong",
  "Training failed": "Huấn luyện thất bại",
  "Training may have stopped": "Có vẻ huấn luyện đã dừng",
+ "Training stopped logging": "Huấn luyện đã ngừng ghi nhật ký",
  "Stopped before the last epoch": "Đã dừng trước epoch cuối",
  "Training resumed": "Huấn luyện đã chạy tiếp",
  "Training started": "Đã bắt đầu huấn luyện",
@@ -195,5 +196,7 @@
  "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "Hãy thêm ảnh {names} vào tập kiểm định. Trước đó bạn không biết mô hình có tìm được chúng không.",
  "Test alert": "Thông báo thử",
  "Phone alerts from {machine} work.": "Thông báo điện thoại từ {machine} hoạt động.",
- "step": "bước"
+ "step": "bước",
+ "{m} stayed at {v:.3f} in every epoch. The score never moved.": "{m} giữ nguyên {v:.3f} ở mọi epoch. Điểm không hề thay đổi.",
+ "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels.": "Kiểm tra nhãn và cấu hình dữ liệu (với YOLO là data.yaml: số lớp, tên lớp và thư mục). Điểm không hề thay đổi thường có nghĩa là mô hình không học được từ nhãn."
 }

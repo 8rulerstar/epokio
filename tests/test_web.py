@@ -531,3 +531,53 @@ def test_ssh_api_status_carries_skipped(monkeypatch):
     agent = type("A", (), {"ssh": type("P", (), {"status": {"gpu1": st}})()})()
     out = ssh_api.get(agent, "/ssh", {})
     assert out["hosts"][0]["status"]["skipped"][0] == {"path": "/r", "name": "big.csv", "size": 99}
+
+
+def test_the_lineage_panel_speaks_korean():
+    """★계보·단계 칸이 영어로 박혀 있어 한국어 화면에 'Where it came from'·'Put in use'가 섞였다"""
+    js = (WEB / "versions.js").read_text(encoding="utf-8")
+    for s in ("Where it came from", "Stage", "Put in use", "No stage", "Candidate", "Images added", "Stage saved"):
+        assert f't("{s}")' in js, s
+    assert ">Where it came from<" not in js and '"No stage", "var' not in js and ">Put in use<" not in js
+    assert "Same data as ${" not in js and "runs started from this one</p>" not in js
+
+
+def test_the_token_help_names_a_command_that_runs_here():
+    """★잠금 카드가 epokio-agent --show-token(윈도우 PATH에 없음)을 안내했다. 이 기계가 알려 준 명령(/health token_cmd)을 쓴다"""
+    html = _all()
+    assert "epokio-agent --show-token" not in html
+    assert "S.tokenCmd" in (WEB / "train.js").read_text(encoding="utf-8") and "h.token_cmd" in (WEB / "main.js").read_text(encoding="utf-8")
+
+
+def test_the_ssh_list_is_asked_only_with_a_token():
+    """★토큰 없는 화면이 4초마다 GET /ssh를 불러 401이 콘솔에 쌓였다. node로 실제 loadSSH를 돌린다"""
+    import json
+    import shutil
+    import subprocess
+    import pytest
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node 없음")
+    js = (WEB / "ssh.js").read_text(encoding="utf-8")
+    probe = ("class Locked extends Error {}; const S = {}; const calls = [];"
+             "async function api(p) { calls.push(p); if (S.token !== 'good') throw new Locked('x'); return { hosts: [{ host: 'h' }] }; }\n"
+             + js + "\n(async () => { await loadSSH(); const a = calls.length, n0 = S.ssh.length;"
+             "S.token = 'good'; await loadSSH(); const b = calls.length, n1 = S.ssh.length;"
+             "S.token = 'bad'; await loadSSH(); const locked = !!S.locked; await loadSSH();"
+             "console.log(JSON.stringify([a, n0, b, n1, locked, calls.length])); })();")
+    got = json.loads(subprocess.run([node, "-e", probe], capture_output=True, text=True, check=True).stdout)
+    assert got == [0, 0, 1, 1, True, 2]          # 토큰 없음: 안 부름 · 맞는 토큰: 부름 · 틀린 토큰: 한 번 뒤 잠김
+
+
+
+def test_side_features_are_out_of_the_default_tabs_but_reachable():
+    """곁가지(검수·스윕)는 기본 탭에서 숨기고 '더 보기'로 켠다. 코드는 그대로"""
+    import re
+    page = PAGE.read_text(encoding="utf-8")
+    tabs = re.findall(r'<button role="tab" data-tab="(\w+)"( data-adv)?', page)
+    assert {t for t, adv in tabs if adv} == {"review", "sweeps"}
+    assert {t for t, adv in tabs if not adv} == {"runs", "table", "train", "queue", "compare", "inbox"}
+    css = (PAGE.parent / "style.css").read_text(encoding="utf-8")
+    js = (PAGE.parent / "main.js").read_text(encoding="utf-8")
+    assert "body:not(.adv) nav [data-adv] { display: none; }" in css
+    assert 'id="more"' in page and "LS.epokioAdv" in js and "drawReview" in (PAGE.parent / "app.js").read_text(encoding="utf-8")

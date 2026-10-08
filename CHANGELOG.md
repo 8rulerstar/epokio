@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.7.0 (2026-10-08)
+
+- **Security: a run's page no longer shows secret-looking settings** (`api_key`, tokens, passwords) from `args.yaml`, the environment record or a queued job's settings to anyone who can view the helper. The settings table already hid them.
+- **A run with no planned epochs that goes quiet** (for example a Keras `CSVLogger` run that finished normally) gets a calm *Training stopped logging* notice instead of the urgent *may have stopped* alert, and it is not sent to phone webhooks unless you choose it.
+- **A score that never moved** (mAP 0 every epoch, usually broken labels) is explained as such, with a pointer to the labels and `data.yaml`, instead of "the best came very early, lower lr0".
+- **A wrong `--root` is reported.** `epokio agent` and `epokio watch` warn about each folder that does not exist and drop the stray trailing `"` PowerShell adds, and the web page's empty list names the missing folders.
+- **Commands printed by setup, doctor and error messages** use the virtual environment's Python when Epokio is installed in one (`py -m epokio` failed there). The web page's token help shows the command that works on this machine.
+- **`epokio agent --stop`** says why when the helper refuses (a different token or home folder) and prints *Stopped.* only when it really stopped.
+- **Scores:** Keras and CSV error metrics (`val_mae`, `mse`, `rmse`, `mape` and similar) count as lower-is-better scores instead of losses; Hugging Face's `best_metric` is the best score when nothing else is logged, in the direction `greater_is_better` gives; TensorBoard runs with two evaluations per epoch keep the better one.
+- **Windows: run folders with paths over 260 characters** are named on the web page instead of silently missing.
+- Web page: `/favicon.ico` and similar paths answer 404 instead of 401, the SSH panel is asked for only with a token (no 401 every 4 seconds), and the lineage and stage panel is translated to Korean. `epokio watch --once` into a pipe or file uses ASCII marks and bars.
+- Docs: when no code changes are needed (Keras callbacks, `epokio.start`), when a best score is shown, what sets the planned epochs for Keras and Lightning, that alerts need a running helper, which runs have per-class scores, what webhooks and `/ai` carry, and comparison table updates (dated prices, self-hosted options, one-setting MLflow and Trackio integrations).
+- **Alerts for SSH-mirrored and demo runs.** The helper's watch loop now follows the same folders as the run list, so runs mirrored over SSH (`~/.epokio/ssh`) and demo runs send their finished, failed and stalled alerts and webhooks. File watching is re-armed when the folder list changes, and the run list reuses the watch loop's scan again when SSH hosts are set.
+- **A loose epoch/loss CSV no longer hides the runs below it.** A folder whose only log is a custom CSV (for example `runs/loss_summary.csv`) counts as a run only when no run folders are found beneath it; otherwise the runs below are listed.
+- **Security: webhook addresses are no longer written to logs.** A failed webhook logs only the scheme and host (the path held ntfy topics and Telegram bot tokens, which reached `agent.log` and `epokio doctor`), and `epokio alerts --list` shows the host with a masked path.
+- **Hugging Face:** runs that evaluate only `eval_loss` use it as a lower-is-better best score (a loss `best_metric` fills in when no `eval_loss` was logged); runs set by `max_steps` (or with one planned epoch) show step progress `global_step / max_steps` with time left instead of *epoch 0/1*; the curve keeps every logged loss step, not only the evaluation points.
+- **Keras:** the planned epochs are read from a `config.json` (and other config files) next to the log, as the README says.
+- **`GET /roots`** answers any valid token (read-only too) with the watched folders instead of 404; adding or removing folders with a read-only token is refused with 403 *read-only*.
+- **Loss columns with any separator** (`loss/train`, `loss/val`, `loss_val`, `val-loss`) are losses, lower is better, everywhere: the run list, column info, the explanation, the best score and goals. They used to count as higher-is-better scores, so the worst epoch was "best".
+- **A crash inside `with epokio.start(...)`** marks the run *failed* right away, with the reason (for example `RuntimeError: CUDA out of memory`) in `/runs` (`error`) and in the phone alert, instead of *stalled* three minutes later. Ctrl+C is not a failure.
+- **Fast runs without a time column** (epochs under a second) get their elapsed time and time left. Only a folder whose files all appeared within 0.05 s counts as copied.
+- **Lightning runs keep the folder above the experiment** in their name (`alice/exp002/version_0`), so runs from different people no longer share a name.
+- **Alerts for SSH-mirrored runs name the server** (`ssh:<host>`) instead of `local`.
+- **Hugging Face `eval_loss`-only runs:** the explanation no longer says no validation score was logged, `eval_loss` appears once in the run detail, and step runs name their x column `step` (`x_axis` in `/run`).
+- **Windows:** network error messages in `epokio alerts --test`, the helper log and `epokio doctor` are no longer garbled on Korean (and other non-UTF-8) Windows.
+- **`--root` accepts a pattern** such as `'/data/*/runs'`, expanded again on every scan so new folders appear without a restart (also through `POST /roots`).
+- **`epokio setup` into a notebook or log** prints the address without the token and the command that shows it.
+- README: new CPU figures (about 0.67 s per minute idle with 330 run folders, about 1.7 s with one live run) and a note on shared servers.
+- **Phone alerts without a helper:** `epokio.start(..., notify=True)` sends the saved webhooks from the training process itself when the run finishes or fails (with the error type and message), for Colab and notebooks. Standard library only; a network failure never stops training; a helper watching the same run does not send the alert again.
+- **Tokens limited to folders:** `epokio agent --add-token alice --scope read --root /data/alice/runs` (repeatable, patterns allowed) gives a token that sees only runs under those folders in the run list, run pages, images, events and the table, and gets 403 for everything else. Tokens without `--root` work as before.
+- **Lightning resumes are linked:** a `version_N` that continues the epochs of the previous `version_M` in the same `lightning_logs` shows *Resumed from version_M* (`resumed_from` in `/runs`), and the older one no longer sends stalled or finished alerts.
+- **Main score for a folder and from the terminal:** a main score chosen for a folder applies to every run under it that logs that column (a run's own choice wins); `epokio score <run or folder> <column> [--lower]`, `--auto`, `--list`. The run page says which column was picked automatically and why (`score_pick` in `/run`).
+- **Safer defaults: new tokens are view-only.** `epokio agent --add-token NAME` now makes a read token (`--scope run` for one that can start training), and `epokio setup --lan` prints a fresh view-only token instead of this machine's own token. This machine's token in `~/.epokio/token`, used by the Mac app and the page setup opens here, keeps the run scope, so starting runs locally works as before.
+- **Safer defaults: a helper open to the network does not run code** sent over the network (training, evaluation, auto-labeling, export, scripts, predictions, sweeps) unless it is started with `--allow-run` (`epokio setup --lan --allow-run`). The startup banner says which mode it is in. To start runs on a remote helper from your Mac, use `--allow-run` there and a run token.
+- README: a new opening (phone alerts for stalled, NaN and finished runs, no code changes, over SSH) with an animated example from the real web page, an honest comparison with TensorBoard, W&B and nvitop, and the exact command and script Epokio runs on a server over SSH. Side features moved to docs/studio.md.
+- Web page: Review and Sweeps moved under **More** in the tab bar (remembered per browser).
+- The agent's startup line uses ASCII separators on consoles that are not UTF-8, and `/health` shows the token command with `~` instead of your home folder.
+- Code comments in the core modules are now in English.
+
 ## 0.6.1 (2026-10-08)
 
 - **Fix: one broken log hid every run in its folder.** A CSV row with more columns than the header, or a `trainer_state.json` that is not an object, made the whole watched folder show no runs (and be reported as slow). The broken run is now skipped and written to the helper's log.

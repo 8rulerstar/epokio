@@ -162,6 +162,11 @@
    "os_release": "str"
   }
  },
+ "score_pick": {
+  "column": "str",
+  "lower": "bool",
+  "why": "str"
+ },
  "snapshots": "NoneType",
  "stage": "str",
  "system": {
@@ -186,5 +191,6 @@
  },
  "versions": {},
  "weights": "NoneType",
- "weights_mb": "NoneType"
+ "weights_mb": "NoneType",
+ "x_axis": "str"
 }

@@ -26,6 +26,21 @@ from .scan_names import x_count
 BLOCKS = "▁▂▃▄▅▆▇█"
 STATE = {"running": ("▶", "Training"), "starting": ("…", "Starting"), "stalled": ("‖", "Stalled"),
          "failed": ("✗", "Failed"), "stopped": ("■", "Stopped"), "done": ("✓", "Done")}
+# 파이프·파일이나 그 글자를 못 쓰는 콘솔(cp949 등)에서 쓰는 ASCII 모양. ★--once를 파일로 받으면 ✓·█가 '?'로 깨졌다
+PLAIN_STATE = {"running": ">", "starting": ".", "stalled": "!", "failed": "x", "stopped": "-", "done": "+"}
+_GLYPHS = "▶…‖✗■✓★█▌·"
+
+
+def plain_out(stream=None) -> bool:
+    """ASCII로 찍어야 하나: 터미널이 아니거나(파이프·파일) 그 인코딩으로 막대·상태 글자를 못 쓴다"""
+    s = stream or sys.stdout
+    try:
+        if not s.isatty():
+            return True
+        _GLYPHS.encode(s.encoding or "ascii")
+        return False
+    except (UnicodeEncodeError, LookupError, AttributeError, ValueError):
+        return True
 
 
 # ── 데이터: agent 또는 폴더 ─────────────────────────────
@@ -54,8 +69,9 @@ class Feed:
                 self.where = f"agent {self.agent} not reachable, reading folders"
         else:
             self.where = "folders: " + ", ".join(str(r) for r in self.roots)
+        from .roots import expand
         out = []
-        for r in self.roots:
+        for r in expand(self.roots):                 # --root '/data/*/runs' 무늬는 훑을 때마다 펼친다
             if r.exists():
                 out += scan(r)
         return out
@@ -88,12 +104,13 @@ def dur(s: float | None) -> str:
     return fmt_dur(s)
 
 
-def bar(p: float | None, width: int) -> str:
+def bar(p: float | None, width: int, plain: bool = False) -> str:
     if p is None or width <= 0:
         return " " * max(width, 0)
     n = p * width
     full = int(n)
-    return "█" * full + ("▌" if n - full >= 0.5 and full < width else "") + "·" * (width - full - (1 if n - full >= 0.5 and full < width else 0))
+    fill, half, empty = ("#", "=", ".") if plain else ("█", "▌", "·")
+    return fill * full + (half if n - full >= 0.5 and full < width else "") + empty * (width - full - (1 if n - full >= 0.5 and full < width else 0))
 
 
 def spark(vals: list, width: int) -> str:
@@ -112,20 +129,20 @@ def cells(t: str) -> int:
     return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in t)
 
 
-def fit(t: str, width: int) -> str:
+def fit(t: str, width: int, plain: bool = False) -> str:
     """칸 수 기준으로 자르고 채운다. 넘치면 앞을 줄인다(끝의 run 이름이 더 중요)"""
     if cells(t) > width:
         while cells(t) > width - 1:
             t = t[1:]
-        t = "…" + t
+        t = ("~" if plain else "…") + t
     return t + " " * (width - cells(t))
 
 
 display_name = _display_name                  # 이름 규칙은 scan 한 곳에(웹·트레이·보고서·알림과 같게)
 
 
-def row(r: Run, width: int) -> str:
-    icon, _ = STATE.get(r.state, ("?", r.state))
+def row(r: Run, width: int, plain: bool = False) -> str:
+    icon = PLAIN_STATE.get(r.state, "?") if plain else STATE.get(r.state, ("?", r.state))[0]
     pct = f"{int(r.progress * 100):3d}%" if r.progress is not None else "   ?"
     when = f"{dur(r.eta)} left" if r.state == "running" else f"{dur(r.idle)} ago"
     ep = x_count(r)
@@ -134,8 +151,8 @@ def row(r: Run, width: int) -> str:
     tail = f" {pct}  {unit} {ep:>9}  {when:>11}  {best:<11}"          # 폭을 고정해 막대 끝이 줄마다 같다('17h 13m ago'가 11칸)
     name_w = max(12, min(40, width // 3))
     bar_w = max(0, width - name_w - len(tail) - 4)
-    star = "★" if (getattr(r, "meta", None) or {}).get("star") else " "
-    return f"{icon}{star}{fit(display_name(r), name_w)} {bar(r.progress, bar_w)}{tail}"
+    star = ("*" if plain else "★") if (getattr(r, "meta", None) or {}).get("star") else " "
+    return f"{icon}{star}{fit(display_name(r), name_w, plain)} {bar(r.progress, bar_w, plain)}{tail}"
 
 
 def sys_line(s: dict | None) -> str:
@@ -255,16 +272,17 @@ def run_curses(feed: Feed, every: float):
 
 def print_once(feed: Feed, width: int = 100):
     runs = order(feed.runs())
+    plain = plain_out()
     print(f"Epokio  {sum(r.state in ('running', 'starting') for r in runs)} active  {len(runs)} runs   {sys_line(feed.system())}")
     print(feed.where)
     for r in runs:
-        print(row(r, width))
+        print(row(r, width, plain))
 
 
 def main(argv: list[str] | None = None):
     ap = argparse.ArgumentParser(prog="epokio watch", description="Watch training runs in the terminal.")
     ap.add_argument("--agent", help="agent address, default: this machine's agent (falls back to reading folders)")
-    ap.add_argument("--root", action="append", help="folder with runs (repeatable). Default: current folder")
+    ap.add_argument("--root", action="append", help="folder with runs (repeatable), or a pattern such as '/data/*/runs'. Default: current folder")
     ap.add_argument("--every", type=float, default=2.0, help="refresh seconds")
     ap.add_argument("--once", action="store_true", help="print the table once and exit")
     a = ap.parse_args(argv)
@@ -274,7 +292,9 @@ def main(argv: list[str] | None = None):
             s.reconfigure(errors="replace")
         except (AttributeError, ValueError):
             pass
-    roots = [Path(r).expanduser() for r in (a.root or ["."])]
+    from .roots import clean_root, warn_missing
+    roots = [clean_root(r) for r in (a.root or ["."])]
+    warn_missing(roots)                       # ★잘못 준 --root가 '학습 0개'로 조용히 보였다
     if a.agent or a.root:
         agent = a.agent
     else:

@@ -34,7 +34,11 @@ METRIC_PREFERENCE = (
 )
 
 # 낮을수록 좋은 점수. ★"metrics/*는 높을수록 좋다"는 가정이 깊이 추정(8.4)에서 깨진다
-LOWER_IS_BETTER = re.compile(r"(rmse|mae|mse|abs_rel|sq_rel|silog|wer|cer|perplexity|error)", re.I)
+# msle·mape·err: Keras·CSV 오차 지표도 metrics/로 오므로(adapters_base._LOWER) 여기서 방향을 잡는다
+# loss: HF가 다른 점수 없이 eval_loss만 평가하면 그것을 점수(metrics/eval_loss)로 쓴다(adapters_hf._loss_score)
+LOWER_IS_BETTER = re.compile(r"(rmse|mae|mse|msle|mape|abs_rel|sq_rel|silog|wer|cer|perplexity|error|(^|[_/])err($|_)|(^|[_/\-. ])loss($|[_/\-. ]))", re.I)
+# 손실 낱말이 어디에 있든(loss/train·loss_val·val-loss) 손실. ★끝이 _loss일 때만 알아봐 목록·열 설명·해설·최고·목표가 높을수록 좋다고 봤다
+LOSS_WORD = re.compile(r"(^|[_/\-. ])(loss|losses)($|[_/\-. ])", re.I)
 
 # 옛 YOLOv5 results.csv → 지금 규칙. (v5는 에폭이 0부터, 머리 접미사가 없다)
 YOLOV5_ALIASES = {
@@ -71,7 +75,11 @@ SCORE_WORDS = re.compile(r"(^|[_/.-])(acc|accuracy|f1|macro_f1|micro_f1|recall|p
 
 
 def kind(key: str) -> str:
-    if key.endswith("_loss") or key.endswith("/loss") or key in ("loss", "val_loss", "train_loss"):
+    # metrics/는 어댑터가 점수로 둔 열이다. 손실 낱말이 있어도 점수(방향은 higher_is_better가 낮을수록으로).
+    # ★HF가 eval_loss만 평가한 학습의 metrics/eval_loss를 손실로 봐서 해설이 '검증 점수가 없다'고 했다
+    if key.startswith("metrics/"):
+        return "score"
+    if key.endswith("_loss") or key.endswith("/loss") or key in ("loss", "val_loss", "train_loss") or LOSS_WORD.search(key):
         return "loss"
     if key.startswith("metrics/"):
         return "score"
@@ -87,6 +95,19 @@ def higher_is_better(key: str) -> bool:
     if k == "loss":
         return False
     return not LOWER_IS_BETTER.search(key.split("/", 1)[-1])
+
+
+def lower_for(col: str | None, args: dict | None = None) -> bool:
+    """대표 점수가 낮을수록 좋은가. 학습이 방향을 적어 두었으면(HF metric_for_best_model + greater_is_better) 그것,
+    아니면 열 이름으로. ★HF가 남긴 greater_is_better를 안 보고 이름 규칙만 봐서, 사용자가 정한 방향과 어긋날 수 있었다"""
+    if not col:
+        return False
+    a = args or {}
+    want = str(a.get("metric_for_best_model") or "").removeprefix("eval_")
+    greater = str(a.get("greater_is_better") or "").lower()
+    if want and greater in ("true", "false") and col.split("/", 1)[-1] == want:
+        return greater == "false"
+    return not higher_is_better(col)
 
 
 def info(key: str) -> dict:
@@ -115,17 +136,27 @@ def column_info(keys) -> dict[str, dict]:
 
 def pick_metric(fieldnames, task: str | None = None) -> str | None:
     """대표 점수 열. task(args.yaml)를 알면 공식 TASK2METRIC 열을 먼저, 없으면 열 이름으로 추정"""
+    return pick_metric_why(fieldnames, task)[0]
+
+
+def pick_metric_why(fieldnames, task: str | None = None) -> tuple[str | None, str]:
+    """(대표 점수 열, 왜 골랐나). 이유 코드: task(그 작업의 공식 점수) · preferred(검출·분할 등의 대표 점수) ·
+    common(검증 쪽의 mAP·F1·정확도·IoU·Dice) · loss_only(다른 점수가 없어 검증 손실) · first(점수 열 중 첫째) · none.
+    ★자동으로 고른 점수가 무엇인지, 왜인지 화면에 없어 다른 열을 보고 있는 줄 몰랐다"""
     names = list(fieldnames)
     if TASK2METRIC.get(task or "") in names:
-        return TASK2METRIC[task]
+        return TASK2METRIC[task], "task"
     for want in METRIC_PREFERENCE:
         if want in names:
-            return want
+            return want, "preferred"
     ms = [f for f in names if f.startswith("metrics/")] or [f for f in names if kind(f) == "score"]   # 접두사 없는 점수도
     val = [f for f in ms if "val" in f or "eval" in f]
     for pref in ("map", "f1", "acc", "iou", "dice"):         # 흔한 "대표 점수" 먼저
         for f in val + ms:
             if pref in f.lower():
-                return f
-    return (val or ms or [None])[0]
+                return f, "common"
+    got = (val or ms or [None])[0]
+    if got is None:
+        return None, "none"
+    return got, "loss_only" if LOSS_WORD.search(got) else "first"
 

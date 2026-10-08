@@ -23,8 +23,25 @@ from .jobs_run import note as _note, run_job
 FINISHED = ("done", "failed", "cancelled")
 
 
+# 코드를 돌리는 작업(남이 준 .pt·.py·yaml을 읽거나 돌린다). 네트워크에 연 도우미는 --allow-run 없이는 받지 않는다.
+# setup(정해 둔 패키지 설치)·practice(표준 라이브러리 연습)는 남이 준 코드를 돌리지 않아 늘 된다
+CODE_KINDS = ("script", "train", "evaluate", "autolabel", "export", "classes")
+
+
+def runs_code(route: str, body: dict) -> bool:
+    """이 POST가 코드를 돌리나. 대기열을 거치지 않는 /predict와 나중에 시도를 넣는 스윕 만들기도"""
+    if route == "/jobs":
+        return body.get("kind") not in ("setup", "practice")
+    return route in ("/predict", "/sweeps")
+
+
+class RunRefused(Exception):
+    """네트워크에 연 도우미가 --allow-run 없이 코드를 돌리는 작업을 받았다(agent가 403으로 돌려준다)"""
+
+
 class Queue:
     KEEP_FINISHED = 500
+    code_ok = True          # False: 코드를 돌리는 작업(CODE_KINDS)을 받지 않는다(server_cli가 네트워크에 열 때)
 
     def __init__(self, path: Path | None = None):
         self.path = path or J.STATE        # ★기본값을 정의 시점에 묶으면 테스트가 STATE를 바꿔도 진짜 ~/.epokio를 썼다
@@ -94,6 +111,8 @@ class Queue:
     # 조작
     def add(self, kind: str, name: str, python: str, params: dict, cwd: str = "", sweep: str = "",
             gpu: str = gpus.AUTO) -> J.Job:
+        if not self.code_ok and kind in CODE_KINDS:
+            raise RunRefused(kind)
         name = J.safe_name(name) or kind
         if isinstance(params.get("name"), str):
             params = {**params, "name": J.safe_name(params["name"]) or name}

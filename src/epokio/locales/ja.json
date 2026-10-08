@@ -2,6 +2,7 @@
  "Training finished": "学習が終わりました",
  "Training failed": "学習が失敗しました",
  "Training may have stopped": "学習が止まったようです",
+ "Training stopped logging": "学習の記録が止まりました",
  "Stopped before the last epoch": "最後のエポックの前に止まりました",
  "Training resumed": "学習が再開しました",
  "Training started": "学習を開始しました",
@@ -195,5 +196,7 @@
  "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "検証セットに {names} の画像を入れてください。それまではモデルが見つけられるか分かりません。",
  "Test alert": "テスト通知",
  "Phone alerts from {machine} work.": "{machine} からのスマホ通知は届いています。",
- "step": "ステップ"
+ "step": "ステップ",
+ "{m} stayed at {v:.3f} in every epoch. The score never moved.": "{m} はすべてのエポックで {v:.3f} のままでした。スコアが一度も動きませんでした。",
+ "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels.": "ラベルとデータ設定を確認してください(YOLO なら data.yaml のクラス番号・名前・フォルダ)。スコアがまったく動かないときは、たいていモデルがラベルから学べていません。"
 }

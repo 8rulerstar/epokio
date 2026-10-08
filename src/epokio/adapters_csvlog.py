@@ -7,7 +7,7 @@ from pathlib import Path
 import csv
 import io
 
-from .adapters_base import STEP_KEYS, Adapter, Loaded, _num, _read_csv, _yaml_value, epochs_nearby, metric_column
+from .adapters_base import STEP_KEYS, Adapter, Loaded, _num, _read_csv, _yaml_value, epochs_nearby, is_val_key, metric_column
 
 
 class Lightning(Adapter):
@@ -47,7 +47,8 @@ class Lightning(Adapter):
             t = (d / "hparams.yaml").read_text(encoding="utf-8", errors="ignore")
             v = _yaml_value(t, "max_epochs") or _yaml_value(t, "epochs")
             total = int(float(v)) if v and v.replace(".", "").isdigit() else None
-        return Loaded(self.name, rows, p, total, warnings=warns)
+        args = {"resumed_from": prev} if (prev := _resumed_from(d, rows)) else {}
+        return Loaded(self.name, rows, p, total, args, warnings=warns)
 
     @staticmethod
     def _skip(k: str, cols: set[str]) -> bool:
@@ -63,7 +64,7 @@ class Lightning(Adapter):
                 k = k[: -len(suf)]
         k = k.replace("/", "_")
         if "loss" in k:
-            side = "val" if k.startswith(("val", "valid")) else "train"
+            side = "val" if k.startswith(("val", "valid")) or is_val_key(k) else "train"
             return f"{side}/{k if k.endswith('_loss') else k + '_loss'}"
         return metric_column(k, k.startswith(("val", "valid")))
 
@@ -96,7 +97,9 @@ class Keras(Adapter):
         f = self._file(d, {p.name for p in d.iterdir()})
         if not f:
             return None
-        return self._load_file(f, offset=1)                        # Keras 에폭은 0부터
+        got = self._load_file(f, offset=1)                         # Keras 에폭은 0부터
+        got.total = got.total or epochs_nearby(d)          # ★옆 config.json의 epochs를 안 봐서 README와 달리 진행률이 비었다
+        return got
 
     def _load_file(self, f: Path, offset: int):
         raw = _read_csv(f)
@@ -121,19 +124,19 @@ def _epoch_rows(raw: list[dict], offset: int) -> list[dict]:
             if k in ("loss", "val_loss"):
                 row["val/val_loss" if k == "val_loss" else "train/train_loss"] = v
             elif k.endswith("loss"):
-                row[("val/" if k.startswith(_VAL) else "train/") + k] = v
+                row[("val/" if is_val_key(k) else "train/") + (k if "/" not in k else k.replace("/", "_"))] = v
             elif k in ("lr", "learning_rate") or k.endswith("_lr"):   # Keras 2는 lr, Keras 3은 learning_rate, MAE는 train_lr
                 continue
             elif k.lower() in _TIME_COLS:                      # 걸린 시간은 점수가 아니다
                 continue
             else:
-                row[metric_column(k, k.startswith(_VAL))] = v
+                row[metric_column(k, is_val_key(k))] = v
         by[ep] = row                                           # append 재개로 같은 에폭이 또 나오면 나중 것
     return [by[k] for k in sorted(by)]
 
 
-# 검증 쪽 이름. ★timm은 eval_loss·eval_top1, MAE·DeiT는 test_loss·test_acc1이라 학습 손실로 잘못 분류됐다
-_VAL = ("val_", "valid_", "eval_", "test_")
+# 검증 쪽 이름은 adapters_base.is_val_key(val·valid·eval·test가 낱말로 어디에 있든).
+# ★timm은 eval_loss·eval_top1, MAE·DeiT는 test_loss·test_acc1이라 학습 손실로 잘못 분류됐고, loss/val은 학습 손실이었다
 _TIME_COLS = {"sec", "secs", "seconds", "time", "elapsed", "duration", "epoch_time", "time_s"}
 _OWNED = {"results.csv", "metrics.csv", "epokio_log.csv"}         # 다른 어댑터 몫. 여기서 가로채면 모양이 틀어진다
 _MAX_PROBE = 8                                                     # 폴더마다 첫 줄만 보는 CSV 수(자동 탐색이 Desktop을 훑는다)
@@ -256,3 +259,30 @@ class JsonLines(Adapter):
             return None
         eps = [int(float(r["epoch"])) for r in raw if "epoch" in r]
         return Loaded(self.name, _epoch_rows(raw, 1 if eps and min(eps) == 0 else 0), f, total=epochs_nearby(d))
+
+
+def _resumed_from(d: Path, rows: list[dict]) -> str | None:
+    """같은 lightning_logs 안에서 이 version_N이 앞 version_M(M<N 중 가장 큰 것)을 이어 하는가(체크포인트에서 재개하면
+    에폭 번호가 그대로 이어진다). 이으면 앞 폴더 이름. 첫 에폭이 1이면 새 학습이다.
+    ★재개할 때마다 새 version_N이 생겨 같은 학습이 따로 보였고, 앞 것은 멈춘 채 '멎음'·'끝남' 알림을 냈다"""
+    import re
+    m = re.fullmatch(r"version_(\d+)", d.name)
+    if not m or not rows or int(m.group(1)) == 0:
+        return None
+    try:
+        first = int(rows[0]["epoch"])
+    except (KeyError, ValueError):
+        return None
+    if first <= 1:
+        return None
+    sib = sorted((int(x.name[8:]), x) for x in d.parent.glob("version_*")
+                 if x.name[8:].isdigit() and int(x.name[8:]) < int(m.group(1)) and (x / "metrics.csv").is_file())
+    if not sib:
+        return None
+    prev = sib[-1][1]
+    try:
+        eps = [int(float(r["epoch"])) for r in _read_csv(prev / "metrics.csv") if _num(r.get("epoch", "")) != ""]
+    except (OSError, KeyError, ValueError):
+        return None
+    last = max(eps) + 1 if eps else 0                   # Lightning 에폭은 0부터, 화면은 1부터
+    return prev.name if eps and first <= last + 1 else None

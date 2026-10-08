@@ -2,7 +2,10 @@
 // 학습 기록 목록 아래의 "SSH 서버": 맥 앱(SSHMachines.swift)과 같은 GET /ssh를 읽어 보여 준다(api/ssh.py).
 // 연결·마지막으로 읽은 때·오류·학습 수, 크기 제한을 넘어 건너뛴 로그 파일. 보기 전용 + "지금 읽기"(POST /ssh/refresh)
 async function loadSSH() {
-  try { S.ssh = (await api("ssh")).hosts || []; } catch { S.ssh = S.ssh || []; }   // 토큰이 없거나 옛 agent면 조용히 비운다
+  // 토큰이 있을 때만 묻는다(GET /ssh는 토큰이 있어야 열린다). ★토큰 없는 화면이 4초마다 401을 받아 콘솔에 빨간 줄이 쌓였다
+  if (!S.token || S.locked) { S.ssh = []; return; }
+  try { S.ssh = (await api("ssh")).hosts || []; }
+  catch (e) { if (e instanceof Locked) S.locked = true; S.ssh = S.ssh || []; }   // 토큰이 틀렸거나 옛 agent면 조용히 비운다
 }
 const sshSize = (n) => (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + " MB";
 function sshHTML() {

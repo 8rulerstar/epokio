@@ -63,17 +63,21 @@ def _save(entries: list[dict]):
 def listed() -> list[dict]:
     """화면·명령줄용. 지문은 빼고 앞 8자만 보여 준다(어느 줄이 어느 토큰인지 알아보게)."""
     return [{"id": e.get("id", ""), "name": e.get("name", ""), "scope": e.get("scope", RUN),
-             "created": e.get("created", 0), "last_used": e.get("last_used", 0)} for e in load()]
+             "created": e.get("created", 0), "last_used": e.get("last_used", 0), "roots": e.get("roots") or []}
+            for e in load()]
 
 
-def issue(name: str, scope: str = RUN) -> tuple[str, dict]:
-    """(평문 토큰, 기록). 평문은 여기서 한 번 돌려주고 어디에도 남기지 않는다."""
+def issue(name: str, scope: str = RUN, roots: list | None = None) -> tuple[str, dict]:
+    """(평문 토큰, 기록). 평문은 여기서 한 번 돌려주고 어디에도 남기지 않는다.
+    roots: 이 토큰이 볼 수 있는 폴더(무늬 가능). 없으면 지켜보는 학습 전부(scope.py)"""
     name = (str(name or "").strip() or "token")[:60]
     if scope not in SCOPES:
         raise ValueError(f"scope must be one of {', '.join(SCOPES)}")
     tok = secrets.token_urlsafe(32)
     entry = {"id": secrets.token_hex(4), "name": name, "scope": scope,
              "hash": digest(tok), "created": time.time(), "last_used": 0}
+    if roots:
+        entry["roots"] = [str(r) for r in roots]
     _save(load() + [entry])
     return tok, entry
 
@@ -96,4 +100,16 @@ def verify(tok: str) -> str | None:
     for e in load():
         if hmac.compare_digest(str(e.get("hash", "")), d):      # 시간차 공격 방지
             return e.get("scope") if e.get("scope") in SCOPES else RUN
+    return None
+
+
+def roots_for(tok: str) -> list[Path] | None:
+    """그 토큰에 정해 준 폴더. 없거나(예전 토큰·단일 토큰) 모르는 토큰이면 None"""
+    if not tok:
+        return None
+    d = digest(tok)
+    for e in load():
+        if hmac.compare_digest(str(e.get("hash", "")), d):
+            rs = e.get("roots")
+            return [Path(r) for r in rs if isinstance(r, str)] if isinstance(rs, list) and rs else None
     return None

@@ -60,6 +60,20 @@ def test_plateau_early_best(tmp_path):
     assert r["kind"] == "early_best" and "lr0=" in r["text"]
 
 
+def test_a_score_that_never_moves_is_not_called_an_early_best(tmp_path):
+    """★라벨이 깨져 mAP가 매 에폭 0이면 첫 에폭이 '최고'가 되어 '너무 이른 최고점, lr0를 낮춰라'고 했다.
+    점수가 안 움직였다고 말하고 라벨·data.yaml을 보라고 한다"""
+    rows = [_row(1.5 - 0.05 * i, 0.0, 1.2) for i in range(12)]
+    d = _run(tmp_path, rows)
+    kinds = [k["kind"] for k in analysis.analyze(d).kinds]
+    assert "flat_score" in kinds and "early_best" not in kinds
+    r = explain.explain(d)
+    assert r["kind"] == "flat_score" and "never moved" in r["text"] and "data.yaml" in r["text"]
+    assert r["next"] is None and "lr0" not in r["text"]
+    rows = [_row(1.0, 0.6 if i == 1 else 0.4, 1.0) for i in range(12)]          # 한 번이라도 움직였으면 예전 판정 그대로
+    assert "flat_score" not in [k["kind"] for k in analysis.analyze(_run(tmp_path / "b", rows)).kinds]
+
+
 def test_nan_diverged_wins_and_failed_status(tmp_path):
     rows = [_row(1.0 - 0.1 * i, 0.3 + 0.05 * i, 1.0) for i in range(5)] + [_row("nan", 0.1, "nan")]
     r = explain.explain(_run(tmp_path, rows), status="failed")

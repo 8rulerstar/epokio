@@ -41,13 +41,13 @@ def headless() -> bool:
     return not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
-def systemd_unit(roots: list[Path], host: str, port: int) -> str:
+def systemd_unit(roots: list[Path], host: str, port: int, allow_run: bool = False) -> str:
     """화면 없는 리눅스 서버에서 로그인·재부팅 뒤에도 도우미가 돌게 하는 systemd 사용자 서비스"""
     # systemd는 % 를 지정자로, $ 를 변수로, \ 를 이스케이프로 읽고, 따옴표 없는 공백에서 나눈다.
     # ★경로에 공백·%·$가 있으면(예: "my runs", venv가 "~/my venv") 서비스가 안 떴다. 전부 따옴표로 싸고 이스케이프한다
     def q(s) -> str:
         return '"' + str(s).replace("\\", "\\\\").replace('"', '\\"').replace("%", "%%").replace("$", "$$") + '"'
-    args = " ".join([f"--port {port}", f"--host {host}"] + [f"--root {q(r)}" for r in roots])
+    args = " ".join([f"--port {port}", f"--host {host}"] + [f"--root {q(r)}" for r in roots] + (["--allow-run"] if allow_run else []))
     return ("[Unit]\nDescription=Epokio helper\nAfter=network-online.target\n\n"
             f"[Service]\nExecStart={q(sys.executable)} -m epokio agent {args}\nRestart=on-failure\n\n"
             "[Install]\nWantedBy=default.target\n")
@@ -104,20 +104,38 @@ def add_roots_live(port: int, roots: list[Path]) -> bool:
     return ok
 
 
-def stop_agent(port: int = PORT, seconds: float = 10) -> bool:
-    """이 기계의 도우미를 끈다(토큰으로). 꺼졌으면 True"""
+def stop_agent(port: int = PORT, seconds: float = 10, why: list | None = None) -> bool:
+    """이 기계의 도우미를 끈다(토큰으로). 정말 꺼졌으면(포트가 닫혔으면) True. why를 주면 거절된 HTTP 코드를 담는다.
+    ★토큰이 안 맞아(다른 HOME·옛 토큰) 401로 거절됐는데도, /health가 0.5초 안에 안 오면 '꺼졌다'고 해서
+      `agent --stop`이 "Stopped."라고 했다. 거절이면 바로 False, 꺼졌는지는 /health가 아니라 포트로 본다"""
     req = urllib.request.Request(f"http://127.0.0.1:{port}/shutdown", data=b"{}", method="POST",
                                  headers={"Authorization": f"Bearer {auth.token()}", "Content-Type": "application/json"})
     try:
         urllib.request.urlopen(req, timeout=3).read()
-    except (OSError, urllib.error.HTTPError):
-        pass
+    except urllib.error.HTTPError as e:
+        if why is not None:
+            why.append(e.code)
+        return False
+    except OSError:
+        pass                                       # 끄는 도중 연결이 끊기는 것은 정상
     end = time.time() + seconds
     while time.time() < end:
-        if not agent_alive(port, timeout=0.5):
+        if port_closed(port):
             return True
         time.sleep(0.3)
     return False
+
+
+def port_closed(port: int) -> bool:
+    """이 기계의 그 포트에 아무도 안 듣는다(연결 거절). 응답이 느린 것은 닫힌 것이 아니다.
+    윈도우는 닫힌 포트의 거절이 2초쯤 걸려 한도를 넉넉히 준다"""
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=4):
+            return False
+    except ConnectionRefusedError:
+        return True
+    except OSError:
+        return False
 
 
 def outdated(port: int = PORT) -> str | None:
@@ -130,11 +148,11 @@ def outdated(port: int = PORT) -> str | None:
     return None if theirs == version() else theirs
 
 
-def start_agent(roots: list[Path], host: str, port: int = PORT) -> subprocess.Popen | None:
+def start_agent(roots: list[Path], host: str, port: int = PORT, allow_run: bool = False) -> subprocess.Popen | None:
     """창 없이 띄운다. 이미 떠 있으면 아무것도 하지 않는다."""
     if agent_alive(port):
         return None
-    cmd = autostart.self_command("agent") + ["--port", str(port), "--host", host]
+    cmd = autostart.self_command("agent") + ["--port", str(port), "--host", host] + (["--allow-run"] if allow_run else [])
     for r in roots:
         cmd += ["--root", str(r)]
     return subprocess.Popen(
@@ -164,6 +182,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="a folder holding training runs (repeatable). Found automatically if omitted")
     ap.add_argument("--lan", action="store_true",
                     help="let other machines on your network watch this one (needed for the Mac app)")
+    ap.add_argument("--allow-run", action="store_true",
+                    help="with --lan: also run training and scripts sent from other machines (refused by default)")
     ap.add_argument("--autostart", action="store_true", help="also start the tray when you log in")
     ap.add_argument("--no-browser", action="store_true", help="do not open the page")
     ap.add_argument("--port", type=int, default=PORT, help=f"port for the helper (default {PORT})")
@@ -182,7 +202,8 @@ def main(argv: list[str] | None = None) -> int:
     # 사용자가 준 폴더만 도우미에 --root로 넘긴다. 찾은 폴더는 보여 주기만 하고 도우미가 스스로 찾게 둔다.
     # ★찾은 폴더를 --root로 넘기면 도우미의 5분마다 다시 찾기가 꺼져, 나중에 생긴 runs 폴더가 영영 안 보였다
     #   (systemd 서비스에도 박혀 영구히). 뺀 폴더도 재시작 때마다 --root로 되살아났다
-    roots = [Path(r).expanduser().resolve() for r in (a.root or [])]
+    from .roots import is_glob
+    roots = [p if is_glob(p := Path(r).expanduser()) else p.resolve() for r in (a.root or [])]   # 무늬('/data/*/runs')는 그대로
     if roots:
         remember_roots(roots)
     shown = roots
@@ -223,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
         print("  The helper will be started by systemd (see below).")
     else:
         print("  Starting the helper...")
-        start_agent(roots, host, a.port)
+        start_agent(roots, host, a.port, allow_run=a.allow_run)
         if not wait_for_agent(a.port):
             print("\n  The helper did not answer. Run this to see why:")
             print(f"    {cli('agent')} --port {a.port}")
@@ -241,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
             unit = Path.home() / ".config" / "systemd" / "user" / "epokio.service"
             existed = unit.exists()
             unit.parent.mkdir(parents=True, exist_ok=True)
-            unit.write_text(systemd_unit(roots, host, a.port), encoding="utf-8")
+            unit.write_text(systemd_unit(roots, host, a.port, a.allow_run), encoding="utf-8")
             print(f"  No desktop here, so instead of a tray this wrote a systemd service: {unit}")
             print("  Turn it on. The first line keeps it running after you log out and after reboots:")
             print("    sudo loginctl enable-linger $USER")
@@ -268,12 +289,22 @@ def main(argv: list[str] | None = None) -> int:
     url = f"http://127.0.0.1:{a.port}/"
     # ★브라우저엔 토큰 실은 주소를 열고 화면엔 맨 주소를 찍어, 그걸로 연 사람은 학습 탭이 잠겨 있었다.
     #   SSH 세션에는 싣지 않는다(터미널 기록에 남는다)
-    print(f"\n  Open  {url if headless() else auth.page_url(url)}")
+    # ★노트북·로그(터미널이 아닌 곳)로 받으면 토큰이 기록에 그대로 남았다. 그때는 맨 주소와 토큰 보는 명령만
+    tty = sys.stdout.isatty() if hasattr(sys.stdout, "isatty") else False
+    print(f"\n  Open  {url if headless() or not tty else auth.page_url(url)}")
+    if not tty:
+        print(f"        (the token is not printed because this output is not a terminal; show it with  {cli('agent --show-token')})")
     if a.lan:
         ip = lan_ip()
         print(f"        http://{ip or '<this machine>'}:{a.port}/   from your phone or another computer")
-        print("\n  To watch this machine from the Mac app, add it in Settings and paste this token:")
-        print(f"    {auth.token()}")
+        # 다른 기계에 주는 토큰은 보기 전용(read)으로 새로 만든다. ★이 기계의 실행 토큰(~/.epokio/token)을 그대로 찍어
+        #   네트워크의 누구든 그 글자를 얻으면 학습·스크립트를 걸 수 있었다. 다시 돌리면 옛 것은 지우고 새로 준다
+        from . import tokens
+        tokens.revoke("setup-lan")
+        view, _ = tokens.issue("setup-lan", tokens.READ)
+        print("\n  To watch this machine from the Mac app or another computer, paste this view-only token:")
+        print(f"    {view if tty else '(run ' + cli('agent --add-token NAME') + ' in a terminal)'}")
+        print(f"  To start training from there too: {cli('agent --add-token NAME --scope run')} and run setup with --allow-run.")
         print("\n  Anyone on your network can reach the helper now. It has no TLS,")
         print("  so use this on a network you trust.")
         import shutil

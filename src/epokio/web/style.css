@@ -29,6 +29,9 @@ nav button:hover { background: var(--panel2); }
 nav button:active { transform: scale(.96); }
 nav button.on { background: var(--grad-brand); color: #fff; box-shadow: 0 2px 10px color-mix(in srgb, var(--brand) 35%, transparent); }
 nav .badge[hidden] { display: none; }
+/* side features (labeling review, sweeps) stay out of the default tabs; "More" shows them (main.js, saved per browser) */
+body:not(.adv) nav [data-adv] { display: none; }
+nav button.more { color: var(--soft); font-weight: 500; margin-left: auto; }
 nav .badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; }
 main { padding: 16px 20px 40px; max-width: 1180px; margin: 0 auto; }
 .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }

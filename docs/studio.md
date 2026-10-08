@@ -70,3 +70,15 @@ current when Ultralytics updates.
 <p align="center">
   <img src="images/studio-datasets.png" width="620" alt="Datasets, labels drawn on images">
 </p>
+
+## Side features
+
+These moved here from the main README. On the web page, **Review** and **Sweeps** are under **More** in the tab bar.
+
+| Framework | Start runs | Auto-label, review |
+|---|---|---|
+| Ultralytics YOLO | from the app or the web page | yes |
+| Hugging Face Trainer, Lightning, Keras, TensorBoard, MAE/DeiT `log.txt`, timm, OpenMMLab, W&B, your own loop | as a script job | |
+
+* The label editor and starting auto-label jobs are Mac only. The web page covers watching, training, the queue, compare, review, sweeps and alerts.
+* The menu bar characters, compare and sweeps, data versions and the dataset views are described in the sections above.

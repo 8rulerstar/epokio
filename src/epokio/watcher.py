@@ -12,6 +12,7 @@ from . import config, runmeta
 from .monitor import Monitor
 from .sources import LocalSource
 
+# 'quiet'(계획 에폭을 모르는 학습의 기록이 멈춤)은 일부러 뺀다. ★정상으로 끝난 케라스 학습마다 폰에 '멎음'이 갔다
 DEFAULT_HOOK_KINDS = ["finished", "failed", "stalled", "stopped_early", "job_done", "job_failed", "goal",
                       "disk_low", "gpu_hot", "gpu_mem", "fan_max"]
 _PUSH_LOCK = threading.Lock()
@@ -70,6 +71,9 @@ class Watcher:
             return
         if kind not in cfg.get("kinds", DEFAULT_HOOK_KINDS) and kind != "goal":     # 목표 점수는 사람이 건 것이라 항상
             return
+        from .selfnotify import claimed
+        if claimed(run.get("path"), kind):            # 학습 프로세스가 직접 보냈다(epokio.start(notify=True)). 두 번 안 간다
+            return
         from . import i18n
         from .monitor import Event
         from .notify import webhook
@@ -97,45 +101,7 @@ class Watcher:
         import time
         while not getattr(self, "_stop_watching", False):
             try:
-                roots = [r for r in self.roots + [Path.home() / ".epokio" / "runs"] if r.exists()]
-                mon = getattr(self, "_mon", None)
-                if mon is None:
-                    self._mon = mon = Monitor([])
-                # ★모니터는 하나만 두고 소스만 갈아 끼운다. 새로 만들면 첫 회차를 조용히 넘기는
-                #   규칙 때문에 영원히 알림이 안 났다 (폴더 수가 안 맞아 매번 새로 만들었다)
-                mon.sources = [x for x in mon.sources if getattr(x, "root", None) in roots]   # ★뺀 폴더가 계속 알림을 보냈다
-                have = {getattr(x, "root", None) for x in mon.sources}
-                for r in roots:
-                    if r not in have:
-                        mon.add(LocalSource(r))          # 옛 학습은 조용히 기억만
-                pace = getattr(self, "pace", None)
-                if pace is None:                          # Agent.__init__ 을 거치지 않은 경우(시험의 __new__)
-                    from .pace import Pace
-                    self.pace = pace = Pace()
-                if not getattr(self, "_pace_watching", False):
-                    pace.watch(roots)                     # 파일 알림(watchdog 있을 때만)
-                    self._pace_watching = True
-                changed = False
-                scanned = pace.should_scan()             # ★수동 모드: 폴더를 훑지 않는다(알림 없음). 대기열·스윕은 아래에서 계속
-                if scanned:
-                    for e in mon.refresh():
-                        changed = True
-                        self._push(e.kind, e.before, e.run.to_dict())
-                    self._scanned = (time.time(), [str(r) for r in roots], mon.runs)   # /runs가 이걸 쓴다(다시 훑지 않게)
-                # 스윕 조기 중단: 가망 없는 시도를 멈춘다(켠 스윕만)
-                q = getattr(self, "queue", None)
-                if q is not None and not getattr(self, "_stop_watching", False):
-                    from . import sweep
-                    for jid in sweep.check_prune(q):
-                        j = q.get(jid)
-                        self._push("pruned", "running", {"name": j.name if j else jid, "path": j.output if j else ""})
-                    sweep.advance(q)                      # 똑똑한 스윕: 앞 시도가 끝났으면 다음 값을 골라 넣는다
-                    sweep.dispatch(q)                     # 여러 기계 스윕: 빈 기계에 다음 시도
-                # 목표 점수: 넘는 순간 한 번 알린다
-                self._check_machine(roots)
-                if scanned and any(m.get("goal") is not None and not m.get("goal_hit") for m in runmeta.load().values()):
-                    for r in runmeta.goals_reached(mon.runs):   # 방금 훑은 것을 쓴다(예전엔 폴더를 한 번 더 훑었다)
-                        self._push("goal", "running", r.to_dict())
+                pace, changed = self._watch_once()
             except Exception:
                 # 전부 삼키되 이유는 남긴다(매번 실패해도 알림이 멈춘 이유가 어디에도 남지 않았다)
                 import logging
@@ -148,6 +114,63 @@ class Watcher:
                 time.sleep(8)
             else:
                 pace.sleep(pace.interval(live or busy, changed))     # 쉬는 날엔 간격을 늘린다(pace.py)
+
+    def _watch_once(self):
+        """감시 한 바퀴. (pace, 바뀐 것이 있었나)"""
+        import time
+        # ★예전엔 self.roots + runs만 봐서 SSH 비춤(~/.epokio/ssh)·데모 학습은 알림·웹후크가 한 번도 안 갔다.
+        #   /runs와 같은 목록(watch_roots)을 쓴다
+        roots = [r for r in self.watch_roots() if r.exists()]
+        mon = getattr(self, "_mon", None)
+        if mon is None:
+            self._mon = mon = Monitor([])
+        # ★모니터는 하나만 두고 소스만 갈아 끼운다. 새로 만들면 첫 회차를 조용히 넘기는
+        #   규칙 때문에 영원히 알림이 안 났다 (폴더 수가 안 맞아 매번 새로 만들었다)
+        mon.sources = [x for x in mon.sources if getattr(x, "root", None) in roots]   # ★뺀 폴더가 계속 알림을 보냈다
+        have = {getattr(x, "root", None) for x in mon.sources}
+        for r in roots:
+            if r not in have:
+                mon.add(LocalSource(r))          # 옛 학습은 조용히 기억만
+        pace = getattr(self, "pace", None)
+        if pace is None:                          # Agent.__init__ 을 거치지 않은 경우(시험의 __new__)
+            from .pace import Pace
+            self.pace = pace = Pace()
+        key = [str(r) for r in roots]
+        if getattr(self, "_pace_watching", None) != key:
+            pace.watch(roots)                     # 파일 알림(watchdog 있을 때만). ★폴더가 늘거나 줄면 다시 건다
+            self._pace_watching = key
+        changed = False
+        scanned = pace.should_scan()             # ★수동 모드: 폴더를 훑지 않는다(알림 없음). 대기열·스윕은 아래에서 계속
+        if scanned:
+            from .ssh_source import host_of
+            # 이어 한 학습(Lightning version_1 ← version_0)이 있으면 앞 것의 멎음·끝남은 알리지 않는다(★재개마다 앞 것이 '멎음'을 냈다)
+            evs = list(mon.refresh())
+            later = {(str(r.path.parent), r.resumed_from) for r in mon.runs if getattr(r, "resumed_from", "")}
+            for e in evs:
+                if (str(e.run.path.parent), e.run.path.name) in later and e.kind in ("stalled", "quiet", "finished", "stopped_early"):
+                    continue
+                changed = True
+                d = e.run.to_dict()
+                h = host_of(str(e.run.path))
+                if h:                                # SSH 비춤이면 사건·알림에 그 서버(★'local'로 가서 어느 기계인지 몰랐다).
+                    d["source"] = f"ssh:{h}"         #   /runs는 그대로 local + ssh 칸(맥 앱이 source로 기계를 고른다)
+                self._push(e.kind, e.before, d)
+            self._scanned = (time.time(), key, mon.runs)   # /runs가 이걸 쓴다(다시 훑지 않게, 같은 폴더 목록일 때만)
+        # 스윕 조기 중단: 가망 없는 시도를 멈춘다(켠 스윕만)
+        q = getattr(self, "queue", None)
+        if q is not None and not getattr(self, "_stop_watching", False):
+            from . import sweep
+            for jid in sweep.check_prune(q):
+                j = q.get(jid)
+                self._push("pruned", "running", {"name": j.name if j else jid, "path": j.output if j else ""})
+            sweep.advance(q)                      # 똑똑한 스윕: 앞 시도가 끝났으면 다음 값을 골라 넣는다
+            sweep.dispatch(q)                     # 여러 기계 스윕: 빈 기계에 다음 시도
+        # 목표 점수: 넘는 순간 한 번 알린다
+        self._check_machine(roots)
+        if scanned and any(m.get("goal") is not None and not m.get("goal_hit") for m in runmeta.load().values()):
+            for r in runmeta.goals_reached(mon.runs):   # 방금 훑은 것을 쓴다(예전엔 폴더를 한 번 더 훑었다)
+                self._push("goal", "running", r.to_dict())
+        return pace, changed
 
     # 기계 상태 경고: 디스크 부족·GPU 과열·GPU 메모리 부족. 같은 경고는 30분에 한 번만
     # 기준값은 config.py(사용자가 앱 설정에서 바꾼다)

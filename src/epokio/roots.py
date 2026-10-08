@@ -8,9 +8,50 @@ from __future__ import annotations
 
 import concurrent.futures as cf
 import os
+import sys
 from pathlib import Path
 
 from .scan import scan
+
+
+def clean_root(text: str) -> Path:
+    """--root로 받은 글자 → 경로. 짝 없는 끝 따옴표는 뗀다.
+    ★PowerShell은 "C:\\my runs\\" 를 C:\\my runs" 로 넘긴다(끝 \\"가 따옴표 이스케이프). 없는 폴더를 조용히 지켜봤다"""
+    s = str(text).strip()
+    if s.endswith('"') and s.count('"') % 2 == 1:
+        s = s[:-1].rstrip()
+    return Path(s).expanduser()
+
+
+def is_glob(p) -> bool:
+    """--root /data/*/runs 같은 무늬인가"""
+    return any(c in str(p) for c in "*?[")
+
+
+def expand(roots: list[Path]) -> list[Path]:
+    """무늬(--root '/data/*/runs')는 훑을 때마다 지금 있는 폴더로 펼친다(새 사람·새 실험 폴더가 저절로 보이게).
+    무늬가 아닌 폴더는 그대로(없어도: 없는 폴더 안내는 missing_roots가 한다)"""
+    import glob
+    out: list[Path] = []
+    for r in roots:
+        got = [Path(x) for x in sorted(glob.glob(str(r))) if os.path.isdir(x)] if is_glob(r) else [r]
+        out += [p for p in got if p not in out]
+    return out
+
+
+def missing(roots: list[Path]) -> list[Path]:
+    """없는 폴더, 그리고 지금 맞는 폴더가 하나도 없는 무늬"""
+    return [r for r in roots if not (expand([r]) if is_glob(r) else r.exists())]
+
+
+def warn_missing(roots: list[Path], out=None) -> list[Path]:
+    """없는 폴더마다 한 줄 경고(agent·watch 시작 때). ★잘못 준 --root가 아무 말 없이 '학습 0개'로 보였다"""
+    gone = missing(roots)
+    for r in gone:
+        text = ("! No folder matches this pattern yet; it is checked again on every scan: " if is_glob(r)
+                else "! This folder does not exist, so no runs will show from it: ")
+        print(f"{text}{r}", file=out or sys.stderr, flush=True)
+    return gone
 
 
 def scan_one(root: Path) -> list:

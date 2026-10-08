@@ -360,3 +360,21 @@ def test_an_epoch_scalar_that_starts_at_one_is_not_shifted(tmp_path):
              [(10 * e, t + e, {"epoch": e, "val/acc1": 50 + e}) for e in range(1, 21)])
     r = read_run(d)
     assert r.epoch == 20 and r.total == 20
+
+
+def test_two_evaluations_in_one_hf_epoch_keep_the_best_score(tmp_path):
+    """★HF식 TensorBoard(한 에폭에 평가 두 번)에서 1.5에폭의 최고 점수가 같은 에폭 2.0의 평가에 덮였다.
+    점수는 그 에폭의 가장 좋은 값(낮을수록 좋은 것은 가장 낮은 값), 손실은 예전처럼 나중 값"""
+    d = tmp_path / "out" / "runs" / "Oct01_10-00-00_pc"
+    d.mkdir(parents=True)
+    t = time.time() - 50
+    _w_write(d / "events.out.tfevents.1.pc", [
+        (50, t, {"eval/loss": 1.2, "eval/accuracy": 0.5, "eval/rmse": 0.9, "train/epoch": 0.5}),
+        (100, t + 1, {"eval/loss": 1.0, "eval/accuracy": 0.6, "eval/rmse": 0.8, "train/epoch": 1.0}),
+        (150, t + 2, {"eval/loss": 0.8, "eval/accuracy": 0.9, "eval/rmse": 0.3, "train/epoch": 1.5}),
+        (200, t + 3, {"eval/loss": 0.85, "eval/accuracy": 0.7, "eval/rmse": 0.5, "train/epoch": 2.0}),
+    ])
+    r = read_run(d)
+    assert r.metric_name == "metrics/accuracy" and abs(r.best - 0.9) < 1e-6 and r.best_epoch == 2
+    rows = adapters.load(d).rows
+    assert rows[1]["metrics/rmse"] == "0.3" and rows[1]["val/loss"] == "0.85" and rows[0]["metrics/accuracy"] == "0.6"

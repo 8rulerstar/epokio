@@ -5,7 +5,8 @@ function lockedHTML(what) {
   const bad = S.locked && S.token;
   return `<div class="card locked"><div class="ico">🔒</div><h2>${what}</h2>
     <p class="hint">${t("Starting and cancelling runs is locked, so nobody else on your network can run commands here.")}<br>
-    ${t("On this machine, open this page from the Epokio tray icon or <code>epokio setup</code> (it unlocks by itself), or find the token in <code>~/.epokio/token</code> (Windows: <code>%USERPROFILE%\\.epokio\\token</code>).")}<br>${t("From a terminal: <code>Epokio.exe agent --show-token</code> or <code>epokio-agent --show-token</code>. On a Mac: Settings, Machines.")}</p>
+    ${t("On this machine, open this page from the Epokio tray icon or <code>epokio setup</code> (it unlocks by itself), or find the token in <code>~/.epokio/token</code> (Windows: <code>%USERPROFILE%\\.epokio\\token</code>).")}<br>${S.tokenCmd ? t("From a terminal on this machine: {cmd}. On a Mac: Settings, Machines.", { cmd: `<code>${esc(S.tokenCmd)}</code>` })
+      : t("From a terminal on that machine, run Epokio with <code>agent --show-token</code>, for example <code>.\\Epokio.exe agent --show-token</code>, <code>py -m epokio agent --show-token</code> or <code>epokio agent --show-token</code>. On a Mac: Settings, Machines.")}</p>
     ${bad ? `<div class="msg" style="--c:var(--red);max-width:460px;margin:12px auto 0"><b>${t("That token did not work.")}</b> ${t("It may have changed on this machine.")}</div>` : ""}
     <div class="inrow"><input class="in" id="tok" type="password" aria-label="${t("Paste the token")}" placeholder="${t("Paste the token")}" autocomplete="off" spellcheck="false"><button class="btn primary" id="unlock">${t("Unlock")}</button></div></div>`;
 }

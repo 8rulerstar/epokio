@@ -1,24 +1,24 @@
-"""작업 대기열. 학습·오토라벨링·임의 스크립트를 줄 세워 차례로 돌린다.
+"""Job queue. Lines up training, autolabeling and arbitrary scripts and runs them in turn.
 
-원칙
-  1. 직접 구현하지 않는다. 실행은 전부 그 프레임워크(ultralytics 등)에 넘긴다
-  2. 한 GPU에서는 한 번에 하나만 돈다 (예전에 병행 학습이 GPU를 다퉈 날아간 적이 있다).
-     GPU가 여러 장이면(nvidia-smi로 셈) 장마다 한 줄씩, 빈 GPU에 다음 작업을 넣는다.
-     nvidia-smi가 없거나 GPU가 한 장이면 예전처럼 한 줄이다 (gpus.py)
-  3. 대기열은 파일에 남긴다. 앱이나 agent를 껐다 켜도 이어진다
-  4. 각 작업은 사용자가 고른 파이썬 환경에서 돈다. Epokio가 그 환경에 설치돼 있을 필요가 없다
-     → 작은 실행 스크립트를 만들어 그 파이썬으로 돌린다
+Principles
+  1. Don't reimplement anything. All execution is handed to the framework (ultralytics etc.)
+  2. Only one job at a time per GPU (parallel training once fought over the GPU and both runs were lost).
+     With several GPUs (counted via nvidia-smi), one lane per GPU; the next job goes to a free GPU.
+     Without nvidia-smi or with a single GPU, it is one lane as before (gpus.py)
+  3. The queue is kept in a file. It survives restarting the app or the agent
+  4. Each job runs in the Python environment the user picked. Epokio need not be installed there
+     -> a small launcher script is generated and run with that Python
 
-나눈 곳: 스크립트 틀 jobs_templates.py, 프로세스 다루기 jobs_proc.py, 대기열 jobs_queue.py.
-★경로 상수(HOME·STATE·LOGS·SCRIPTS·SETUP_DIR)는 이 모듈에만 있다. 다른 모듈은 부를 때마다 여기서 읽는다
-  (테스트가 jobs.LOGS 등을 바꿔 끼운다)
+Split into: script templates jobs_templates.py, process handling jobs_proc.py, queue jobs_queue.py.
+Path constants (HOME, STATE, LOGS, SCRIPTS, SETUP_DIR) live only in this module. Other modules read them from here on each call
+  (tests swap jobs.LOGS etc.)
 """
 from __future__ import annotations
 
 import json
-import os  # noqa: F401  (jobs.os: 테스트가 갈아 끼운다)
-import signal  # noqa: F401  (jobs.signal: 테스트가 본다)
-import subprocess  # noqa: F401  (jobs.subprocess: 테스트가 갈아 끼운다)
+import os  # noqa: F401  (jobs.os: tests swap it)
+import signal  # noqa: F401  (jobs.signal: tests inspect it)
+import subprocess  # noqa: F401  (jobs.subprocess: tests swap it)
 import sys  # noqa: F401
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,7 +43,7 @@ class Job:
     id: str
     kind: str                     # train | autolabel | evaluate | export | setup | script | practice | classes
     name: str
-    python: str                   # 실행할 파이썬
+    python: str                   # Python to run with
     params: dict = field(default_factory=dict)
     cwd: str = ""
     state: str = "queued"         # queued | running | done | failed | cancelled
@@ -52,28 +52,28 @@ class Job:
     ended: float | None = None
     returncode: int | None = None
     log: str = ""
-    output: str = ""              # 결과 폴더 (run 폴더 또는 라벨 폴더)
+    output: str = ""              # result folder (run folder or label folder)
     pid: int | None = None
-    pid_start: float | None = None  # 그 프로세스가 시작된 시각(번호 재사용을 가려낸다)
-    sweep: str = ""            # 스윕에 속한 학습이면 스윕 id (epokio.sweep)
-    gpu: str = "auto"          # 요청: auto | cpu | "0","1",...  (gpus.normalize)
-    gpu_index: int | None = None   # 실제로 배정된 GPU 번호 (cpu·GPU 없음이면 None)
+    pid_start: float | None = None  # when that process started (detects PID reuse)
+    sweep: str = ""            # sweep id if this training belongs to a sweep (epokio.sweep)
+    gpu: str = "auto"          # requested: auto | cpu | "0","1",...  (gpus.normalize)
+    gpu_index: int | None = None   # GPU actually assigned (None for cpu or no GPU)
 
 
 EXPORT_FORMATS = {"onnx", "coreml", "tflite", "openvino", "engine", "torchscript", "ncnn"}
-# 이어 하기 때 체크포인트 설정 대신 넘겨도 되는 것(나머지는 체크포인트에 적힌 원래 설정을 쓴다)
+# On resume, these may override the checkpoint settings (everything else uses the original settings stored in the checkpoint)
 RESUME_KEYS = ("model", "resume", "device", "batch", "workers")
 
 
 def safe_name(name: str) -> str:
-    """결과 폴더 이름으로 쓰는 작업 이름. ★"../../x"면 project 밖에 결과를 썼다. 경로 구분자·줄바꿈·앞뒤 점을 뺀다"""
+    """Job name used as the result folder name. Previously "../../x" wrote outside project. Strips separators, newlines, edge dots"""
     import re
     s = re.sub(r"[\\/\r\n\t\x00:]+", "_", str(name)).strip().strip(".")
     return s[:120]
 
 
 def _free_name(params: dict):
-    """같은 이름 폴더가 있으면 name2, name3... ultralytics의 increment_path와 같은 이름을 여기서 미리 정한다"""
+    """If a folder with that name exists, use name2, name3... Picks up front the name ultralytics' increment_path would"""
     base, n = params["name"], 2
     while (Path(params["project"]) / params["name"]).exists():
         params["name"] = f"{base}{n}"
@@ -88,12 +88,12 @@ def build_command(job: Job) -> list[str]:
     if job.kind in ("train", "evaluate", "classes"):
         from . import gpus
         why = gpus.fix_device(params, job.gpu, job.gpu_index, bool(gpus.listed()))
-        if why:                                       # 로그 첫머리에 남겨 왜 바뀌었는지 보이게
+        if why:                                       # put it at the top of the log so the reason for the change is visible
             from .jobs_run import note
             note(job, f"epokio: {why}\n")
     if job.kind == "train" and params.get("resume") and params.get("model"):
-        # 이어 하기: ultralytics는 체크포인트(weights/last.pt)에 적힌 원래 폴더에 이어 쓴다. 대기열도 그 폴더를 가리킨다.
-        # ★이름을 새로 정하면(name2) 대기열은 빈 새 폴더를, 학습은 옛 폴더를 봤다. 다른 설정은 체크포인트 것을 쓴다
+        # Resume: ultralytics keeps writing to the original folder in the checkpoint (weights/last.pt). The queue points there too.
+        # Previously a new name (name2) made the queue watch an empty folder while training used the old one. Other settings: checkpoint's
         job.output = str(Path(params["model"]).parents[1])
         params = {k: v for k, v in params.items() if k in RESUME_KEYS}
         params["resume"] = True
@@ -102,7 +102,7 @@ def build_command(job: Job) -> list[str]:
         params.setdefault("project", str(HOME / "runs"))
         params.setdefault("name", job.name)
         params.setdefault("exist_ok", False)
-        # ★안 그러면 같은 데이터로 두 번째 학습할 때 작업은 옛 폴더를 가리켜, 대기열이 끝난 옛 학습의 진행(50/50)을 보였다
+        # Without this, a 2nd training on the same data pointed at the old folder, and the queue showed the old run's progress (50/50)
         if not params.get("exist_ok"):
             _free_name(params)
         job.output = str(Path(params["project"]) / params["name"])
@@ -111,18 +111,18 @@ def build_command(job: Job) -> list[str]:
         params.setdefault("project", str(HOME / "evals"))
         params.setdefault("name", job.name)
         job.output = str(Path(params["project"]) / params["name"])
-        src = EVAL_TEMPLATE.format(params=json.dumps(params))       # 원자료만 모은다. 채점은 review.py
-    elif job.kind == "classes":                          # 끝난 학습의 클래스별 성능: 결과는 그 학습 폴더에(jobs_templates.write_classes)
+        src = EVAL_TEMPLATE.format(params=json.dumps(params))       # only collects raw data. Scoring is in review.py
+    elif job.kind == "classes":                          # per-class metrics of a finished run, saved in its folder (jobs_templates.write_classes)
         from .jobs_templates import CLASSES_TEMPLATE
         params.setdefault("tmp", str(HOME / "evals" / f"classes_{job.id}"))
         job.output = str(params["run"])
         src = ENV_HELPERS + CLASSES_TEMPLATE.format(params=json.dumps(params))
     elif job.kind == "autolabel":
-        # ★기존 라벨을 절대 덮어쓰지 않는다. 결과는 항상 별도 폴더
+        # Never overwrite existing labels. Results always go to a separate folder
         params.setdefault("project", str(Path(params["source"]).parent / "labels_auto"))
         params.setdefault("name", job.name)
-        # ★같은 폴더에 다시 돌리면 ultralytics가 라벨 파일에 이어 써서 박스가 두 번씩 들어갔고,
-        #   이번에 아무것도 못 찾은 이미지는 지난번 라벨이 그대로 남았다. 그래서 늘 새 폴더
+        # Previously rerunning into the same folder made ultralytics append to label files, doubling boxes,
+        #   and images with no detections this time kept last run's labels. Hence always a new folder
         _free_name(params)
         job.output = str(Path(params["project"]) / params["name"])
         src = AUTOLABEL_TEMPLATE.format(params=json.dumps(params))
@@ -131,7 +131,7 @@ def build_command(job: Job) -> list[str]:
             raise ValueError("unknown export format")
         job.output = str(Path(params["model"]).parent)
         src = EXPORT_TEMPLATE.format(params=json.dumps(params))
-    elif job.kind == "practice":                         # 연습 학습: GPU 없이 곡선만 (epokio.practice)
+    elif job.kind == "practice":                         # practice training: curves only, no GPU (epokio.practice)
         from . import practice
         src, job.output = practice.script({**params, "name": params.get("name") or job.name})
     elif job.kind == "setup":
@@ -144,4 +144,4 @@ def build_command(job: Job) -> list[str]:
     return [job.python, "-u", str(script)]
 
 
-from .jobs_queue import Queue  # noqa: E402,F401  (맨 끝: jobs_queue가 이 모듈의 Job·상수를 쓴다)
+from .jobs_queue import Queue  # noqa: E402,F401  (at the end: jobs_queue uses this module's Job and constants)

@@ -1,7 +1,7 @@
-"""agent의 HTTP: 보기(GET)는 그냥, 실행(POST)은 실행 권한이 있는 토큰. 웹 화면(/)과 그림(/file)도 여기서 내준다.
+"""The agent's HTTP: reads (GET) are open, runs (POST) need a token with run rights. Also serves the web page (/) and images (/file).
 
-토큰이 여럿일 수 있다(auth.py·tokens.py). 보기는 아무 토큰이나, 실행(POST)은 scope=run 토큰만.
-읽기 전용 토큰으로 실행을 부르면 401이 아니라 403이다(토큰은 맞는데 권한이 없다는 뜻이라서)."""
+There can be several tokens (auth.py, tokens.py). Reads take any token, runs (POST) only scope=run tokens.
+Calling a run with a read-only token gives 403, not 401 (the token is valid but lacks permission)."""
 from __future__ import annotations
 
 import json
@@ -17,17 +17,17 @@ from typing import TYPE_CHECKING
 
 from .textnorm import deep_nfc
 
-MAX_BODY = 20_000_000                                   # POST 본문 상한(설정·라벨 수정은 수 KB)
+MAX_BODY = 20_000_000                                   # POST body limit (settings and label edits are a few KB)
 
 if TYPE_CHECKING:
     from .agent import Agent
 
 HOSTNAME = socket.gethostname().lower().split(".")[0]
 
-# 보기(GET)에도 토큰이 필요한가. 이 기계 밖에서 닿게 띄우면(0.0.0.0 등) 기본으로 켠다: 학습 이름·점수·결과 그림이
-# 같은 네트워크 누구에게나 보였다(2026-09-22 점검). --open-reads 로만 끈다. 웹 화면·/health 는 토큰 없이 열린다(토큰을 묻는 화면이라서)
+# Do reads (GET) need a token? On by default when reachable from outside this machine (0.0.0.0 etc.): run names, scores, images
+# were visible to anyone on the network (2026-09-22 review). Only --open-reads turns it off. Web page and /health stay open (they ask for it)
 OPEN_PATHS = {"/", "/index.html", "/health"}
-# 보기지만 늘 토큰: 임의 경로를 읽거나 훑는다(보안 점검 2026-09-22). auth.get_needs_token도 잠그지만 이중으로 둔다
+# Reads that always need a token: they read or scan arbitrary paths (security review 2026-09-22). auth.get_needs_token also locks them
 TOKEN_PATHS = {"/names", "/health-check"}
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
 
@@ -38,37 +38,37 @@ def _allowed_hosts() -> set[str]:
 
 
 def host_ok(host_header: str | None, exposed: bool) -> bool:
-    """★DNS 리바인딩 막기: 이 기계 안에서만 여는 agent는 Host가 루프백 이름(또는 EPOKIO_ALLOWED_HOSTS)일 때만 답한다
-    (evil.example → 127.0.0.1 우회). 토큰이 있어도 예외 없다.
-    네트워크에 연 agent는 여기서는 통과시키고, 핸들러가 host_trusted 또는 토큰을 한 번 더 본다"""
+    """DNS rebinding guard: an agent open only on this machine answers only when Host is a loopback name (or EPOKIO_ALLOWED_HOSTS)
+    (blocks evil.example -> 127.0.0.1). No exception even with a token.
+    An agent open to the network passes here; the handler then checks host_trusted or the token again"""
     if exposed:
         return True
     h = (host_header or "").strip().lower()
     if h.startswith("[") and "]" in h:
-        h = h[:h.index("]") + 1]                        # [::1]:8787 → [::1]
+        h = h[:h.index("]") + 1]                        # [::1]:8787 -> [::1]
     elif h.count(":") == 1:
-        h = h.split(":")[0]                             # 127.0.0.1:8787 → 127.0.0.1
+        h = h.split(":")[0]                             # 127.0.0.1:8787 -> 127.0.0.1
     return h in LOOPBACK_HOSTS or h.rstrip(".") in _allowed_hosts()
 
 
 def _is_ip(host: str) -> bool:
     import ipaddress
     try:
-        ipaddress.ip_address(host.split("%")[0])          # fe80::1%eth0 같은 범위 표시
+        ipaddress.ip_address(host.split("%")[0])          # zone suffix like fe80::1%eth0
         return True
     except ValueError:
         return False
 
 
 def host_trusted(header: str | None) -> bool:
-    """Host 머리말이 이 기계를 가리키는가(네트워크에 연 agent의 DNS 리바인딩 막기).
-    IP 주소·localhost, 그리고 **첫 칸이 이 기계 이름인 이름**(pc, pc.local, pc.lan, 회사 도메인,
-    Tailscale MagicDNS pc.tailXXXX.ts.net)은 받는다. 공격자 도메인이 그렇게 되려면 이 기계 이름을 알아야 한다.
-    그 밖의 이름은 EPOKIO_ALLOWED_HOSTS(쉼표로 여럿)에 적거나 토큰을 실어야 한다.
-    ★처음엔 이름 그대로·.local만 받아서 pc.lan·MagicDNS로 붙은 맥 앱과 웹이 '꺼져 있다'로 보였다"""
+    """Does the Host header point at this machine (DNS rebinding guard for an agent open to the network)?
+    Accepts IP addresses, localhost, and **names whose first label is this machine's name** (pc, pc.local, pc.lan, company domain,
+    Tailscale MagicDNS pc.tailXXXX.ts.net). An attacker domain would need to know this machine's name.
+    Other names must be listed in EPOKIO_ALLOWED_HOSTS (comma separated) or carry a token.
+    Originally only the bare name and .local were accepted, so the Mac app and web via pc.lan or MagicDNS looked 'off'"""
     from urllib.parse import urlsplit
     try:
-        host = (urlsplit("//" + (header or "")).hostname or "").rstrip(".")   # [::1]:8787, pc.:8787, 포트 없음까지
+        host = (urlsplit("//" + (header or "")).hostname or "").rstrip(".")   # handles [::1]:8787, pc.:8787, no port
     except ValueError:
         return False
     return host in ("", "localhost") or _is_ip(host) or host.split(".")[0] == HOSTNAME or host in _allowed_hosts()
@@ -86,7 +86,7 @@ log = logging.getLogger("epokio")
 
 
 def setup_log() -> Path:
-    """~/.epokio/agent.log (1MB씩 둘). ★setup·트레이가 도우미 출력을 버려서, 윈도우·리눅스에서는 오류가 어디에도 남지 않았다"""
+    """~/.epokio/agent.log (two 1 MB files). setup and the tray discarded helper output, so on Windows/Linux errors were never kept"""
     from logging.handlers import RotatingFileHandler
     f = Path.home() / ".epokio" / "agent.log"
     try:
@@ -101,24 +101,24 @@ def setup_log() -> Path:
 
 
 def make_handler(agent: Agent, reads_need_token: bool = False):
-    # 웹 화면은 켤 때 한 번 읽는다. ★요청마다 읽어, pip으로 올린 뒤 옛 도우미가 새 화면을 내주었다(화면과 코드가 어긋남)
+    # Read the web page once at start. Reading it per request made an old helper serve the new page after a pip upgrade (page/code mismatch)
     page = (Path(__file__).parent / "web" / "index.html").read_bytes()
 
     class Handler(BaseHTTPRequestHandler):
-        _enc: list = []                                   # (payload, gzip 여부, 바이트) 최근 몇 개
+        _enc: list = []                                   # the last few (payload, gzip flag, bytes)
 
         def _encode(self, payload, gz: bool) -> tuple[bytes, bool]:
-            """JSON으로 바꾸고 크면 압축한다. 같은 응답 객체(agent가 1초 동안 재사용하는 /runs)는 한 번만.
-            ★보는 화면마다, 요청마다 학습 수천 개를 다시 직렬화·NFC·압축했다"""
+            """Convert to JSON and compress if large. The same response object (/runs, reused by the agent for 1 s) is encoded once.
+            Previously every viewer and request re-serialized, NFC-normalized and compressed thousands of runs"""
             for obj, g, body, zipped in Handler._enc:
                 if obj is payload and g == gz:
                     return body, zipped
-            body = json.dumps(deep_nfc(payload), ensure_ascii=False).encode()   # 나가는 문자열은 전부 NFC
+            body = json.dumps(deep_nfc(payload), ensure_ascii=False).encode()   # all outgoing strings are NFC
             zipped = gz and len(body) > 4096
             if zipped:
                 import gzip
                 body = gzip.compress(body, compresslevel=5)
-            if isinstance(payload, dict) and "runs" in payload:     # 캐시해 두는 큰 응답만 기억한다
+            if isinstance(payload, dict) and "runs" in payload:     # remember only the big cached responses
                 Handler._enc = [(payload, gz, body, zipped)] + Handler._enc[:3]
             return body, zipped
 
@@ -126,7 +126,7 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
             body, zipped = self._encode(payload, "gzip" in (self.headers.get("Accept-Encoding") or ""))
             self.send_response(code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            # 큰 응답은 압축한다(브라우저·맥 URLSession은 알아서 푼다). ★학습 2,000개의 /runs가 4초마다 1.9MB였다(gzip 79KB)
+            # Compress large responses (browsers, Mac URLSession decode them). /runs for 2,000 runs was 1.9 MB every 4 s (79 KB gzip)
             if zipped:
                 self.send_header("Content-Encoding", "gzip")
                 self.send_header("Vary", "Accept-Encoding")
@@ -139,9 +139,9 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
             self.send_header("Set-Cookie", f"{auth.COOKIE}={tok}; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000")
 
         def _cookie(self):
-            """토큰(헤더)으로 보기를 한 번 통과하면 그림용 쿠키를 준다: <img>·AsyncImage는 헤더를 못 붙인다.
-            ★쿠키에는 그 사람이 보낸 토큰을 그대로 담는다(예전엔 단일 토큰을 담아, 읽기 전용 토큰으로 들어와도
-              실행 권한 쿠키를 받아 갔다)"""
+            """After a read passes with a header token, give a cookie for images: <img> and AsyncImage cannot add headers.
+            The cookie holds exactly the token the client sent (previously it held the single token, so even a read-only token
+              got a cookie with run rights)"""
             tok = getattr(self, "give_cookie", "")
             if tok:
                 self._set_cookie(tok)
@@ -156,32 +156,42 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
             self.wfile.write(body)
 
         def _host_ok(self) -> bool:
-            """DNS 리바인딩 막기. 악성 페이지가 자기 도메인을 127.0.0.1로 돌려 이 agent의 학습 목록·그림을 읽는다.
-            IP 주소·localhost·이 기계 이름은 그대로 받고, 그 밖의 이름(예: Tailscale MagicDNS)은 토큰이 있을 때만."""
+            """DNS rebinding guard. A malicious page points its domain at 127.0.0.1 to read this agent's run list and images.
+            IP addresses, localhost and this machine's name pass; other names (e.g. Tailscale MagicDNS) only with a token."""
             return host_trusted(self.headers.get("Host")) or auth.check(self.headers.get("Authorization"))
 
         def do_GET(self):
-            msg.set_from_header(self.headers.get("Accept-Language"))   # 앱 언어로 문장을 돌려준다
+            msg.set_from_header(self.headers.get("Accept-Language"))   # reply in the app's language
             u = urlparse(self.path)
             static = u.path in ("/", "/index.html") or u.path.startswith("/web/")
-            # 토큰(헤더)을 실은 보기는 Host를 묻지 않는다(리바인딩 페이지는 토큰을 모른다. MagicDNS 등). 실행(POST)은 늘 Host도 본다
+            # Reads with a header token skip the Host check (a rebinding page does not know the token; MagicDNS etc.). POST always checks Host
             host_fine = host_ok(self.headers.get("Host"), reads_need_token) and (static or self._host_ok())
             if not host_fine and not auth.check(self.headers.get("Authorization")):
                 return self._send(403, {"error": "unknown host name", "hint": "Open Epokio by this machine's IP address or name, "
                                         "or set EPOKIO_ALLOWED_HOSTS on this machine to the name you use."})
             if u.path in TOKEN_PATHS and not auth.check_request(self.headers):
                 return self._send(401, {"error": "token required"})
-            if u.path == "/health" and "nonce" in u.query:           # 진짜 이 기계의 agent인지 증명(토큰은 보내지 않는다)
+            # Missing file-like paths (/favicon.ico, /robots.txt, /.well-known/...) get 404. Request paths have no dots (files use /file, /web/).
+            # Previously the token was asked first, so a 401 showed in the console every time the browser opened the page
+            segs = u.path.split("/")
+            if not static and ("." in segs[-1] or any(s.startswith(".") for s in segs)):
+                return self._send(404, {"error": "not found"})
+            if u.path == "/health" and "nonce" in u.query:           # prove this is really this machine's agent (the token is not sent)
                 import hashlib, hmac
                 n = parse_qs(u.query).get("nonce", [""])[0][:128]
                 proof = hmac.new(auth.token().encode(), n.encode(), hashlib.sha256).hexdigest()
                 return self._send(200, {**agent.get("/health", {}), "proof": proof})
+            if u.path == "/health" and self.client_address[0] in ("127.0.0.1", "::1"):
+                # Only for pages opened on this machine: the command that shows the token (autostart.cli: exe, venv or py form). The web lock card
+                #   said epokio-agent --show-token, not on PATH on Windows. The venv path may contain the user name, so it is not sent outside
+                from .autostart import cli, short_home       # venv paths with the user name become ~
+                return self._send(200, {**agent.get("/health", {}), "token_cmd": short_home(cli("agent --show-token"))})
             if reads_need_token and u.path not in OPEN_PATHS and not u.path.startswith("/web/") \
                     and not auth.check_request(self.headers):
                 return self._send(401, {"error": "token required"})
             self.give_cookie = auth.presented(self.headers) if (
                 reads_need_token and auth.COOKIE not in (self.headers.get("Cookie") or "")) else ""
-            if u.path in ("/", "/index.html"):   # 웹 화면: 브라우저로 http://기계:8787/ (윈도우·리눅스·폰)
+            if u.path in ("/", "/index.html"):   # web page: open http://machine:8787/ in a browser (Windows, Linux, phone)
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(page)))
@@ -189,7 +199,7 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
                 self.end_headers()
                 self.wfile.write(page)
                 return
-            m = re.fullmatch(r"/web/([a-z]+\.(js|css))", u.path)     # 웹 화면의 나머지 파일(이름을 정해 둔 것만)
+            m = re.fullmatch(r"/web/([a-z]+\.(js|css))", u.path)     # other web page files (fixed names only)
             if m and (Path(__file__).parent / "web" / m.group(1)).is_file():
                 body = (Path(__file__).parent / "web" / m.group(1)).read_bytes()
                 self.send_response(200)
@@ -199,10 +209,13 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
                 self.end_headers()
                 self.wfile.write(body)
                 return
-            if u.path.startswith("/web/"):    # 정해 둔 이름 밖의 /web/ 경로는 없는 것(토큰 요구보다 먼저)
+            if u.path.startswith("/web/"):    # other /web/ paths do not exist (checked before asking for a token)
                 return self._send(404, {"error": "not found"})
-            if u.path == "/file":             # 그림은 JSON이 아니라 파일 그대로
-                f = agent.file(parse_qs(u.query).get("path", [""])[0])
+            from . import scope
+            lim = auth.request_roots(self.headers)     # a token limited to folders sees only runs inside them (scope.py)
+            if u.path == "/file":             # images are sent as files, not JSON
+                with scope.limited(lim):
+                    f = agent.file(parse_qs(u.query).get("path", [""])[0])
                 if not f:
                     return self._send(404, {"error": "not found"})
                 data = f.read_bytes()
@@ -215,28 +228,29 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
                 self.wfile.write(data)
                 return
             if auth.get_needs_token(u.path) and not (auth.check(self.headers.get("Authorization"))
-                                                     or auth.check_request(self.headers)):   # 헤더 또는 HttpOnly·SameSite=Strict 쿠키
+                                                     or auth.check_request(self.headers)):   # header or HttpOnly, SameSite=Strict cookie
                 return self._send(401, {"error": "token required"})
             try:
-                payload = agent.get(u.path.rstrip("/") or "/runs", parse_qs(u.query))
+                with scope.limited(lim):
+                    payload = agent.get(u.path.rstrip("/") or "/runs", parse_qs(u.query))
             except Exception as e:
-                log.exception("GET %s failed", u.path)          # ★500의 원인이 어디에도 남지 않았다
+                log.exception("GET %s failed", u.path)          # previously the cause of a 500 was not recorded anywhere
                 return self._send(500, {"error": str(e)})
             if payload is None:
                 return self._send(404, {"error": "not found"})
-            if isinstance(payload, tuple):   # ★(코드, 내용)을 돌려주는 요청이 상태 200에 배열로 나갔다(오류가 성공처럼 보임)
+            if isinstance(payload, tuple):   # previously (code, body) results went out as an array with status 200 (errors looked like success)
                 return self._send(*payload)
             self._send(200, payload)
 
         def do_POST(self):
             msg.set_from_header(self.headers.get("Accept-Language"))
-            # ★본문을 읽고 나서 답한다. 안 읽고 401을 보내면 윈도우에서 연결이 끊겨(ConnectionAborted) 401이 안 닿았다
+            # Read the body before replying. Sending 401 unread dropped the connection on Windows (ConnectionAborted), so the 401 never arrived
             try:
                 n = int(self.headers.get("Content-Length", "0"))
             except ValueError:
                 self.close_connection = True
                 return self._send(400, {"error": "bad Content-Length"})
-            if n < 0 or n > MAX_BODY:                        # ★음수면 연결이 닫힐 때까지 읽고, 아주 크면 메모리에 다 올렸다
+            if n < 0 or n > MAX_BODY:                        # previously negative read until close, huge loaded fully into memory
                 self.close_connection = True
                 return self._send(413, {"error": f"body must be under {MAX_BODY // 1_000_000} MB"})
             raw = self.rfile.read(n) if n > 0 else b""
@@ -245,21 +259,23 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
             scope = auth.post_scope(self.headers.get("Authorization"))
             if scope is None:
                 return self._send(401, {"error": "token required"})
-            if u_path_is_login(self.path):                     # 웹 화면: 토큰이 맞으면 그림용 쿠키를 준다(읽기 전용도)
+            if u_path_is_login(self.path):                     # web page: if the token is valid, give the image cookie (read-only too)
                 return self._login(auth.bearer(self.headers.get("Authorization")))
-            if scope != tokens.RUN:                            # 토큰은 맞지만 보기 전용: 학습을 걸 수 없다
+            if scope != tokens.RUN:                            # token valid but read-only: cannot start training
                 return self._send(403, {"error": "this token is read-only"})
+            if auth.request_roots(self.headers) is not None:   # a token limited to folders is read-only (scope.py)
+                return self._send(403, {"error": "this token can see only some folders and cannot change anything"})
             try:
                 try:
-                    # NaN·Infinity는 받지 않는다. ★목표에 NaN을 넣으면 저장되고, /runs에 그대로 실려
-                    #   브라우저·맥의 엄격한 JSON 파서가 목록 전체를 못 읽었다(되돌릴 화면도 안 떴다)
+                    # Reject NaN and Infinity. Previously a NaN goal was saved and sent as is in /runs,
+                    #   so strict JSON parsers in browsers and the Mac could not read the whole list (not even the undo screen appeared)
                     body = json.loads(raw or b"{}", parse_constant=_no_constant)
                 except ValueError:
                     return self._send(400, {"error": "body must be JSON"})
                 if not isinstance(body, dict):
                     return self._send(400, {"error": "body must be a JSON object"})
                 route = urlparse(self.path).path.rstrip("/")
-                if route == "/shutdown":            # 옛 도우미를 새 판으로 바꿀 때(setup·트레이·epokio agent --stop)
+                if route == "/shutdown":            # when replacing an old helper with a new version (setup, tray, epokio agent --stop)
                     self._send(200, {"ok": True})
                     import threading
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
@@ -278,7 +294,7 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
 
 
 def main():
-    """epokio-agent. 본체는 server_cli.py(파일 길이 상한 때문에 나눴다)"""
+    """epokio-agent. The body is in server_cli.py (split because of the file length limit)"""
     from .server_cli import main as run
     run()
 

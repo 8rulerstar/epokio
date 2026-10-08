@@ -5,7 +5,7 @@ from pathlib import Path
 
 # 판 번호는 여기 한 곳(pyproject가 이것을 읽는다). ★설치 정보로 읽어, 맥 앱(PYTHONPATH로 소스를 돌린다)과
 #   exe에서는 'unknown'이거나 따로 깔린 다른 epokio의 판이 나왔다
-__version__ = "0.6.1"
+__version__ = "0.7.0"
 
 
 def _migrate_home() -> None:
@@ -56,6 +56,7 @@ def version() -> str:
 
 
 def start(folder, epochs=None, **params):
-    """직접 짠 학습 코드용 기록기: `run = epokio.start("runs/exp", epochs=50, lr=1e-4)` 후 `run.log(val_loss=..., acc=...)`"""
+    """직접 짠 학습 코드용 기록기: `run = epokio.start("runs/exp", epochs=50, lr=1e-4)` 후 `run.log(val_loss=..., acc=...)`.
+    notify=True면 도우미 없이도 끝날 때·예외로 죽을 때 이 프로세스가 폰 알림을 보낸다(코랩·노트북)"""
     from .logger import start as _start
     return _start(folder, epochs, **params)

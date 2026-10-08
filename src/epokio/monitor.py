@@ -18,7 +18,7 @@ LIVE = ("running", "starting")
 
 @dataclass
 class Event:
-    kind: str        # finished | failed | stalled | stopped_early | recovered | started
+    kind: str        # finished | failed | stalled | quiet | stopped_early | recovered | started
     run: Run
     before: str      # 바뀌기 전 상태
 
@@ -33,14 +33,17 @@ def classify(before: str | None, run: Run) -> str | None:
     if now == "failed":
         return "failed"                      # 손실이 NaN으로 발산
     if before in LIVE and now == "stalled":
-        return "stalled"                     # 3분째 기록이 없다. 죽었을 수 있다
+        # 3분째 기록이 없다. 죽었을 수 있다. 계획 에폭을 모르면 끝났을 수도 있어 'quiet'(아래)
+        return "stalled" if run.total else "quiet"
     if before in LIVE + ("stalled",) and now == "stopped":
         if run.total and run.epoch < run.total:
             return "stopped_early"           # 계획보다 일찍 끝남: 조기종료거나 비정상 종료
         if not run.total:
             # ★계획 에폭을 모르면 끝난 건지 죽은 건지 알 수 없다. 그런데 '학습이 끝났습니다'를 보내, 크래시한 학습도 끝났다고 했다.
-            #   멎음 알림은 이미 갔다(stalled). 곧장 멈춤으로 왔으면(주기가 길 때) 멎음으로만 알린다
-            return None if before == "stalled" else "stalled"
+            #   그렇다고 'stalled'로 보내면 정상으로 끝난 케라스(CSVLogger) 학습마다 3분 뒤 급한 폰 알림이 갔다.
+            #   → 'quiet'(기록이 멈춤: 끝났거나 멈췄다). 화면·트레이에는 뜨고, 웹후크 기본 종류에는 없다(사용자가 고르면 간다).
+            #   이미 알렸으면(before == stalled, 예전 기록) 또 알리지 않는다
+            return None if before == "stalled" else "quiet"
         return "finished"
     if before == "stalled" and now in LIVE:
         return "recovered"                   # 멎은 줄 알았는데 다시 돈다

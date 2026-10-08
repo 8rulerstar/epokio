@@ -1,5 +1,6 @@
 {
  "label": "str",
+ "missing_roots": [],
  "roots": [
   "str"
  ],
@@ -10,6 +11,7 @@
    "display": "str",
    "elapsed": "num",
    "epoch": "num",
+   "error": "str",
    "eta": "num",
    "format_warnings": [],
    "framework": "str",
@@ -24,6 +26,7 @@
    "metric_name": "str",
    "name": "str",
    "path": "str",
+   "resumed_from": "str",
    "source": "str",
    "state": "str",
    "total": "num",
@@ -32,5 +35,6 @@
   }
  ],
  "scan_mode": "str",
- "slow_roots": []
+ "slow_roots": [],
+ "too_long": []
 }

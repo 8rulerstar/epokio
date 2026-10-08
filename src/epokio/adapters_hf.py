@@ -62,6 +62,9 @@ class HuggingFace(Adapter):
         if not isinstance(hist, list):
             warns.append("unknown format/version: trainer_state.json has no log_history list")
             hist = []
+        ta = hf_args.read(d, sp.parent)
+        if self._step_mode(st, ta):
+            return self._load_steps(st, hist, sp, ta, warns)
         rows, last_train, unknown = [], None, set()
         for h in hist:
             if not isinstance(h, dict):
@@ -95,11 +98,103 @@ class HuggingFace(Adapter):
         done = hf_args.done_epochs(_float(st.get("epoch"), 0) + 1e-6, 0)   # 1e-6: 2.9999999 같은 부동소수 오차
         if total and st.get("max_steps") and (st.get("global_step") or 0) >= st["max_steps"]:
             done = max(done, total)
-        args = {k: str(st[k]) for k in ("num_train_epochs", "train_batch_size", "max_steps", "best_metric",
-                                        "best_model_checkpoint") if st.get(k) is not None}
+        args = {k: hf_args._str(st[k]) for k in ("num_train_epochs", "train_batch_size", "max_steps", "best_metric",
+                                                 "best_model_checkpoint", "metric_for_best_model", "greater_is_better")
+                if st.get(k) is not None}
         # trainer_state 값이 실제로 돈 값이므로 먼저다. training_args.json은 빠진 것만 채운다
-        args = {**hf_args.read(d, sp.parent), **args}
+        args = {**ta, **args}
+        _best_metric_row(st, hist, rows, args)
+        _loss_score(rows)
         return Loaded(self.name, rows, sp, total, args, warns, epoch=done)
+
+    @staticmethod
+    def _step_mode(st: dict, ta: dict) -> bool:
+        """max_steps로 정한 학습인가. training_args의 max_steps가 양수거나, 기록에 계획 에폭이 1 이하인데 max_steps가 있으면.
+        ★num_train_epochs는 max_steps 학습에서 대개 1이라 '0/1 에폭'으로 진행률·남은 시간이 없었다"""
+        ms = st.get("max_steps")
+        if not isinstance(ms, int) or isinstance(ms, bool) or ms <= 0:
+            return False
+        try:
+            if int(float(ta.get("max_steps", -1))) > 0:
+                return True
+        except (TypeError, ValueError):
+            pass
+        ne = st.get("num_train_epochs")
+        return isinstance(ne, (int, float)) and not isinstance(ne, bool) and ne <= 1
+
+    def _load_steps(self, st: dict, hist: list, sp: Path, ta: dict, warns: list) -> Loaded:
+        """step 축(x_axis=step): 기록된 step마다 한 줄(학습 손실 줄도, 평가 줄도). 진행은 global_step / max_steps.
+        ★평가 시점마다 한 줄만 두어 10 step마다 적힌 손실 곡선이 평가 횟수만큼의 점으로 줄었다"""
+        rows, by, unknown = [], {}, set()
+        for h in hist:
+            if not isinstance(h, dict):
+                continue
+            step = h.get("step")
+            if not isinstance(step, int) or isinstance(step, bool):
+                continue
+            unknown |= {k for k in h if k not in self.KNOWN and not k.startswith(("eval_", "train_"))}
+            row = by.get(step)
+            if row is None:
+                row = by[step] = {"epoch": str(step)}
+                rows.append(row)
+            if isinstance(h.get("loss"), (int, float)) and not isinstance(h.get("loss"), bool):
+                row["train/train_loss"] = _num(h["loss"])
+            for k, v in h.items():
+                col = self._eval_col(k) if k.startswith("eval_") else None
+                if col and isinstance(v, (int, float)) and not isinstance(v, bool):
+                    row[col] = _num(v)
+        rows.sort(key=lambda r: int(r["epoch"]))
+        if unknown:
+            warns.append("unknown format/version: unrecognized log_history keys " + ", ".join(sorted(unknown)))
+        args = {k: hf_args._str(st[k]) for k in ("num_train_epochs", "train_batch_size", "max_steps", "best_metric",
+                                                 "best_model_checkpoint", "metric_for_best_model", "greater_is_better")
+                if st.get(k) is not None}
+        args = {**ta, **args, "x_axis": "step"}
+        _best_metric_row(st, hist, rows, args, by_step=True)
+        _loss_score(rows)
+        gs = st.get("global_step")
+        done = gs if isinstance(gs, int) and not isinstance(gs, bool) else (int(rows[-1]["epoch"]) if rows else 0)
+        return Loaded(self.name, rows, sp, st["max_steps"], args, warns, epoch=min(done, st["max_steps"]))
+
+
+def _best_metric_row(st: dict, hist: list, rows: list[dict], args: dict, by_step: bool = False) -> None:
+    """기록에 점수가 하나도 없는데 best_metric(+ metric_for_best_model)이 있으면 그 값을 점수 열로 넣는다.
+    넣는 줄은 가장 좋은 체크포인트의 평가 시점(best_global_step, 없으면 checkpoint-N의 N), 못 찾으면 마지막 줄.
+    방향은 greater_is_better가 있으면 그것(schema.lower_for), 없으면 열 이름으로.
+    ★best_metric을 버려 점수 없이 손실만 보였다.
+    손실이면(metric_for_best_model이 loss·eval_loss이거나 비어 있음, HF 기본값이 loss) val/eval_loss 칸에 넣는다.
+    그 줄에 이미 기록된 eval_loss가 있으면 기록이 이긴다. 점수로 바꾸는 것은 _loss_score"""
+    name = str(args.get("metric_for_best_model") or "loss").removeprefix("eval_")
+    bm = st.get("best_metric")
+    if (not rows or isinstance(bm, bool) or not isinstance(bm, (int, float)) or not math.isfinite(bm)
+            or any(k.startswith("metrics/") for r in rows for k in r)):
+        return
+    loss = name == "loss" or name.endswith("_loss")
+    step = st.get("best_global_step")
+    if not isinstance(step, int):
+        m = re.search(r"checkpoint-(\d+)", str(st.get("best_model_checkpoint") or ""))
+        step = int(m.group(1)) if m else None
+    if by_step:
+        eps = {str(step)}
+    else:
+        eps = {f"{round(_float(h.get('epoch'), 0), 3):g}" for h in hist if isinstance(h, dict) and h.get("step") == step}
+    row = next((r for r in rows if r["epoch"] in eps), rows[-1])
+    if not loss:
+        row[f"metrics/{name}"] = _num(bm)
+        return
+    col = "val/eval_loss" if name == "loss" else f"val/eval_{name}"
+    row.setdefault(col, _num(bm))
+
+
+def _loss_score(rows: list[dict]) -> None:
+    """다른 점수가 하나도 없으면 eval_loss를 낮을수록 좋은 점수(metrics/eval_loss)로 옮긴다.
+    ★손실만 평가하는 HF 학습(언어 모델 미세 조정에 흔하다)은 최고 점수가 늘 '–'였다. 다른 점수가 있으면 손실은 손실로 둔다.
+    ★베껴 두었더니 /run에 val/eval_loss와 metrics/eval_loss가 두 번 나왔다. 옮긴다"""
+    if any(k.startswith("metrics/") for r in rows for k in r):
+        return
+    for r in rows:
+        if r.get("val/eval_loss") not in (None, ""):
+            r["metrics/eval_loss"] = r.pop("val/eval_loss")
 
 
 def _float(v, fallback: float) -> float:

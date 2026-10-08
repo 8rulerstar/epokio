@@ -104,13 +104,23 @@ def test_unchanged_runs_are_not_read_again(tmp_path, monkeypatch):
     assert scan(tmp_path / "runs")[0].best == 0.3          # 바뀌면 다시 읽는다
 
 
-def test_lower_is_better_metrics_are_not_scores(tmp_path):
-    """Keras 회귀의 val_mae를 점수로 두면 가장 나쁜 에폭이 best가 됐다."""
+def test_error_metrics_are_lower_is_better_scores(tmp_path):
+    """Keras 회귀의 val_mae를 '높을수록 좋은' 점수로 두면 가장 나쁜 에폭이 best가 됐다.
+    그 뒤 손실 쪽으로 보내서는 최고 점수가 "–"였다. 이제 낮을수록 좋은 점수(HF eval_rmse와 같은 길)"""
+    from epokio.scan import read_run
     d = tmp_path / "runs" / "reg"
     d.mkdir(parents=True)
     (d / "training.log").write_text("epoch,loss,mae,val_loss,val_mae\n0,9,3,8,2.5\n1,5,2,4,1.5\n2,3,1,2,0.9\n")
     got = adapters.load(d)
-    assert "val/val_mae_loss" in got.rows[0] and not any(k.startswith("metrics/") for k in got.rows[0])
+    assert "metrics/val_mae" in got.rows[0] and "val/val_loss" in got.rows[0] and not any("mae_loss" in k for k in got.rows[0])
+    r = read_run(d)
+    assert r.metric_name == "metrics/val_mae" and r.lower and r.best == 0.9 and r.best_epoch == 3   # 가장 낮은 에폭이 best
+    for head in ("val_mse", "val_rmse", "val_msle", "val_mape", "val_mean_absolute_error"):
+        (d / "training.log").write_text(f"epoch,loss,val_loss,{head}\n0,9,8,5\n1,5,4,2\n")
+        r = read_run(d)
+        assert r.metric_name == "metrics/" + head and r.lower and r.best == 2.0, head
+    (d / "training.log").write_text("epoch,loss,val_loss,val_kld\n0,9,8,5\n1,5,4,2\n")
+    assert read_run(d).best is None                                   # 손실류(kld)·손실만인 학습은 여전히 점수 없음
 
 
 def test_the_scan_cache_does_not_keep_every_row(tmp_path):
@@ -151,13 +161,14 @@ def _hf_state(d: Path, **st):
 
 
 def test_a_huggingface_run_is_not_done_after_its_first_mid_epoch_eval(tmp_path):
-    """★평가 시점(0.1 에폭)을 올림해 1/1 '끝남'과 '끝났어요' 알림이 10%에서 갔다. 곡선도 에폭당 한 점이었다"""
+    """★평가 시점(0.1 에폭)을 올림해 1/1 '끝남'과 '끝났어요' 알림이 10%에서 갔다. 곡선도 에폭당 한 점이었다.
+    계획 에폭이 1 이하면 step 축(global_step / max_steps)으로 본다(★'0/1 에폭'에 남은 시간이 없었다)"""
     from epokio.scan import read_run
     d = _hf_state(tmp_path / "hf", num_train_epochs=1, max_steps=1000, global_step=100, epoch=0.1, log_history=[
         {"loss": 2.0, "epoch": 0.05, "step": 50},
         {"eval_loss": 1.9, "eval_accuracy": 0.4, "eval_model_preparation_time": 0.004, "epoch": 0.1, "step": 100}])
     r = read_run(d)
-    assert r.state != "done" and r.epoch == 0
+    assert r.state != "done" and r.epoch == 100 and r.total == 1000 and r.x_axis == "step"
     assert r.metric_name == "metrics/val_accuracy" or "accuracy" in r.metric_name   # 준비 시간은 점수가 아니다
     st = json.loads((d / "trainer_state.json").read_text())
     st.update(global_step=1000, epoch=1.0)
@@ -165,9 +176,9 @@ def test_a_huggingface_run_is_not_done_after_its_first_mid_epoch_eval(tmp_path):
     st["log_history"].append({"eval_loss": 1.2, "eval_accuracy": 0.7, "epoch": 1.0, "step": 1000})
     (d / "trainer_state.json").write_text(json.dumps(st))
     r = read_run(d)
-    assert r.state == "done" and r.epoch == 1
+    assert r.state == "done" and r.epoch == 1000
     got = adapters.load(d)
-    assert [row["epoch"] for row in got.rows] == ["0.1", "0.5", "1"]            # 평가마다 한 점
+    assert [row["epoch"] for row in got.rows] == ["50", "100", "500", "1000"]    # 손실 줄과 평가마다 한 점
 
 
 def test_loss_like_scores_and_learning_rates_are_not_the_best_score(tmp_path):
@@ -253,12 +264,12 @@ def test_the_report_ranks_by_the_chosen_score_when_there_is_no_f1(tmp_path):
         vals = maes.split(",")
         (d / "training.log").write_text("epoch,loss,val_loss,val_mae\n" + "".join(
             f"{i},1.0,1.0,{v}\n" for i, v in enumerate(vals)), encoding="utf-8")
-        runmeta.update(str(d), {"metric": "val/val_mae_loss", "lower": True})
+        runmeta.update(str(d), {"metric": "metrics/val_mae", "lower": True})
         runs.append(read_run(d))
     md = report.build(runs)
     board = md.split("## Leaderboard")[1].split("## ")[0]
     assert board.index("| b |") < board.index("| a |")
-    assert "0.200 val_mae_loss ↓" in md
+    assert "0.200 val_mae ↓" in md
 
 
 def test_a_deleted_run_leaves_the_scan_cache(tmp_path):
@@ -348,8 +359,14 @@ def test_lightning_runs_are_named_by_their_project(tmp_path):
     """★Lightning 학습이 전부 version_0으로 떠 여러 개를 구분할 수 없었다"""
     from epokio.scan import display_name
     from types import SimpleNamespace
-    r = SimpleNamespace(name="version_0", path=tmp_path / "cls_exp" / "lightning_logs" / "version_0")
+    r = SimpleNamespace(name="version_0", path=tmp_path / "alice" / "cls_exp" / "lightning_logs" / "version_0")
+    assert display_name(r) == "alice/cls_exp/version_0"           # ★공용 서버에서 사람마다 같은 실험 이름이면 겹쳤다
+    bob = SimpleNamespace(name="version_0", path=tmp_path / "bob" / "cls_exp" / "lightning_logs" / "version_0")
+    assert display_name(bob) != display_name(r)
+    r = SimpleNamespace(name="version_0", path="/cls_exp/lightning_logs/version_0")
     assert display_name(r) == "cls_exp/version_0"
+    r = SimpleNamespace(name="train", path="/home/alice/proj/runs/detect/train")   # 다른 형식은 그대로
+    assert display_name(r) == "proj/train"
 
 
 def test_run_json_has_no_float_noise(tmp_path):
@@ -359,3 +376,15 @@ def test_run_json_has_no_float_noise(tmp_path):
     (d / "log.csv").write_text("epoch,loss,acc\n1,0.5,0.8200000000000001\n")
     got = read_run(d).to_dict()
     assert got["best"] == 0.82 and got["metric"] == 0.82
+
+
+def test_keras_reads_the_planned_epochs_from_a_config_next_to_the_log(tmp_path):
+    """★README는 옆 설정 파일에서 계획 에폭을 읽는다고 했지만 Keras는 config.json의 epochs를 무시했다"""
+    from epokio.scan import read_run
+    d = tmp_path / "keras_run"
+    d.mkdir()
+    (d / "training.log").write_text("epoch,accuracy,loss,val_accuracy,val_loss\n0,0.5,1.0,0.5,1.1\n1,0.6,0.8,0.6,0.9\n",
+                                    encoding="utf-8")
+    (d / "config.json").write_text(json.dumps({"epochs": 20}), encoding="utf-8")
+    r = read_run(d)
+    assert r.framework == "keras" and r.epoch == 2 and r.total == 20

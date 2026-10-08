@@ -125,6 +125,7 @@ def params(**settings) -> None:
 # ---- 기록기 객체: epokio.start() ----
 
 DONE_MARK = "epokio_done"              # 끝났다는 표시. 총 에폭을 모르는 학습도 '멎음' 경고가 나지 않게(scan.py가 본다)
+FAIL_MARK = "epokio_failed"            # 예외로 죽었다는 표시. 내용은 "RuntimeError: CUDA out of memory"(scan_names.crash_reason이 읽는다)
 
 # 검출 점수 이름을 ultralytics 모양으로(분석이 P·R·F1·mAP 표와 해설을 만든다). ★안 바꾸면 성적·해설이 비었다
 _HEAD = {"precision": "precision", "recall": "recall", "map50": "mAP50", "map50-95": "mAP50-95", "map50_95": "mAP50-95",
@@ -145,11 +146,12 @@ def _num(v):
 _ACTIVE: dict[str, "Logger"] = {}
 
 
-def _mark_crashed():
+def _mark_crashed(exc=None):
     """지금 쓰고 있는 기록기들에만 '예외로 죽었음'을 적는다.
     ★모듈 전체 깃발로 두었더니 대화형 파이썬에서 오류 한 번 뒤 그 뒤의 모든 학습이 '완료'를 못 받았다"""
     for lg in list(_ACTIVE.values()):
         lg._crashed = True
+        lg._fail(exc)
 
 
 def _watch_crashes():
@@ -159,14 +161,14 @@ def _watch_crashes():
     prev = sys.excepthook
     if not getattr(prev, "_epokio", False):
         def hook(t, v, tb):
-            _mark_crashed()
+            _mark_crashed(v)
             prev(t, v, tb)
         hook._epokio = True
         sys.excepthook = hook
     tprev = threading.excepthook
     if not getattr(tprev, "_epokio", False):
         def thook(args):
-            _mark_crashed()
+            _mark_crashed(args.exc_value)
             tprev(args)
         thook._epokio = True
         threading.excepthook = thook
@@ -183,8 +185,9 @@ def _in_notebook() -> bool:
 
 
 class Logger:
-    def __init__(self, folder: str | Path, epochs: int | None = None, **params):
+    def __init__(self, folder: str | Path, epochs: int | None = None, notify: bool = False, **params):
         self.dir = Path(folder)
+        self._notify = bool(notify)                 # 도우미 없이 이 프로세스가 폰 알림을 보낸다(selfnotify.py)
         self.rows: list[dict] = []
         self.t0 = time.time()
         self._warned = False
@@ -199,6 +202,8 @@ class Logger:
         try:
             self.dir.mkdir(parents=True, exist_ok=True)
             (self.dir / DONE_MARK).unlink(missing_ok=True)
+            (self.dir / FAIL_MARK).unlink(missing_ok=True)
+            (self.dir / "epokio_notified").unlink(missing_ok=True)
         except OSError as e:
             self._warn(e)
         # 같은 폴더로 다시 시작하면 옛 기록은 옆으로 치운다(지우지 않는다).
@@ -252,7 +257,7 @@ class Logger:
 
     @staticmethod
     def _column(name: str) -> str:
-        """이름을 Epokio 규칙의 열로: 손실은 train/·val/…_loss, 낮을수록 좋은 것(mae 등)도 손실 쪽, 나머지는 metrics/"""
+        """이름을 Epokio 규칙의 열로: 손실은 train/·val/…_loss, 나머지는 metrics/(mae 같은 오차 지표는 낮을수록 좋은 점수)"""
         if "/" in name:                                      # 이미 규칙대로 쓴 이름(train/box_loss, metrics/mAP50(B))
             return name
         low = name.lower()
@@ -269,7 +274,7 @@ class Logger:
             base = "total_loss" if bare.lower() == "loss" else bare if bare.endswith("_loss") else bare + "_loss"
             return f"{'val' if val else 'train'}/{base}"       # val_loss·valid_loss → val/total_loss (★예전엔 val/val_loss, val/valid_loss)
         col = metric_column(bare, val)
-        return col if col.endswith("_loss") else metric_column(name, val)   # 낮을수록 좋은 것만 접두어를 뗀다(val_mae → val/mae_loss)
+        return col if col.endswith("_loss") else metric_column(name, val)   # 손실류만 접두어를 뗀다(val_mae → metrics/val_mae)
 
     def log(self, epoch: int | None = None, **metrics) -> None:
         """한 에폭의 값. epoch를 안 주면 1, 2, 3… 차례로 센다(1부터). 실패해도 예외를 던지지 않는다."""
@@ -310,10 +315,33 @@ class Logger:
             self._write()
         except Exception as e:                                # CSV가 잠겨 있어도 끝남 표시는 따로 남긴다
             self._warn(e)
+        from . import selfnotify
+        if self._notify:
+            selfnotify.claim(self.dir, "finished")         # 끝남 표시보다 먼저(도우미가 겹쳐 보내지 않게)
         try:
+            (self.dir / FAIL_MARK).unlink(missing_ok=True)
             (self.dir / DONE_MARK).write_text(str(time.time()), encoding="utf-8")
         except Exception as e:
             self._warn(e)
+        if self._notify:
+            selfnotify.send(self.dir, "finished")
+
+    def _fail(self, exc) -> None:
+        """예외로 죽었다고 바로 적는다(종류: 첫 줄, 200자). ★3분 뒤 '멎음'으로만 보여 OOM인지 무엇인지 몰랐다.
+        Ctrl+C(KeyboardInterrupt)는 실패가 아니라 사람이 멈춘 것이라 적지 않는다"""
+        if self._retired or not isinstance(exc, Exception):
+            return
+        lines = str(exc).strip().splitlines()
+        text = f"{type(exc).__name__}: {lines[0] if lines else ''}".rstrip(": ")[:200]
+        from . import selfnotify
+        if self._notify:
+            selfnotify.claim(self.dir, "failed")
+        try:
+            (self.dir / FAIL_MARK).write_text(text, encoding="utf-8")
+        except OSError as e:
+            self._warn(e)
+        if self._notify:
+            selfnotify.send(self.dir, "failed")
 
     def _at_exit(self):
         """스크립트가 끝날 때. 예외로 죽었으면 '완료'가 아니다(실패·멎음이 맞다).
@@ -324,9 +352,12 @@ class Logger:
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, *_):
-        if exc_type is None:                                  # 예외로 끝났으면 끝남 표시를 남기지 않는다(실패·멎음이 맞다)
+    def __exit__(self, exc_type, exc=None, *_):
+        if exc_type is None:                                  # 예외로 끝났으면 끝남 표시를 남기지 않는다(실패가 맞다)
             self.finish()
+        else:
+            self._crashed = True
+            self._fail(exc)
         if self._auto:
             atexit.unregister(self._at_exit)
         return False
@@ -342,10 +373,11 @@ class _Quiet:
     def __exit__(self, *a): return False
 
 
-def start(folder: str | Path, epochs: int | None = None, **params):
+def start(folder: str | Path, epochs: int | None = None, notify: bool = False, **params):
     """학습 하나를 시작한다. folder가 Epokio가 지켜보는 폴더(runs 등) 안에 있어야 목록에 보인다.
-    분산 학습(torchrun)이면 RANK 0 프로세스만 기록한다."""
+    분산 학습(torchrun)이면 RANK 0 프로세스만 기록한다.
+    notify=True: 도우미 없이도 끝날 때·예외로 죽을 때 설정된 웹후크로 폰 알림(epokio alerts --add로 넣은 주소)"""
     rank = os.environ.get("RANK") or os.environ.get("LOCAL_RANK") or "0"
     if rank not in ("", "0"):
         return _Quiet(folder)
-    return Logger(folder, epochs, **params)
+    return Logger(folder, epochs, notify=notify, **params)

@@ -2,6 +2,7 @@
  "Training finished": "Training finished",
  "Training failed": "Training failed",
  "Training may have stopped": "Training may have stopped",
+ "Training stopped logging": "Training stopped logging",
  "Stopped before the last epoch": "Stopped before the last epoch",
  "Training resumed": "Training resumed",
  "Training started": "Training started",
@@ -195,5 +196,7 @@
  "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.",
  "Test alert": "Test alert",
  "Phone alerts from {machine} work.": "Phone alerts from {machine} work.",
- "step": "step"
+ "step": "step",
+ "{m} stayed at {v:.3f} in every epoch. The score never moved.": "{m} stayed at {v:.3f} in every epoch. The score never moved.",
+ "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels.": "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels."
 }

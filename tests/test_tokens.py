@@ -161,3 +161,67 @@ def test_old_security_still_holds_with_many_tokens(srv, _store):
     code, _, body = req(u + "/health?nonce=abc")
     want = hmac.new(auth.token().encode(), b"abc", hashlib.sha256).hexdigest()
     assert code == 200 and json.loads(body)["proof"] == want                   # 증명은 단일 토큰 기준 그대로
+
+
+def test_roots_answers_a_read_token_and_refuses_changes(_store, tmp_path, monkeypatch):
+    """★GET /roots가 토큰 없이는 401, 읽기 토큰으로는 404였다. 보기는 읽기 토큰으로, 바꾸기는 403 read-only"""
+    from epokio.agent import Agent
+    monkeypatch.setattr(Agent, "ROOTS_FILE", tmp_path / "roots.json")
+    a = Agent.__new__(Agent)
+    a.roots, a.label = [tmp_path], "t"
+    h = QuietServer(("127.0.0.1", 0), server.make_handler(a, reads_need_token=True))
+    threading.Thread(target=h.serve_forever, daemon=True).start()
+    try:
+        u = f"http://127.0.0.1:{h.server_port}"
+        view, _ = tokens.issue("viewer", tokens.READ)
+        assert req(u + "/roots")[0] == 401
+        code, _, body = req(u + "/roots", {"Authorization": "Bearer " + view})
+        assert code == 200 and json.loads(body)["roots"] == [str(tmp_path)]
+        code, _, body = req(u + "/roots", {"Authorization": "Bearer " + view}, json.dumps({"path": str(tmp_path)}).encode())
+        assert code == 403 and b"read-only" in body
+    finally:
+        h.shutdown()
+
+
+def test_a_token_with_folders_sees_only_runs_under_them(_store, tmp_path, monkeypatch):
+    """agent --add-token alice --scope read --root /data/alice/runs: 공용 서버에서 남의 학습이 안 보인다"""
+    from collections import deque
+    from epokio.agent import Agent
+    monkeypatch.setattr(Agent, "ROOTS_FILE", tmp_path / "roots.json")
+    for who in ("alice", "bob"):
+        d = tmp_path / "data" / who / "runs" / "exp"
+        d.mkdir(parents=True)
+        (d / "results.csv").write_text("epoch,train/box_loss,metrics/mAP50-95(B)\n1,1.0,0.1\n", encoding="utf-8")
+        (d / "results.png").write_bytes(b"\x89PNG")
+    a = Agent.__new__(Agent)
+    a.roots, a.label, a.events, a.seq = [tmp_path / "data"], "t", deque(maxlen=10), 0
+    a.events.append({"seq": 1, "kind": "finished", "run": {"path": str(tmp_path / "data" / "bob" / "runs" / "exp")}})
+    a.events.append({"seq": 2, "kind": "finished", "run": {"path": str(tmp_path / "data" / "alice" / "runs" / "exp")}})
+    a.seq, a.boot = 2, "b"
+    h = QuietServer(("127.0.0.1", 0), server.make_handler(a, reads_need_token=True))
+    threading.Thread(target=h.serve_forever, daemon=True).start()
+    try:
+        u = f"http://127.0.0.1:{h.server_port}"
+        alice, _ = tokens.issue("alice", tokens.READ, [tmp_path / "data" / "alice" / "runs"])
+        everyone, _ = tokens.issue("all", tokens.READ)
+        H = {"Authorization": "Bearer " + alice}
+        code, _, body = req(u + "/runs", H)
+        got = json.loads(body)
+        assert code == 200 and [r["path"] for r in got["runs"]] == [str(tmp_path / "data" / "alice" / "runs" / "exp")]
+        assert "bob" not in body.decode()
+        assert len(json.loads(req(u + "/runs", {"Authorization": "Bearer " + everyone})[2])["runs"]) == 2
+        from urllib.parse import quote
+        bob = quote(str(tmp_path / "data" / "bob" / "runs" / "exp"))
+        assert req(u + "/run?path=" + bob, H)[0] == 404
+        assert req(u + "/file?path=" + bob + quote("/results.png"), H)[0] == 404
+        assert req(u + "/file?path=" + quote(str(tmp_path / "data" / "alice" / "runs" / "exp" / "results.png")), H)[0] == 200
+        ev = json.loads(req(u + "/events", H)[2])["events"]
+        assert [e["seq"] for e in ev] == [2]
+        rows = json.loads(req(u + "/runs/table", H)[2])["rows"]
+        assert len(rows) == 1
+        assert req(u + "/jobs", H)[0] == 403 and req(u + "/webhooks", H)[0] == 403
+        run_tok, _ = tokens.issue("alice-run", tokens.RUN, [tmp_path / "data" / "alice" / "runs"])
+        assert req(u + "/roots", {"Authorization": "Bearer " + run_tok}, b"{}")[0] == 403
+        assert tokens.listed()[0]["roots"] == [str(tmp_path / "data" / "alice" / "runs")]
+    finally:
+        h.shutdown()

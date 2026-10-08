@@ -6,7 +6,6 @@ agent와 같은 파일(~/.epokio/webhooks.json, Agent.HOOKS_FILE)을 쓴다. 도
 from __future__ import annotations
 
 import argparse
-from urllib.parse import urlsplit
 
 from . import i18n, jsonfile, notify
 
@@ -27,10 +26,8 @@ def _label() -> str:
 
 
 def _show(url: str) -> str:
-    """화면에는 호스트와 경로 앞부분만(토큰이 든 주소를 터미널 기록에 다 남기지 않는다)"""
-    p = urlsplit(url)
-    path = p.path if len(p.path) <= 12 else p.path[:12] + "..."
-    return f"{p.hostname or ''}{path}"
+    """화면에는 호스트와 가린 경로만. ★경로 앞 12자를 보여 짧은 ntfy 주제·텔레그램 봇 토큰 앞부분이 터미널 기록에 남았다"""
+    return notify.masked_url(url)
 
 
 def main(argv=None) -> int:
@@ -47,7 +44,7 @@ def main(argv=None) -> int:
         a.list = True                                 # 아무것도 안 주면 목록만 보여 준다
     bad = [u for u in a.add if not notify.valid(u)]
     if bad:
-        print(f"Not saved: every webhook must start with https:// ({', '.join(bad)})")
+        print(f"Not saved: every webhook must start with https:// ({', '.join(_show(u) for u in bad)})")
         return 2
     f = hooks_file()
     try:

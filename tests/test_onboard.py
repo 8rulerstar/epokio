@@ -91,7 +91,7 @@ def test_setup_binds_to_this_machine_only_unless_you_ask_for_lan(monkeypatch, tm
     """--lan 없이 0.0.0.0 으로 열면 사용자가 모르는 새 네트워크에 노출된다."""
     seen = {}
 
-    def fake_start(roots, host, port=onboard.PORT):
+    def fake_start(roots, host, port=onboard.PORT, allow_run=False):
         seen["host"], seen["port"] = host, port
         return None
 
@@ -152,6 +152,7 @@ def test_setup_prints_the_address_that_unlocks_the_page(monkeypatch, tmp_path, c
     from epokio import auth
     monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
     monkeypatch.setattr(onboard, "headless", lambda: False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True, raising=False)   # 터미널에서 돌린 것처럼
     onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser"])
     assert "#t=" + auth.token() in capsys.readouterr().out
     monkeypatch.setattr(onboard, "headless", lambda: True)       # SSH 세션: 터미널 기록에 토큰을 남기지 않는다
@@ -331,3 +332,15 @@ def test_doctor_finds_the_helper_on_its_real_port(monkeypatch, tmp_path):
     monkeypatch.setattr(envs, "list_envs", lambda: [])
     doctor.doctor(["--json"])
     assert asked == [8799]
+
+
+def test_setup_into_a_log_or_notebook_does_not_print_the_token(monkeypatch, tmp_path, capsys):
+    """★노트북 셀·로그 파일로 받은 setup 출력에 #t=토큰 주소와 토큰이 그대로 남았다"""
+    from epokio import auth
+    monkeypatch.setattr(onboard, "start_agent", lambda *a, **k: None)
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: False)
+    monkeypatch.setattr(onboard, "wait_for_agent", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "headless", lambda: False)
+    onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser", "--lan"])
+    out = capsys.readouterr().out                       # capsys: 터미널이 아니다
+    assert auth.token() not in out and "#t=" not in out and "--show-token" in out

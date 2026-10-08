@@ -64,6 +64,8 @@ def cli(rest: str = "") -> str:
     '인식되지 않는 명령'이었고, exe 사용자에게는 epokio 명령 자체가 없었다"""
     if getattr(sys, "frozen", False):
         head = ".\\" + (PureWindowsPath(sys.executable).name or "Epokio.exe")   # PowerShell은 .\ 없이 현재 폴더 exe를 안 찾는다
+    elif venv := venv_python():
+        head = f"{venv} -m epokio"
     elif sys.platform == "win32":
         head = "py -m epokio"
     else:
@@ -71,9 +73,51 @@ def cli(rest: str = "") -> str:
     return f"{head} {rest}".strip()
 
 
+def short_home(text: str) -> str:
+    """홈 폴더 앞부분을 ~로(사용자 이름이 든 경로를 화면·응답에 그대로 내지 않는다). PowerShell·bash 둘 다 ~를 푼다"""
+    import os
+    home = os.path.expanduser("~").rstrip("\\/")
+    if not home or len(home) < 3:
+        return text
+    i = text.lower().find(home.lower()) if os.name == "nt" else text.find(home)
+    if i < 0:
+        return text
+    quoted = text[:i].count('"') % 2 == 1          # 따옴표 안에서는 ~가 안 풀린다. PowerShell·bash 둘 다 "$HOME"은 푼다
+    return text[:i] + ("$HOME" if quoted else "~") + text[i + len(home):]
+
+
+def console_text(text: str, stream=None) -> str:
+    """UTF-8이 아닌 출력에는 가운뎃점을 ASCII로. ★cp949는 가운뎃점을 찍을 수는 있지만(0xA1A4) 그 출력을 파일·파이프로
+    받아 UTF-8로 읽으면 깨져 보였다(agent 시작 줄). 그 밖에 못 찍는 글자는 ?로"""
+    import codecs
+    import sys as _sys
+    enc = getattr(stream or _sys.stdout, "encoding", None) or "ascii"
+    try:
+        utf8 = codecs.lookup(enc).name == "utf-8"
+    except LookupError:
+        utf8 = False
+    if utf8:
+        return text
+    return text.replace("\u00b7", "|").encode(enc, "replace").decode(enc, "replace")
+
+
+def venv_python() -> str | None:
+    """venv에 깔린 epokio면 그 venv의 파이썬(터미널에 그대로 칠 모양). venv가 아니면 None.
+    ★venv에 깐 사용자에게 `py -m epokio`(전역 파이썬, epokio 없음)를 안내해 'No module named epokio'가 났다.
+    창 없는 pythonw는 출력이 안 보이므로 python으로 바꾼다. 빈칸이 있으면 PowerShell은 `& "경로"`라야 실행한다"""
+    if sys.prefix == getattr(sys, "base_prefix", sys.prefix) or not sys.executable:
+        return None
+    exe = sys.executable
+    if PureWindowsPath(exe).name.lower() == "pythonw.exe":
+        exe = exe[: -len("pythonw.exe")] + "python.exe"
+    if not any(c in exe for c in " &()'\""):
+        return exe
+    return f'& "{exe}"' if sys.platform == "win32" else f'"{exe}"'
+
+
 def pip_cmd(rest: str) -> str:
-    """pip 설치 안내. 윈도우는 py 런처, 그 밖은 python3 -m pip"""
-    return f"{'py' if sys.platform == 'win32' else 'python3'} -m pip install {rest}"
+    """pip 설치 안내. venv면 그 파이썬, 윈도우는 py 런처, 그 밖은 python3 -m pip"""
+    return f"{venv_python() or ('py' if sys.platform == 'win32' else 'python3')} -m pip install {rest}"
 
 
 def child_env() -> dict:

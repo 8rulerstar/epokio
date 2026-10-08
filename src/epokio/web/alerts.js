@@ -1,6 +1,7 @@
 "use strict";
 // 알림 탭: 사건 목록 + 폰 알림(웹후크) 설정
 const EV = { finished: [t("Training finished"), "var(--green)", "✓"], failed: [t("Training failed"), "var(--red)", "✕"], stalled: [t("Training may have stopped"), "var(--orange)", "‖"],
+             quiet: [t("Training stopped logging"), "var(--soft)", "■"],     // 계획 에폭을 모르는 학습: 끝났거나 멈췄다(급하지 않다)
              stopped_early: [t("Stopped before the last epoch"), "var(--orange)", "■"], started: [t("Training started"), "var(--accent)", "▶"],
              job_done: [t("Job finished"), "var(--green)", "✓"], job_failed: [t("Job failed"), "var(--red)", "✕"], goal: [t("Goal reached"), "var(--green)", "◎"],
              disk_low: [t("Disk almost full"), "var(--orange)", "!"], gpu_hot: [t("GPU is very hot"), "var(--orange)", "!"], gpu_mem: [t("GPU memory is full"), "var(--orange)", "!"], fan_max: [t("Fans at full speed"), "var(--orange)", "!"], recovered: [t("Training resumed"), "var(--accent)", "↻"],

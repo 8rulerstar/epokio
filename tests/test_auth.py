@@ -48,7 +48,7 @@ def test_every_get_route_is_either_open_on_purpose_or_locked():
     import re
     from pathlib import Path
     src = (Path(auth.__file__).parent / "agent.py").read_text(encoding="utf-8")
-    body = src.split("def get(", 1)[1].split("\n    def ", 1)[0]
+    body = src.split("def _get(", 1)[1].split("\n    def ", 1)[0]      # get은 scope.get으로 감싼 껍데기, 경로는 _get에
     routes = set(re.findall(r'route == "(/[\w/-]*)"', body)) | {"/jobs/x" + s for s in re.findall(r'route\.endswith\("(/\w+)"\)', body)}
     assert "/pythons" in routes and "/jobs" in routes          # 훑기가 제대로 됐는지
     for r in routes:

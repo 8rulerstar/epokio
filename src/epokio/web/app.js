@@ -116,7 +116,7 @@ function refresh(periodic) {
 async function refreshOnce(periodic) {
   try {
     const [r, s, e] = await Promise.all([api("runs?lite=1"), api("system"), api("events?since=" + S.evSeq)]);
-    S.label = r.label; S.runs = r.runs.sort((a, b) => (RANK[a.state] ?? 9) - (RANK[b.state] ?? 9) || a.idle - b.idle);
+    S.label = r.label; S.missing = r.missing_roots || []; S.tooLong = r.too_long || []; S.runs = r.runs.sort((a, b) => (RANK[a.state] ?? 9) - (RANK[b.state] ?? 9) || a.idle - b.idle);
     S.sys = s.now;
     await loadSSH();                                                    // SSH 서버 상태(목록 아래 칸). ★맥 앱에만 있었다
     // 알림은 새로 온 것만 받는다(★매 4초 200개를 통째로 받았다). agent를 다시 켜면 번호가 1부터 다시 시작한다
@@ -234,12 +234,19 @@ function rowHTML(r, i, check) {
     ${r.total ? `<span class="bar"><i style="width:${pct}%"></i></span>` : `<span class="bar" style="visibility:hidden"></span>`}
     <span class="meta">${st} · ${xprog(r)} · ${when} · ${esc(r.source)}${(r.meta?.tags || []).map((tag) => " · #" + esc(tag)).join("")}</span></div>`;
 }
+/// 윈도우 경로 260자 제한에 걸려 못 읽은 학습 폴더(agent /runs의 too_long). ★WinError 3을 삼켜 말없이 목록에서 빠졌다
+function longHTML() {
+  const l = S.tooLong || [];
+  return l.length ? `<p class="hint" style="margin:8px 12px">${t("Some run folders have paths longer than Windows allows (260 characters), so they cannot be read:")} ${l.slice(0, 3).map((x) => `<code>${esc(x)}</code>`).join(", ")}${l.length > 3 ? " …" : ""} ${t("Move them to a shorter path, or turn on long paths in Windows.")}</p>` : "";
+}
 async function drawRuns(periodic) {
   const g = ++S.gen;
   if (!S.runs.length) {
     // ★예전엔 연결이 끊겨도 "No runs yet"과 "--root 로 켜라"(두 번 눌러 켜는 사람에겐 없는 명령)를 보여 줬다
     if (S.down) { setMain(`<div class="card empty"><b>${t("Can't reach Epokio on this machine.")}</b><br>${S.downWhy ? esc(S.downWhy) : t("Is the helper running? On Windows, look for the Epokio icon under ^ at the right end of the taskbar, or run Epokio.exe again.")}</div>`, periodic); return; }
-    if (setMain(`<div class="card empty"><b>${t("No training runs found yet.")}</b><p class="hint">${t("Add the folder where your runs are saved (the one that holds <code>runs</code>, or <code>runs</code> itself).")}</p>
+    // 없는 폴더를 지켜보고 있으면 이름을 보인다. ★잘못 준 --root(PowerShell 끝 따옴표 등)가 '학습 없음'으로만 보였다
+    const gone = (S.missing || []).length ? `<p class="hint">${t("This folder does not exist:")} ${S.missing.map((x) => `<code>${esc(x)}</code>`).join(", ")}. ${t("Check the path given with --root.")}</p>` : "";
+    if (setMain(`<div class="card empty"><b>${t("No training runs found yet.")}</b>${gone}${longHTML()}<p class="hint">${t("Add the folder where your runs are saved (the one that holds <code>runs</code>, or <code>runs</code> itself).")}</p>
       <div class="inrow" style="max-width:520px;margin:0 auto"><input class="in" id="rootpath" aria-label="${t("Folder with runs")}" placeholder="C:\\Users\\you\\projects\\yolo\\runs" spellcheck="false"><button class="btn primary" id="addroot">${t("Add folder")}</button></div>
       <div id="rootmsg" role="status"></div></div>`, periodic)) wireAddRoot();
     return;
@@ -262,7 +269,7 @@ async function drawRuns(periodic) {
   const more = base.length - shown.length;
   const qbox = `<div class="inrow" style="margin:6px 8px 0"><input class="in" id="runq" type="search" aria-label="${t("Filter by name or #tag")}" placeholder="${t("Filter by name or #tag")}" value="${esc(S.q || "")}" spellcheck="false"></div>`
     + (S.q && !base.length ? `<p class="hint" style="margin:8px 12px">${t("No runs match {q}.", { q: esc(S.q) })} <button class="more" id="runqclear" style="margin:0">${t("Clear")}</button></p>` : "");
-  if (!setMain(`<div class="layout"><div class="card list" data-keep="runlist">${qbox}<div class="seg" style="margin:6px 8px"><button type="button" id="sortstate" aria-pressed="${!S.sortScore}" class="${S.sortScore ? "" : "on"}">${t("Newest")}</button><button type="button" id="sortscore" aria-pressed="${!!S.sortScore}" class="${S.sortScore ? "on" : ""}">${t("Best score")}</button><button type="button" id="addfolder" title="${t("Watch another folder of runs")}">+ ${t("Folder")}</button></div>${shown.map((x, i) => rowHTML(x, i)).join("")}${more > 0 ? `<button class="btn small" id="morerows" style="margin:10px">${t("Show {n} more", { n: more })}</button>` : ""}${sshHTML()}</div>
+  if (!setMain(`<div class="layout"><div class="card list" data-keep="runlist">${qbox}${longHTML()}<div class="seg" style="margin:6px 8px"><button type="button" id="sortstate" aria-pressed="${!S.sortScore}" class="${S.sortScore ? "" : "on"}">${t("Newest")}</button><button type="button" id="sortscore" aria-pressed="${!!S.sortScore}" class="${S.sortScore ? "on" : ""}">${t("Best score")}</button><button type="button" id="addfolder" title="${t("Watch another folder of runs")}">+ ${t("Folder")}</button></div>${shown.map((x, i) => rowHTML(x, i)).join("")}${more > 0 ? `<button class="btn small" id="morerows" style="margin:10px">${t("Show {n} more", { n: more })}</button>` : ""}${sshHTML()}</div>
     <div class="card detail" data-keep="detail">${detailHTML(r, d)}</div></div>`, periodic)) return;
   wireSSH();
   // 폰에서는 목록 아래에 상세가 있다. ★눌러도 화면이 안 바뀌는 것처럼 보였다
@@ -376,7 +383,14 @@ function detailHTML(r, d) {
     ${r.best != null ? `<div style="text-align:right"><div class="big">${r.best.toFixed(4)}</div><div class="hint" title="${esc(r.metric_name)}">${t("Score")} · ${esc(pretty(r.metric_name, d))}</div></div>` : ""}</div>`;
   if (!d) return h + `<p class="hint">${t("No details for this run.")}</p>`;
   // 대표 점수를 고른다(W&B의 요약 지표처럼). ★손실·오류율이 대표여야 하는 학습도 '높을수록 좋은 첫 열'로만 골랐다
-  const pick = Object.keys(d.columns).filter((k) => k !== "epoch" && k !== "time").sort();
+  const pick = Object.keys(d.columns).filter((k) => k !== "epoch" && k !== "step" && k !== "time").sort();
+  // 이어 한 학습(Lightning version_1 ← version_0). ★재개마다 새 폴더가 생겨 같은 학습이 따로 보였다
+  if (r.resumed_from) h += `<p class="hint">${t("Resumed from {name}", { name: esc(r.resumed_from) })}</p>`;
+  // 자동으로 고른 대표 점수와 그 이유(★무엇을 보고 있는지 몰랐다)
+  const WHY = { task: "the official score for this task", preferred: "the usual main score for this kind of model",
+    common: "the first validation mAP, F1, accuracy, IoU or Dice", loss_only: "no other score was logged, so the validation loss",
+    first: "the first score column", chosen: "chosen for this run", chosen_folder: "chosen for the folder this run is in" };
+  if (d.score_pick?.column && WHY[d.score_pick.why]) h += `<p class="hint" id="scorewhy">${t("Main score")}: ${esc(pretty(d.score_pick.column, d))} (${t(WHY[d.score_pick.why])})</p>`;
   if (pick.length) h += `<details class="hint" style="margin-top:6px"${S.metricOpen ? " open" : ""} id="metricbox"><summary>${t("Main score")}: ${esc(pretty(r.metric_name, d) || t("none"))}${r.lower ? " · " + t("lower is better") : ""}</summary>
     <div class="inrow" style="margin-top:6px"><select class="in" id="mcol" aria-label="${t("Main score")}"><option value="">${t("Automatic")}</option>${pick.map((k) => `<option value="${esc(k)}"${r.meta?.metric === k ? " selected" : ""}>${esc(pretty(k, d))}</option>`).join("")}</select>
     <select class="in" id="mdir" aria-label="${t("Direction")}"><option value="0">${t("Higher is better")}</option><option value="1"${r.lower ? " selected" : ""}>${t("Lower is better")}</option></select>

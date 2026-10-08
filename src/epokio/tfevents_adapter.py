@@ -6,6 +6,16 @@ import math
 import re
 from pathlib import Path
 
+from .schema import higher_is_better
+
+
+def _float(v) -> float | None:
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(x) else x
+
 
 PREFIX = "events.out.tfevents."
 SIDE_DIRS = {"train": "train", "training": "train", "validation": "val", "val": "val", "valid": "val",
@@ -132,7 +142,13 @@ class TensorBoard:                      # adapters.Adapter 모양(서로 import�
                 continue
             x = x_of(s)
             row = rows.setdefault(x, {"epoch": str(x)})
-            row[col] = _num(float(f"{v:.7g}"))               # float32라 7자리로(0.3이 0.30000001로 안 보이게). 같은 x면 나중 값
+            val = float(f"{v:.7g}")                          # float32라 7자리로(0.3이 0.30000001로 안 보이게). 같은 x면 나중 값
+            old = _float(row.get(col))
+            if old is not None and epoch_tag == "train/epoch" and col.startswith("metrics/") and not math.isnan(val):
+                # HF식 소수 에폭(한 에폭에 평가가 여러 번)은 같은 줄로 모인다. 점수는 그 에폭의 가장 좋은 평가를 남긴다.
+                # ★1.5에폭의 최고 점수가 같은 에폭 2.0의 평가에 덮여 최고 점수가 틀렸다
+                val = (max if higher_is_better(col) else min)(old, val)
+            row[col] = _num(val)
             if w > 0:
                 row["time"] = _num(round(w - t0, 3))
         if evs and not rows:

@@ -77,3 +77,23 @@ def mixed_forms(folder: str) -> dict:
                 if len(samples) < 5:
                     samples.append(os.path.join(root, n))
     return {"nfc": nfc_n, "nfd": nfd_n, "mixed": nfc_n > 0 and nfd_n > 0, "nfd_samples": samples}
+
+
+def err_text(ex: BaseException) -> str:
+    """예외 하나를 사람이 읽을 글로. 윈도우 오류 번호(WinError·WSA)는 운영체제의 유니코드 문구(FormatMessageW)로 다시 만든다.
+    ★한국어 윈도우에서 getaddrinfo 실패 등의 문구가 ANSI(cp949) 바이트를 utf-8로 푼 채 와서 alerts --test·doctor가 깨져 보였다.
+    URLError는 안의 이유(reason)를 본다"""
+    import os
+    reason = getattr(ex, "reason", None)
+    if isinstance(reason, BaseException):
+        ex = reason
+    code = getattr(ex, "winerror", None) or (getattr(ex, "errno", None) if type(ex).__name__ == "gaierror" else None)
+    if os.name == "nt" and isinstance(ex, OSError) and isinstance(code, int):
+        try:
+            import ctypes
+            text = ctypes.FormatError(code).strip()
+            if text:
+                return f"[WinError {code}] {text}"
+        except (AttributeError, OSError, ValueError):
+            pass
+    return str(ex) or type(ex).__name__

@@ -89,15 +89,32 @@ def _csv_header(p: Path) -> list[str]:
     return [c.strip() for c in next(csv.reader(line), [])] if line else []
 
 
-# 낮을수록 좋은 지표. metrics/ 는 '높을수록 좋은 것만'이라는 규칙이라 손실 쪽으로 보낸다.
-# ★mae·rmse를 metrics/ 로 두었더니 최고점 고르기가 가장 나쁜 에폭을 'best'로 골랐다(Keras 회귀 모델)
+# 손실류는 train/·val/…_loss 열로 보낸다(점수가 아니다).
 # ★crossentropy 같은 손실을 metrics로 받은 Keras에서 가장 나쁜 에폭을 best로 골랐다
-_LOWER = re.compile(r"(^|_)(mae|mse|rmse|msle|mape|error|err|perplexity|wer|cer|loss|crossentropy|hinge|kl|"
-                    r"kld|divergence|poisson|logcosh|nll)($|_)", re.IGNORECASE)
+# 오차 지표(mae·mse·rmse·msle·mape·error·err·wer·cer·perplexity)는 '낮을수록 좋은 점수'로 metrics/에 둔다.
+# HF eval_rmse와 같은 길이고 방향은 schema.higher_is_better(LOWER_IS_BETTER)가 정한다.
+# ★처음엔 metrics/에 두고 높을수록 좋다고 봐서 가장 나쁜 에폭이 best였고, 그 뒤엔 손실 쪽으로 보내서
+#   Keras·CSV 회귀 학습(val_mae)은 최고 점수가 "–"였다
+# 낱말 경계는 _ / - . 공백. ★loss/train·loss/val·val-loss처럼 _가 아닌 구분자면 점수(metrics/, 높을수록 좋음)로 가서
+#   가장 나쁜 에폭(1.2 @ 1)이 best였다
+_SEP = r"[_/\-. ]"
+_LOWER = re.compile(rf"(^|{_SEP})(loss|losses|crossentropy|hinge|kl|kld|divergence|poisson|logcosh|nll)($|{_SEP})", re.IGNORECASE)
+_VAL_WORD = re.compile(rf"(^|{_SEP})(val|valid|validation|eval|test)($|{_SEP})", re.IGNORECASE)
+
+
+def is_val_key(key: str) -> bool:
+    """검증 쪽 열인가(val_loss·loss/val·val-loss·eval_acc·test_acc1)"""
+    return bool(_VAL_WORD.search(key))
+
+
+def loss_name(key: str) -> str:
+    """열 이름 안의 구분자를 _로(열 이름의 /는 'train/·val/' 앞머리만 쓴다). loss/val → loss_val_loss"""
+    k = re.sub(r"[/\-. ]+", "_", key).strip("_")
+    return k if k.endswith("_loss") else k + "_loss"
 
 
 def metric_column(key: str, val_side: bool) -> str:
-    return f"{'val' if val_side else 'train'}/{key}_loss" if _LOWER.search(key) else f"metrics/{key}"
+    return f"{'val' if val_side else 'train'}/{loss_name(key)}" if _LOWER.search(key) else f"metrics/{key}"
 
 
 _EPOCH_KEYS = ("epochs", "max_epochs", "num_epochs", "num_train_epochs", "n_epochs")

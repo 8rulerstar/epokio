@@ -340,3 +340,68 @@ def test_agent_server_never_does_reverse_dns(monkeypatch):
         assert srv.server_name == "127.0.0.1" and srv.server_port == srv.server_address[1] > 0
     finally:
         srv.server_close()
+
+
+def test_run_detail_hides_secret_settings_without_a_token(agent_url):
+    """★토큰 없이 열린 GET /run이 args.yaml 전부(all_args)를 그대로 실어 api_key·토큰·비밀번호가 보였다"""
+    base, root = agent_url
+    d = root / "demo"
+    (d / "args.yaml").write_text("epochs: 3\nlr0: 0.01\napi_key: sk-live-123\nwandb_token: tok-456\n"
+                                 "db_password: hunter2\n", encoding="utf-8")
+    (d / "epokio_env.json").write_text('{"python": "3.12", "hf_token": "hf-789"}', encoding="utf-8")
+    (d / "epokio_repro.json").write_text('{"schema": 1, "params": {"epochs": 3, "comet_api_key": "c-000"}}',
+                                         encoding="utf-8")
+    code, body = fetch(base + "/run?path=" + urllib.parse.quote(str(d)))
+    assert code == 200
+    got = json.loads(body)
+    assert got["all_args"]["lr0"] == "0.01" and got["env"]["python"] == "3.12" and got["repro"]["params"]["epochs"] == 3
+    for leaked in (b"sk-live", b"tok-456", b"hunter2", b"hf-789", b"c-000"):
+        assert leaked not in body, leaked
+
+
+def test_agent_stop_does_not_claim_success_when_the_token_is_refused(agent_url, monkeypatch, capsys):
+    """★`agent --stop`이 401(다른 HOME·옛 토큰)로 거절돼도, /health가 잠깐 늦으면 "Stopped."라고 했다"""
+    import sys
+    from types import SimpleNamespace
+    from epokio import onboard, server_cli
+    base, _ = agent_url
+    port = int(base.rsplit(":", 1)[1])
+    monkeypatch.setattr(onboard, "auth", SimpleNamespace(token=lambda: "not-the-token"))    # 다른 홈의 토큰
+    slow = {"n": 0}
+    real_alive = onboard.agent_alive
+    def alive_then_slow(p, timeout=1.0):                     # 첫 확인만 진짜, 그다음은 '응답이 늦다'(=예전엔 꺼진 것으로 쳤다)
+        slow["n"] += 1
+        return real_alive(p, timeout) if slow["n"] == 1 else False
+    monkeypatch.setattr(onboard, "agent_alive", alive_then_slow)
+    monkeypatch.setattr(sys, "argv", ["epokio agent", "--stop", "--port", str(port)])
+    with pytest.raises(SystemExit) as e:
+        server_cli.main()
+    out = capsys.readouterr().out
+    assert e.value.code == 1 and "Stopped." not in out and "refused" in out and "token" in out
+    assert fetch(base + "/health")[0] == 200                  # 정말 안 꺼졌다
+
+
+def test_stop_agent_waits_until_the_port_is_closed(agent_url):
+    from epokio import onboard
+    base, _ = agent_url
+    port = int(base.rsplit(":", 1)[1])
+    assert not onboard.port_closed(port)
+    assert onboard.stop_agent(port, seconds=10) is True and onboard.port_closed(port)
+
+
+def test_file_like_unknown_paths_are_404_not_401(agent_url):
+    """★/favicon.ico 같은 없는 경로가 토큰부터 물어 401이 나가, 브라우저 콘솔에 401이 찍혔다"""
+    base, _ = agent_url
+    for route in ("/favicon.ico", "/robots.txt", "/apple-touch-icon.png", "/.well-known/security.txt"):
+        assert fetch(base + route)[0] == 404, route
+    assert fetch(base + "/no-such-route")[0] == 401          # 점 없는 새 경로는 여전히 잠근다(auth.OPEN_GET)
+    assert fetch(base + "/index.html")[0] == 200
+
+
+def test_health_on_this_machine_says_how_to_show_the_token(agent_url):
+    """★웹 잠금 카드가 epokio-agent --show-token이라 했는데 윈도우에선 PATH에 없었다. 이 기계에서 연 화면엔 실제 명령"""
+    from epokio import autostart
+    base, _ = agent_url
+    h = json.loads(fetch(base + "/health")[1])
+    assert h["token_cmd"] == autostart.short_home(autostart.cli("agent --show-token")) and h["token_cmd"].endswith("agent --show-token")
+

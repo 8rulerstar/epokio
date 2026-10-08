@@ -14,6 +14,7 @@ PHRASES = {
     "unit.d": "d", "unit.s": "s",
     "unit.m": "m", "unit.h": "h",
     "notify.stalled": "Training may have stopped", "notify.stopped_early": "Stopped before the last epoch",
+    "notify.quiet": "Training stopped logging",
     "notify.recovered": "Training resumed", "notify.started": "Training started",
     "notify.goal": "Goal reached", "notify.pruned": "Sweep stopped a run that fell behind",
     "notify.job_done": "Job finished", "notify.job_failed": "Job failed",

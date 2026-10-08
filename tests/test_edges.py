@@ -224,3 +224,19 @@ def test_a_copied_run_without_a_time_column_has_no_pace(tmp_path):
     (d / "results.csv").write_text("epoch,metrics/mAP50-95(B)\n" + "".join(f"{i},0.{i}\n" for i in range(1, 10)))
     r = read_run(d)
     assert r.state == "running" and r.elapsed == 0 and r.eta is None
+
+
+def test_a_fast_real_run_without_a_time_column_gets_its_pace(tmp_path):
+    """★'에폭 수 x 1초'보다 짧으면 복사본으로 봐서, 에폭이 1초도 안 걸리는 진짜 학습은 시간·남은 시간이 영영 없었다"""
+    import os
+    import time
+    from epokio.scan import read_run
+    d = tmp_path / "fast"
+    d.mkdir()
+    (d / "args.yaml").write_text("epochs: 40\n")
+    f = d / "results.csv"
+    f.write_text("epoch,metrics/mAP50-95(B)\n" + "".join(f"{i},0.{i}\n" for i in range(1, 10)))
+    later = time.time() + 2.7                       # 9에폭에 2.7초 남짓 걸린 학습(에폭당 0.3초)
+    os.utime(f, (later, later))
+    r = read_run(d, now=later)
+    assert r.state == "running" and 2.0 < r.elapsed < 4.0 and r.eta is not None and r.eta > 0

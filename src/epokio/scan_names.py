@@ -21,8 +21,11 @@ def display_name(r) -> str:
     elif not _GENERIC.match(name):
         return name
     parts = [p for p in re.split(r"[\\/]", str(r.path)) if p]
-    parent = next((p for p in reversed(parts[:-1]) if p not in _SKIP_PARENT), None)
-    return unicodedata.normalize("NFC", f"{parent}/{name}") if parent else name
+    above = [p for p in reversed(parts[:-1]) if p not in _SKIP_PARENT]
+    # Lightning(<사람>/<실험>/lightning_logs/version_N)은 실험 이름 위 한 칸(대개 사람·프로젝트)까지.
+    # ★exp002/version_0만 보여 공용 서버에서 여러 사람의 학습 이름이 겹쳤다. 다른 형식은 runs/detect를 건너뛰어 이미 그 칸이 보인다
+    n = 2 if len(parts) >= 2 and parts[-2] == "lightning_logs" and len(above) >= 2 else 1
+    return unicodedata.normalize("NFC", "/".join(reversed(above[:n])) + f"/{name}") if above else name
 
 
 def unique(runs: list) -> list:
@@ -67,3 +70,42 @@ def x_count(r) -> str:
     if getattr(r, "x_axis", "epoch") == "step":
         return f"{r.epoch:,}/{f'{total:,}' if total else '?'}"
     return f"{r.epoch}/{total or '?'}"
+
+
+STATE_ORDER = {"running": 0, "starting": 1, "stalled": 2, "failed": 3, "stopped": 4, "done": 5}
+
+
+def sort_runs(runs: list) -> list:
+    """목록 순서: 도는 것 먼저, 같은 상태면 최근 것 먼저(scan에서 재수출)"""
+    return sorted(runs, key=lambda r: (STATE_ORDER.get(r.state, 9), r.idle))
+
+
+def too_long(p) -> bool:
+    """윈도우 기본 경로 한도(260자)에 걸릴 길이. 폴더 안 파일(results.csv 등)까지 더하면 넘는다(LongPathsEnabled가 꺼진 기본값)"""
+    return os.name == "nt" and len(str(p)) > 247
+
+
+def crash_reason(run_dir) -> str | None:
+    """epokio.start() 기록기가 예외로 죽으며 남긴 표시(logger.FAIL_MARK)의 내용. 없으면 None"""
+    try:
+        with open(os.path.join(run_dir, "epokio_failed"), encoding="utf-8", errors="replace") as f:
+            return f.read(300).strip() or "error"
+    except OSError:
+        return None
+
+
+def find_override(ov: dict, run_dir, key) -> tuple | None:
+    """사람이 고른 대표 점수(runmeta). 그 학습에 없으면 위 폴더(감시 폴더·runs)에 정한 기본값. 가까운 것이 이긴다.
+    ★학습마다 하나씩 골라야 해서, 같은 열을 쓰는 실험 수십 개에 일일이 정해야 했다"""
+    if not ov:
+        return None
+    p = os.path.abspath(str(run_dir))
+    for _ in range(12):
+        hit = ov.get(key(p))
+        if hit:
+            return hit
+        up = os.path.dirname(p)
+        if up == p:
+            break
+        p = up
+    return None

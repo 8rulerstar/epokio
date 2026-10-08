@@ -1,4 +1,4 @@
-"""`epokio` 명령 하나로 모은다: setup · watch · agent · tray · autostart · mcp · alerts"""
+"""`epokio` 명령 하나로 모은다: setup · watch · agent · tray · autostart · mcp · alerts · doctor · score"""
 from __future__ import annotations
 
 import sys
@@ -13,6 +13,7 @@ HELP = """usage: epokio <command> [options]
   mcp        run the MCP server for AI assistants
   alerts     phone alerts (webhooks): --add URL, --remove URL, --list, --test, --lang
   doctor     print what Epokio sees (versions, helper, folders, log) for a bug report
+  score      choose a run's (or a folder's) main score column: score <run> <column> [--lower], --auto, --list
 
 Run `epokio <command> -h` for options, `epokio --version` for the version."""
 
@@ -31,6 +32,9 @@ def main():
         sys.exit(run(rest))
     elif cmd == "alerts":
         from .alerts_cli import main as run
+        sys.exit(run(rest))
+    elif cmd == "score":
+        from .score_cli import main as run
         sys.exit(run(rest))
     elif cmd == "doctor":
         from .doctor import doctor as run

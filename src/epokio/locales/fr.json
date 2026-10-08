@@ -2,6 +2,7 @@
  "Training finished": "L'entraînement est terminé",
  "Training failed": "L'entraînement a échoué",
  "Training may have stopped": "L'entraînement semble s'être arrêté",
+ "Training stopped logging": "L'entraînement n'écrit plus de journal",
  "Stopped before the last epoch": "Arrêté avant la dernière époque",
  "Training resumed": "L'entraînement a repris",
  "Training started": "L'entraînement a démarré",
@@ -195,5 +196,7 @@
  "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "Ajoutez des images de {names} à la validation. D’ici là, impossible de savoir si le modèle les trouve.",
  "Test alert": "Alerte de test",
  "Phone alerts from {machine} work.": "Les alertes téléphone depuis {machine} fonctionnent.",
- "step": "étape"
+ "step": "étape",
+ "{m} stayed at {v:.3f} in every epoch. The score never moved.": "{m} est resté à {v:.3f} à chaque époque. Le score n'a jamais bougé.",
+ "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels.": "Vérifiez les étiquettes et la configuration des données (pour YOLO, data.yaml : numéros de classe, noms et dossiers). Un score qui ne bouge jamais signifie en général que le modèle n'apprend pas des étiquettes."
 }

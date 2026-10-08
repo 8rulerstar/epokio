@@ -71,7 +71,7 @@ def test_a_custom_loop_shows_up_with_scores_and_notes(tmp_path):
     assert r.name == "detr-small" and r.epoch == 3 and r.total == 3 and r.state == "done"
     assert r.framework == "custom"                                          # ★ultralytics로 보였다
     head = (tmp_path / "runs" / "detr-small" / "results.csv").read_text(encoding="utf-8")
-    assert "train/total_loss" in head and "val/total_loss" in head and "val/mae_loss" in head      # 접두어가 겹치지 않게(val/val_mae_loss 였다)
+    assert "train/total_loss" in head and "val/total_loss" in head and "metrics/val_mae" in head   # 오차 지표는 낮을수록 좋은 점수(val/val_mae_loss 였다)
     assert "tensor(" not in head                                           # ★텐서가 글자로 들어가 곡선이 비었다
     a = analysis.analyze(tmp_path / "runs" / "detr-small")
     assert a.heads and a.heads[0].precision == 0.6
@@ -161,7 +161,7 @@ def test_learning_rate_and_prefixed_names(tmp_path):
     c = logger.Logger._column
     assert c("lr") == "lr/pg0" and c("learning_rate") == "lr/pg0"
     assert c("valid_loss") == "val/total_loss" and c("eval_loss") == "val/total_loss" and c("train_loss") == "train/total_loss"
-    assert c("val_mae") == "val/mae_loss" and c("val_acc") == "metrics/val_acc"
+    assert c("val_mae") == "metrics/val_mae" and c("val_acc") == "metrics/val_acc"
     with epokio.start(tmp_path / "runs" / "lr", epochs=2) as run:
         run.log(lr=0.01, val_acc=0.5); run.log(lr=0.001, val_acc=0.7)
     [r] = scan(tmp_path / "runs")
@@ -218,3 +218,45 @@ def test_a_locked_ultralytics_folder_is_left_alone(tmp_path, monkeypatch):
     run.log(val_loss=1.0); run.finish()
     assert (d / "args.yaml").read_text() == "epochs: 50\nmodel: yolo11n.pt\n"
     assert (d / "results.csv").read_text() == "epoch,time\n1,1\n"
+
+
+def test_a_crash_inside_with_is_failed_at_once_with_the_reason(tmp_path):
+    """★with epokio.start() 안에서 죽으면 3분 뒤 '멎음'으로만 보였고 왜 죽었는지 몰랐다"""
+    from epokio import notify
+    from epokio.monitor import Event
+    from epokio.scan import read_run
+    d = tmp_path / "runs" / "oom"
+    try:
+        with epokio.start(d, epochs=10) as run:
+            run.log(val_loss=1.0)
+            run.log(val_loss=0.9)
+            raise RuntimeError("CUDA out of memory. Tried to allocate 2.00 GiB\nmore detail")
+    except RuntimeError:
+        pass
+    r = read_run(d)
+    assert r.state == "failed" and r.error == "RuntimeError: CUDA out of memory. Tried to allocate 2.00 GiB"
+    assert "CUDA out of memory" in notify.body_of(Event("failed", r, "running"))
+    with epokio.start(d, epochs=10) as run:              # 같은 폴더로 다시 돌려 잘 끝나면 실패 표시는 사라진다
+        run.log(val_loss=0.5)
+    assert read_run(d).state == "done" and not (d / logger.FAIL_MARK).exists()
+
+
+def test_ctrl_c_is_not_a_failure(tmp_path):
+    d = tmp_path / "runs" / "stop"
+    try:
+        with epokio.start(d, epochs=10) as run:
+            run.log(val_loss=1.0)
+            raise KeyboardInterrupt
+    except KeyboardInterrupt:
+        pass
+    assert not (d / logger.FAIL_MARK).exists()
+
+
+def test_an_uncaught_crash_in_a_script_leaves_the_reason(tmp_path):
+    r = _run_script(tmp_path, """
+        run = epokio.start("runs/crash2", epochs=10)
+        run.log(val_loss=1.0); run.log(val_loss=0.9)
+        raise ValueError("bad batch")
+    """)
+    assert r.returncode != 0
+    assert (tmp_path / "runs" / "crash2" / logger.FAIL_MARK).read_text(encoding="utf-8") == "ValueError: bad batch"

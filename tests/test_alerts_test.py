@@ -82,7 +82,7 @@ def test_cli_add_list_remove(capsys):
     capsys.readouterr()
     assert alerts_cli.main(["--list"]) == 0
     out = capsys.readouterr().out
-    assert "ntfy.sh/b" in out and "ntfy.sh/a" not in out
+    assert out.strip() == notify.masked_url("https://ntfy.sh/b") and "ntfy.sh/***" in out
     # 웹 화면(agent)도 같은 파일을 본다
     assert _agent().get("/webhooks", {})["hosts"] == ["ntfy.sh"]
 
@@ -112,3 +112,52 @@ def test_cli_is_wired(monkeypatch, capsys):
     with pytest.raises(SystemExit) as e:
         cli.main()
     assert e.value.code == 0 and "No phone alerts" in capsys.readouterr().out
+
+
+def test_webhook_failure_log_names_only_the_host(monkeypatch, caplog):
+    """★경로 앞 60자를 남겨 ntfy 주제·텔레그램 봇 토큰이 agent.log와 doctor 출력에 실렸다"""
+    import logging
+    import threading
+    from epokio.monitor import Event
+    from epokio.scan import Run
+
+    def boom(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+    monkeypatch.setattr(notify.urllib.request, "urlopen", boom)
+    started = []
+    monkeypatch.setattr(threading.Thread, "start", lambda self: (started.append(1), self.run()))
+    r = Run.from_dict({"name": "r", "path": "/r", "epoch": 1, "total": 2, "elapsed": 1, "eta": None, "metric": None,
+                       "metric_name": "", "best": None, "best_epoch": None, "state": "failed", "idle": 0,
+                       "history": [], "source": "local"})
+    secret = "https://api.telegram.org/bot123456:SECRETTOKEN/sendMessage?chat_id=9"
+    with caplog.at_level(logging.WARNING, logger="epokio"):
+        notify.webhook(secret, Event("failed", r, "running"))
+    assert started and "https://api.telegram.org" in caplog.text
+    assert "bot123" not in caplog.text and "SECRET" not in caplog.text
+
+
+def test_alerts_list_masks_the_path(capsys):
+    alerts_cli.main(["--add", "https://ntfy.sh/my-secret-topic", "--add", "https://ntfy.sh/other-topic"])
+    capsys.readouterr()
+    alerts_cli.main(["--list"])
+    out = capsys.readouterr().out
+    assert out.count("ntfy.sh/***") == 2 and "my-se" not in out and "other" not in out
+    assert len(set(out.split())) > 2                     # 같은 호스트 둘이 구별된다(경로 지문)
+
+
+def test_windows_network_errors_are_not_mojibake(monkeypatch):
+    """★한국어 윈도우에서 getaddrinfo 실패 문구(cp949 바이트를 utf-8로 푼 것)가 alerts --test·doctor에 깨져 보였다"""
+    import os
+    import socket
+    from epokio.textnorm import err_text
+    garbled = "����"
+    def boom(req, timeout=None):
+        raise urllib.error.URLError(socket.gaierror(11001, garbled))
+    monkeypatch.setattr(notify.urllib.request, "urlopen", boom)
+    r = notify.send_test("https://ntfy.sh/x")
+    assert not r["ok"]
+    if os.name == "nt":
+        assert garbled not in r["error"] and r["error"].startswith("[WinError 11001] ")
+        import ctypes
+        assert r["error"].endswith(ctypes.FormatError(11001).strip())
+    assert err_text(ValueError("plain")) == "plain"

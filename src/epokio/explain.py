@@ -14,7 +14,7 @@ from pathlib import Path
 from . import analysis, msg
 
 # 여러 해설이 겹치면 먼저 말할 것. 발산이 있으면 나머지 해설은 의미가 약하다
-_PRIORITY = ["diverged", "nan_recovered", "overfit", "still_improving", "early_best", "loss_rise", "misses", "false_alarms"]
+_PRIORITY = ["diverged", "nan_recovered", "flat_score", "overfit", "still_improving", "early_best", "loss_rise", "misses", "false_alarms"]
 STATUSES = ("finished", "failed", "stalled", "running", "stopped")
 
 

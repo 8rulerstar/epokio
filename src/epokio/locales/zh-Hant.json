@@ -2,6 +2,7 @@
  "Training finished": "訓練已結束",
  "Training failed": "訓練失敗",
  "Training may have stopped": "訓練似乎已停止",
+ "Training stopped logging": "訓練已停止寫入記錄",
  "Stopped before the last epoch": "在最後一個 epoch 之前停止了",
  "Training resumed": "訓練已恢復",
  "Training started": "訓練已開始",
@@ -195,5 +196,7 @@
  "Put some {names} images in the validation set. Until then you cannot tell whether the model finds them.": "在驗證集中放入一些 {names} 影像。在此之前無法知道模型能否找到它們。",
  "Test alert": "測試提醒",
  "Phone alerts from {machine} work.": "來自 {machine} 的手機提醒運作正常。",
- "step": "步"
+ "step": "步",
+ "{m} stayed at {v:.3f} in every epoch. The score never moved.": "{m} 在每個 epoch 都停在 {v:.3f}，分數從未變化。",
+ "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels.": "請檢查標籤和資料設定（YOLO 即 data.yaml 的類別編號、名稱和資料夾）。分數完全不動，通常表示模型沒能從標籤中學到東西。"
 }

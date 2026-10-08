@@ -24,7 +24,8 @@ ARG_KEYS = ("learning_rate", "lr_scheduler_type", "warmup_ratio", "warmup_steps"
             "adam_beta1", "adam_beta2", "adam_epsilon", "max_grad_norm",
             "per_device_train_batch_size", "per_device_eval_batch_size", "gradient_accumulation_steps",
             "num_train_epochs", "max_steps", "seed", "data_seed",
-            "fp16", "bf16", "tf32", "gradient_checkpointing", "group_by_length", "label_smoothing_factor")
+            "fp16", "bf16", "tf32", "gradient_checkpointing", "group_by_length", "label_smoothing_factor",
+            "metric_for_best_model", "greater_is_better")   # 대표 점수와 방향(adapters_hf._best_metric_row·schema.lower_for)
 
 
 def _str(v) -> str:

@@ -116,9 +116,33 @@ def test_a_run_with_no_planned_epochs_is_never_called_finished_when_it_goes_quie
     from types import SimpleNamespace as N
     from epokio.monitor import classify
     assert classify("stalled", N(state="stopped", total=None, epoch=4)) is None
-    assert classify("running", N(state="stopped", total=None, epoch=4)) == "stalled"
+    assert classify("running", N(state="stopped", total=None, epoch=4)) == "quiet"
     assert classify("stalled", N(state="stopped", total=10, epoch=4)) == "stopped_early"
     assert classify("running", N(state="done", total=None, epoch=4)) == "finished"     # epokio_done 같은 끝 표시가 있으면 끝
+
+
+def test_a_run_with_no_planned_epochs_that_goes_quiet_does_not_buzz_the_phone(tmp_path, monkeypatch):
+    """★계획 에폭을 모르는 학습(케라스 CSVLogger)이 정상으로 끝나도 3분 뒤 '멎음'이 폰까지 갔다.
+    'quiet'으로 알리고, 웹후크 기본 종류에는 넣지 않는다. 계획 에폭이 있으면 그대로 'stalled'"""
+    import json as _json
+    from types import SimpleNamespace as N
+    from epokio import notify
+    from epokio.agent import Agent
+    assert classify("running", N(state="stalled", total=None, epoch=4)) == "quiet"
+    assert classify("running", N(state="stalled", total=10, epoch=4)) == "stalled"
+    hooks = tmp_path / "hooks.json"
+    hooks.write_text(_json.dumps({"urls": ["https://ntfy.sh/x"]}), encoding="utf-8")       # 종류를 안 고른 기본 설정
+    monkeypatch.setattr(Agent, "HOOKS_FILE", hooks)
+    monkeypatch.setattr("epokio.config.quiet_now", lambda: False)
+    sent = []
+    monkeypatch.setattr(notify, "webhook", lambda url, e, machine=None: sent.append(e.kind))
+    a = Agent.__new__(Agent)
+    r = {"name": "k", "path": "", "epoch": 4, "total": None, "elapsed": 1, "eta": None, "metric": None,
+         "metric_name": "", "best": None, "best_epoch": None, "state": "stalled", "idle": 200}
+    a._webhook("quiet", r)
+    a._webhook("stalled", r)
+    assert sent == ["stalled"]
+    assert notify.title("quiet") != "Epokio" and "quiet" not in notify.URGENT
 
 
 def test_phone_text_says_which_machine_and_which_score():

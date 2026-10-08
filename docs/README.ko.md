@@ -5,12 +5,12 @@
 <h1 align="center">Epokio</h1>
 
 <p align="center">
-  내 컴퓨터나 원격 GPU 서버에서 도는 ML 학습을 지켜봅니다. 맥에서는 메뉴바 앱으로, 윈도우·리눅스·폰에서는 웹 화면으로.<br>
-  학습 코드를 고칠 필요도, 계정도 없습니다. 학습이 이미 기록을 남기는 폴더만 알려 주면 됩니다.
+  <b>GPU 박스나 서버에서 도는 학습이 멈추거나, NaN이 나거나, 끝나면 폰으로 알려 줍니다.</b><br>
+  코드를 고치지 않습니다: 이미 남기는 기록을 읽습니다. SSH로도 됩니다.
 </p>
 
 <p align="center">
-  <img src="images/menubar-characters.gif" width="600" alt="학습 속도에 맞춰 메뉴바에서 뛰는 캐릭터">
+  <img src="images/alert.gif" width="720" alt="Epokio 웹 화면에서 학습이 '학습 중'에서 '멎음'으로 바뀌고, 학습 이름·에폭·최고 점수가 담긴 ntfy 알림이 폰에 옵니다">
 </p>
 
 <p align="center">
@@ -24,15 +24,23 @@
 
 ---
 
+## 그냥 ...을 쓰면 안 되나
+
+| | Epokio보다 잘하는 것 | Epokio가 더하는 것 |
+|---|---|---|
+| **TensorBoard** | step마다의 풍부한 그래프, 그림, 히스토그램, 임베딩, 프로파일러. 이벤트 파일을 보는 표준. | 학습이 멈추거나 NaN이 나거나 끝나면 알려 줍니다(브라우저 탭을 안 열어도). 여러 프레임워크의 기록을 한 목록에(TensorBoard 파일도 읽습니다), 원격 기계는 아무것도 깔지 않고 SSH로. |
+| **W&B** | 팀 대시보드, 여러 기계에 걸친 기록, 스윕, 아티팩트, 보고서, 모델 등록부. 함께 보기 좋습니다. | 계정·기록 코드·업로드가 없습니다. 데이터는 내 기계에 남고, 인터넷이 없는 서버에서도 됩니다. W&B 로컬 파일을 읽으니 둘 다 써도 됩니다. |
+| **nvitop** | GPU마다의 사용량, 프로세스, 메모리를 실시간으로, 프로세스 관리까지. | GPU가 아니라 학습을 압니다: 에폭, 남은 시간, 최고 점수, 멎음·NaN 판정, 폰 알림. GPU가 바쁘다고 학습이 나아가고 있다는 뜻은 아닙니다. |
+
 ## 하는 일
 
 * **이미 있는 기록을 읽습니다.** Ultralytics, Hugging Face Trainer, Lightning, Keras, timm, OpenMMLab, W&B 로컬 파일, TensorBoard 이벤트 파일, MAE·DeiT 계열 `log.txt`, 직접 만든 CSV. [읽는 형식](#읽는-형식) 참고.
 * **진행률, 남은 시간, 최고 점수를 메뉴바에** 실시간으로. 학습이 끝나거나, 실패하거나(NaN loss), 멈추거나(비정상 종료·메모리 부족도 이렇게 드러납니다), 마지막 에폭 전에 그치면 알려 줍니다.
-* **폰 알림**: ntfy, Slack, Discord, 텔레그램 웹훅으로 학습 기계가 직접 보냅니다. 시험 보내기 버튼으로 도착하는지 확인할 수 있습니다.
+* **폰 알림**: ntfy, Slack, Discord, 텔레그램 웹훅으로 학습 기계가 직접 보냅니다(그 기계에서 도우미가 돌 때만). 시험 보내기 버튼으로 도착하는지 확인할 수 있습니다.
 * **SSH로 원격 기계 보기**: 서버에 아무것도 설치하지 않습니다. 기록마다 새로 붙은 꼬리만 가져옵니다.
-* **클래스별 점수**(클래스마다 정밀도·재현율·mAP, 약한 것부터)와 다음에 무엇을 바꿀지 쉬운 말로 적은 메모.
+* **클래스별 점수**(클래스마다 정밀도·재현율·mAP, 약한 것부터. Epokio로 시작한 Ultralytics 학습 또는 클래스별 점수 계산을 한 번 돌린 뒤)와 다음에 무엇을 바꿀지 쉬운 말로 적은 메모.
 * **step 단위 학습**(`epoch` 없는 W&B, TensorBoard step 스칼라, 첫 열이 `step`·`iter`·`iteration`인 CSV)은 진행률을 step으로 보여 줍니다.
-* **비교, 검수, 학습 시작**은 Studio 창이나 웹 화면에서. 자세한 내용은 [studio.md](studio.md).
+* **더 있는 것:** 맥 메뉴바 앱(뛰는 캐릭터), Studio 창, 비교, 학습 시작·대기열, 라벨 검수, 스윕, 데이터셋 보기. [studio.md](studio.md)(영어) 참고.
 
 ## 빠른 시작
 
@@ -50,6 +58,10 @@
 ## 화면
 
 <p align="center">
+  <img src="images/menubar-characters.gif" width="600" alt="학습 속도에 맞춰 메뉴바에서 뛰는 캐릭터">
+</p>
+
+<p align="center">
   <img src="images/popover-light.png" width="330" alt="메뉴바 팝오버, 밝은 화면">
   <img src="images/popover-dark.png" width="330" alt="메뉴바 팝오버, 어두운 화면">
 </p>
@@ -62,33 +74,34 @@
   <img src="images/studio-compare.png" width="620" alt="비교: 여러 학습을 한 그래프에, 점수와 달랐던 설정만">
 </p>
 
-**자원 사용.** 맥에서 학습 폴더 50개를 지켜보는 백그라운드 도우미 하나만 재면 메모리(RSS) 약 45MB, CPU는 1분에 0.25초 미만으로 거의 0%입니다.
+**자원 사용.** 백그라운드 도우미 하나만 재면 메모리(RSS)는 맥에서 학습 폴더 50개일 때 약 45MB입니다. CPU는 학습 폴더 330개에 도는 학습이 없을 때 1분에 약 0.67초, 학습 하나가 돌 때 1분에 약 1.7초입니다(코어 하나의 1% 미만).
 
 ## 읽는 형식
 
 프레임워크가 이미 쓰는 파일을 읽습니다. 기록 코드를 더할 필요가 없습니다.
 
-| 프레임워크 | 읽는 것 | 보기·결과·비교 | 학습 시작 | 자동 라벨링·검수 |
-|---|---|---|---|---|
-| Ultralytics YOLO | `results.csv`, `args.yaml` | ✅ | ✅ | ✅ |
-| Hugging Face Trainer | `trainer_state.json`(`checkpoint-*` 안도) | ✅ | 스크립트 | |
-| PyTorch Lightning | `CSVLogger`의 `metrics.csv`, `hparams.yaml` | ✅ | 스크립트 | |
-| Keras | `CSVLogger` 파일(`training.log`, `history.csv`) | ✅ | 스크립트 | |
-| TensorBoard 기록 | `events.out.tfevents.*` 스칼라, TensorFlow 없이 읽음. `epoch` 태그가 있으면 에폭, 없으면 step 기준 | ✅ | 스크립트 | |
-| 비전 연구 코드(MAE, DeiT, DINO, BEiT, ConvNeXt) | 에폭마다 JSON 한 줄인 `log.txt` | ✅ | 스크립트 | |
-| timm `train.py` | `summary.csv`(`eval_top1`이 주 점수), `args.yaml` | ✅ | 스크립트 | |
-| OpenMMLab(MMDetection 3.x, MMPretrain, MMSegmentation) | `vis_data/scalars.json`, 저장된 설정의 `max_epochs`(에폭 기반 학습만) | ✅ | 스크립트 | |
-| Weights & Biases(로컬 파일) | `wandb/run-*/run-*.wandb`, wandb 설치 없이 읽음. `epoch` 값이 기록돼 있으면 에폭, 없으면 `_step` 기준. SSH로도 | ✅ | 스크립트 | |
-| 직접 만든 학습 루프 | 첫 열이 `epoch`·`step`·`iter`·`iteration`이고 loss 열이 있는 CSV | ✅ | 스크립트 | |
+| 프레임워크 | 읽는 것 |
+|---|---|
+| Ultralytics YOLO | `results.csv`, `args.yaml` |
+| Hugging Face Trainer | `trainer_state.json`(`checkpoint-*` 안도) |
+| PyTorch Lightning | `CSVLogger`의 `metrics.csv`, `hparams.yaml` |
+| Keras | `CSVLogger` 파일(`training.log`, `history.csv`) |
+| TensorBoard 기록 | `events.out.tfevents.*` 스칼라, TensorFlow 없이 읽음. `epoch` 태그가 있으면 에폭, 없으면 step 기준 |
+| 비전 연구 코드(MAE, DeiT, DINO, BEiT, ConvNeXt) | 에폭마다 JSON 한 줄인 `log.txt` |
+| timm `train.py` | `summary.csv`(`eval_top1`이 주 점수), `args.yaml` |
+| OpenMMLab(MMDetection 3.x, MMPretrain, MMSegmentation) | `vis_data/scalars.json`, 저장된 설정의 `max_epochs`(에폭 기반 학습만) |
+| Weights & Biases(로컬 파일) | `wandb/run-*/run-*.wandb`, wandb 설치 없이 읽음. `epoch` 값이 기록돼 있으면 에폭, 없으면 `_step` 기준. SSH로도 |
+| 직접 만든 학습 루프 | 첫 열이 `epoch`·`step`·`iter`·`iteration`이고 loss 열이 있는 CSV |
 
 진행률과 남은 시간을 내려면 전체 길이를 알아야 합니다. 에폭 수는 프레임워크 자체 파일이나 기록 옆 설정 파일
 (`args.yaml`, `args.json`, `config.yaml`, `config.json`, `hparams.yaml`, `opt.yaml`)에서, step 학습은 같은 파일의
-`max_steps`, `total_steps`, `max_iters` 같은 전체 step 수에서 읽습니다. 다른 프레임워크를 더하려면 작은 어댑터 클래스
+`max_steps`, `total_steps`, `max_iters` 같은 전체 step 수에서 읽습니다. Keras는 기록 옆 `args.yaml`의 `epochs`, Lightning은 `hparams.yaml`의 `max_epochs`(또는 `epochs`, 하이퍼파라미터로 저장했을 때만 있음)를 읽고, 없으면 진행률·남은 시간이 비어 있습니다.
+최고 점수는 검증 지표(또는 Hugging Face의 `best_metric`)를 기록한 학습에만 나오고, 손실만 기록한 학습에는 없습니다(`eval_loss`만 평가한 Hugging Face 학습은 가장 낮은 `eval_loss`가 최고 점수). Hugging Face 학습은 체크포인트를 저장할 때 갱신됩니다. 다른 프레임워크를 더하려면 작은 어댑터 클래스
 하나면 되고, 목록은 `src/epokio/adapters.py`에 있습니다. 직접 만든 루프에서 `epokio.start`로 기록하는 방법은 [remote.md](remote.md).
 
 ## 알림
 
-알림은 학습 기계가 직접 보내므로 맥이 꺼져 있어도 옵니다. 웹훅은 `https`여야 합니다.
+알림은 학습 기계가 직접 보내므로 맥이 꺼져 있어도 옵니다. 다만 그 기계에서 도우미가 돌 때만 갑니다. 웹훅은 `https`여야 합니다.
 [ntfy](https://ntfy.sh) 주소(예: `https://ntfy.sh/비밀-주제`)나 Slack, Discord, 텔레그램 웹훅을 넣으세요.
 
 * **맥 앱:** 설정 → 알림.
@@ -109,6 +122,23 @@ py -m epokio alerts --add https://ntfy.sh/비밀-주제
 py -m epokio alerts --test
 ```
 
+### 코랩·노트북(도우미 없이)
+
+도우미를 띄울 수 없는 곳에서는 학습 프로세스가 직접 알림을 보낼 수 있습니다. 웹훅을 한 번 저장하고(도우미와 같은 파일) `notify=True`를 줍니다.
+
+```python
+!pip install epokio
+!epokio alerts --add https://ntfy.sh/비밀-주제
+
+import epokio
+with epokio.start("runs/colab-exp", epochs=20, notify=True) as run:
+    for epoch in range(20):
+        ...
+        run.log(train_loss=tl, val_loss=vl, acc=acc)
+```
+
+`with` 블록이 끝나면(완료) 또는 오류로 끝나면(실패, 오류 종류와 문구) 알림이 갑니다. 표준 라이브러리만 쓰고, 네트워크가 안 돼도 학습은 멈추지 않습니다. 같은 폴더를 도우미도 지켜보고 있으면 같은 알림을 다시 보내지 않습니다.
+
 ## SSH로 원격 기계 보기
 
 맥 앱에서 **설정 → 기계 → SSH로 보기**를 열고 `~/.ssh/config`의 호스트를 고릅니다(`ProxyJump` 포함).
@@ -125,8 +155,8 @@ py -m epokio alerts --test
 * 에폭 없이 iteration 기반으로 도는 OpenMMLab 학습은 읽지 않습니다.
 * SSH로는 알려진 기록 이름만 읽고, 아무 CSV나 읽지는 않습니다. 크기 한도를 넘은 바이너리 기록과 설정은 건너뜁니다.
 * 직접 만든 CSV 이름이 `results.csv`, `metrics.csv`, `epokio_log.csv`이면 Ultralytics, Lightning, `epokio.start` 쪽 읽기로 넘어가 직접 만든 CSV로 읽히지 않습니다. 다른 이름을 쓰세요.
-* 위 자원 수치는 백그라운드 도우미 하나만, 바뀌지 않는 학습 폴더 50개를 맥에서 잰 값입니다(RSS 약 45MB, CPU 1분에 0.25초 미만).
-* 라벨 편집기와 자동 라벨링 시작은 맥 전용입니다. 웹 화면은 보기, 학습, 대기열, 비교, 검수, 스윕, 알림을 다룹니다.
+* 위 자원 수치는 백그라운드 도우미 하나만 잰 값입니다(메모리: 맥, 학습 폴더 50개. CPU: 학습 폴더 330개, 쉴 때 1분에 약 0.67초, 학습 하나가 돌 때 약 1.7초).
+* **공용 서버:** 기본값으로는 그 기계에 로그인할 수 있는 사람 누구나 `127.0.0.1`의 도우미를 읽을 수 있습니다(학습, 설정, 로그). `--require-token`으로 띄워 보는 것에도 토큰이 필요하게 하고, 사람마다 그 사람 폴더로 제한한 토큰을 주세요: `epokio agent --add-token alice --scope read --root /data/alice/runs`(`--root`는 여러 번, 무늬도 됩니다). 그 토큰은 학습 목록, 학습 화면, 그림, 사건, 표에서 그 폴더 안 학습만 보고, 그 밖(대기열, 스윕, 설정, 바꾸기)은 못 합니다. `--root` 없이 만든 토큰은 지켜보는 학습을 전부 봅니다.
 * 맥 앱은 공증, 윈도우 앱은 서명을 받지 않아 둘 다 처음 실행할 때 경고가 뜹니다.
 * 도우미는 암호화되지 않은 HTTP로 통신합니다. `--lan`보다 SSH 터널이나 Tailscale을 권합니다.
 

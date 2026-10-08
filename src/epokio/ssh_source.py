@@ -1,13 +1,13 @@
-"""SSH 가벼운 모드: 서버에 아무것도 설치하지 않고 원격 학습을 본다(보기 전용).
+"""SSH light mode: watch remote training without installing anything on the server (view only).
 
-흐름: 이 Mac의 agent가 `ssh -o BatchMode=yes 호스트 python3 -` 로 아래 REMOTE 스크립트(표준 라이브러리만)를 넘긴다
-→ 서버가 학습 폴더를 찾아 작은 기록 파일(results.csv·args.yaml·trainer_state.json…)을 JSON으로 돌려준다
-→ ~/.epokio/ssh/<호스트>/ 아래에 같은 모양으로 비춰 둔다(mirror). 파일 시각은 서버 시각에 맞춘다
-→ 나머지(목록·상태·상세·알림)는 로컬 폴더와 똑같이 기존 scan·adapters가 처리한다. 판정 로직은 한 벌.
+Flow: the agent on this Mac passes the REMOTE script below (stdlib only) via `ssh -o BatchMode=yes host python3 -`
+-> the server finds run folders and returns small log files (results.csv, args.yaml, trainer_state.json...) as JSON
+-> they are mirrored with the same layout under ~/.epokio/ssh/<host>/. File times are set to the server times
+-> everything else (list, status, details, alerts) uses the existing scan and adapters, like local folders. One set of logic.
 
-* 서버에 필요한 것: python3 하나. 비밀번호·호스트 키 확인은 우회하지 않는다(BatchMode: 키 없으면 실패로 알림)
-* 폴더: 자동 탐색(홈 아래 흔한 곳, 깊이 제한) + 사용자가 적은 경로
-* 그림·가중치는 가져오지 않는다. 학습 시작·스윕은 agent가 필요하다
+* Server needs only python3. Password and host key checks are not bypassed (BatchMode: without a key it fails and reports)
+* Folders: auto-discovery (common places under home, depth-limited) + paths the user lists
+* Images and weights are not fetched. Starting training and sweeps need the agent
 """
 from __future__ import annotations
 
@@ -30,15 +30,15 @@ log = logging.getLogger(__name__)
 HOME = Path.home() / ".epokio"
 CONFIG = HOME / "ssh_hosts.json"
 MIRROR = HOME / "ssh"
-EVERY = 15                        # 서버 한 대를 이 간격(초)으로 읽는다
+EVERY = 15                        # read each server at this interval (seconds)
 TIMEOUT = 25
-MAX_BACKOFF = 8                   # 실패한 서버는 간격을 2배씩, 최대 이 배수까지 늘린다
-WORKERS = 4                       # 서버를 동시에 읽는다(죽은 서버 하나가 나머지를 늦추지 않게)
+MAX_BACKOFF = 8                   # failing servers: interval doubles, up to this multiple
+WORKERS = 4                       # read servers concurrently (one dead server does not delay the rest)
 CONTROL_DIR = HOME / "ssh-control"
 
-from .ssh_remote import REMOTE                 # 서버에서 도는 스크립트(400줄 상한 때문에 따로)
+from .ssh_remote import REMOTE                 # script that runs on the server (separate because of the 400-line cap)
 
-HOST_RE = re.compile(r"^[A-Za-z0-9_.@:\-\[\]]+$")      # ssh 옵션으로 읽힐 수 있는 "-"로 시작하는 이름은 막는다
+HOST_RE = re.compile(r"^[A-Za-z0-9_.@:\-\[\]]+$")      # names starting with "-" (could be read as ssh options) are rejected
 
 
 def valid_host(h: str) -> bool:
@@ -46,7 +46,7 @@ def valid_host(h: str) -> bool:
 
 
 def config_hosts(path: Path | None = None) -> list[str]:
-    """~/.ssh/config 의 Host 이름들(와일드카드 제외)"""
+    """Host names in ~/.ssh/config (wildcards excluded)"""
     p = path or Path.home() / ".ssh" / "config"
     try:
         text = p.read_text(encoding="utf-8", errors="ignore")
@@ -68,7 +68,7 @@ def load() -> list[dict]:
         try:
             text = raw.decode("utf-8")
         except UnicodeDecodeError:
-            text = raw.decode(locale.getpreferredencoding(False), errors="replace")   # 예전 판이 이 기계의 기본 인코딩으로 쓴 파일
+            text = raw.decode(locale.getpreferredencoding(False), errors="replace")   # older versions wrote the locale encoding
         hs = json.loads(text)
         return [h for h in hs if isinstance(h, dict) and valid_host(h.get("host", ""))]
     except (OSError, ValueError):
@@ -78,7 +78,7 @@ def load() -> list[dict]:
 def save(hosts: list[dict]) -> None:
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     tmp = CONFIG.with_suffix(".tmp")
-    # utf-8로. ★인코딩 없이 써서 한국어 윈도우에선 cp949였고, cp949에 없는 글자가 들어오면 저장이 실패했다
+    # utf-8. Previously written without an encoding: cp949 on Korean Windows, and saving failed on chars cp949 lacks
     tmp.write_text(json.dumps(hosts, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(CONFIG)
 
@@ -88,13 +88,13 @@ def mirror_dir(host: str) -> Path:
 
 
 def _ssh_cmd(ssh, host: str, arg: str) -> list[str]:
-    """ssh 명령 줄. ssh는 프로그램 이름 하나 또는 [프로그램, 인자...] 목록"""
+    """ssh command line. ssh is a program name or a [program, args...] list"""
     cmd = [ssh] if isinstance(ssh, str) else list(ssh)
     cmd += ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8"]
-    # ★한 서버에 15초마다 새로 로그인하면 하루 5,760번이라 서버 로그가 쌓이고 fail2ban에 걸린다.
-    #   접속을 재사용한다(ControlMaster). 소켓은 ~/.epokio/ssh-control 아래에만 둔다.
-    #   윈도우판 OpenSSH는 ControlMaster(유닉스 소켓 공유)를 지원하지 않아 켜면 접속 자체가 실패한다.
-    #   그래서 윈도우에서는 빼고 매번 새로 접속한다(느리고 서버 로그가 더 쌓인다, 상태의 note로 알린다)
+    # Logging in fresh every 15 s is 5,760 logins a day per server: server logs pile up and fail2ban kicks in.
+    #   So reuse the connection (ControlMaster). Sockets live only under ~/.epokio/ssh-control.
+    #   Windows OpenSSH does not support ControlMaster (Unix socket sharing); enabling it makes the connection fail.
+    #   So on Windows it is left out and every read logs in anew (slower, more server log; reported via the status note)
     if sys.platform != "win32":
         CONTROL_DIR.mkdir(parents=True, exist_ok=True)
         try:
@@ -111,14 +111,14 @@ NO_REUSE_NOTE = ("Windows OpenSSH cannot reuse connections (ControlMaster), "
 
 
 def run_remote(host: str, cfg: dict, ssh="ssh", timeout: float = TIMEOUT, have: dict | None = None) -> dict:
-    """서버에서 스캔 스크립트를 돌린다. 실패하면 ValueError(사람이 읽을 이유).
-    have: {원격 폴더: {파일: 원격 수정 시각}}. 스크립트 앞에 붙여 표준 입력으로 보낸다(★명령줄로는 길이 제한에 걸린다)"""
+    """Run the scan script on the server. On failure, ValueError (human-readable reason).
+    have: {remote folder: {file: remote mtime}}. Prepended to the script and sent via stdin (the command line hits length limits)"""
     if not valid_host(host):
         raise ValueError("invalid host name")
     arg = json.dumps({"paths": cfg.get("paths", []), "auto": cfg.get("auto", True)})
     cmd = _ssh_cmd(ssh, host, arg)
     try:
-        # 바이트로 넘긴다: 텍스트 모드는 윈도우에서 스크립트의 \n을 \r\n으로 바꾸고, 출력은 로캘 코드페이지로 읽는다
+        # pass bytes: text mode on Windows turns the script's \n into \r\n and reads output in the locale code page
         script = "HAVE_JSON = " + repr(json.dumps(have or {})) + "\n" + REMOTE
         p = subprocess.run(cmd, input=script.encode("utf-8"), capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -139,12 +139,12 @@ def run_remote(host: str, cfg: dict, ssh="ssh", timeout: float = TIMEOUT, have: 
 
 
 def _quote(s: str) -> str:
-    """원격 셸에 넘길 한 인자(작은따옴표로 감싼다)"""
+    """One argument for the remote shell (wrapped in single quotes)"""
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
 def apply(host: str, got: dict, now: float | None = None) -> int:
-    """받은 기록을 비춰 둔다. 서버 시계와 이 Mac 시계 차이는 보정한다. 사라진 학습 폴더는 지운다. 학습 수"""
+    """Mirror the received logs, correcting server vs. this Mac clock skew, and delete vanished run folders. Returns run count"""
     now = time.time() if now is None else now
     skew = now - float(got.get("now") or now)
     base = mirror_dir(host)
@@ -158,43 +158,43 @@ def apply(host: str, got: dict, now: float | None = None) -> int:
             if _safe_rel(name):
                 _put(host, str(r["path"]), d / name, name, pair, float(pair[0]) + skew, skipped)
                 t = _TAIL.get(host, {}).get((str(r["path"]), name))
-                if t and (d / name).exists():                    # 끝부분만 가진 파일: 앞 기록이 빠졌다고 알린다
+                if t and (d / name).exists():                    # file with only its tail: report that earlier records are missing
                     kept = (d / name).stat().st_size - t[0]
                     skipped.append({"path": str(r["path"]), "name": name, "size": kept + t[1], "kept": kept})
-    if base.is_dir() and not got.get("truncated"):               # 서버에서 지운 학습은 여기서도
-        for f in list(base.rglob("*")):                          # ★다 못 본 스캔으로 지우면 멀쩡한 학습이 화면에서 사라진다
+    if base.is_dir() and not got.get("truncated"):               # runs deleted on the server go here too
+        for f in list(base.rglob("*")):                          # deleting after an incomplete scan made healthy runs vanish
             if f.is_file() and f.name != _PARENT_FILE and not any(k == f.parent or k in f.parents for k in keep):
                 f.unlink(missing_ok=True)
     before = {(x["path"], x["name"]) for x in _SKIPPED.get(host, [])}
     _SKIPPED[host] = skipped
     skipped = [x for x in skipped if "kept" not in x]
-    if skipped and {(x["path"], x["name"]) for x in skipped} != before:     # 15초마다 같은 경고를 쌓지 않는다
+    if skipped and {(x["path"], x["name"]) for x in skipped} != before:     # do not repeat the same warning every 15 s
         log.warning("ssh %s: skipped %d log file(s) over the size limit: %s", host, len(skipped),
                     ", ".join(x["path"] + "/" + x["name"] for x in skipped[:5]))
     return len(keep)
 
 
 def _put(host: str, rpath: str, f: Path, name: str, pair: list, mt: float, skipped: list) -> None:
-    """파일 하나를 비춤에 쓴다. 모양은 ssh_remote.py 머리말"""
+    """Write one file to the mirror. Format: see the ssh_remote.py header"""
     kind = pair[2] if len(pair) > 2 else None
     have = _HAVE.setdefault(host, {}).setdefault(rpath, {})
     tails = _TAIL.setdefault(host, {})
-    if kind == "too_large":                                   # 한도를 넘어 안 왔다: 알리고, 있던 비춤은 그대로
+    if kind == "too_large":                                   # over the limit, not sent: report it, keep the existing mirror
         skipped.append({"path": rpath, "name": name, "size": int(pair[3])})
         have.pop(name, None)
         tails.pop((rpath, name), None)
         return
     f.parent.mkdir(parents=True, exist_ok=True)
-    if pair[1] is None:                                       # 서버: 지난번과 같다. 비춤이 남아 있으면 그대로
+    if pair[1] is None:                                       # server: unchanged since last time. keep the mirror if present
         if f.exists():
             have[name] = pair[0]
             os.utime(f, (mt, mt))
         return
-    if kind in ("append", "append_b64"):                      # 뒤에 붙은 조각만 왔다
+    if kind in ("append", "append_b64"):                      # only the appended chunk arrived
         data = pair[1].encode("utf-8") if kind == "append" else base64.b64decode(pair[1])
         t = tails.get((rpath, name), (0, 0))
         if not f.exists() or f.stat().st_size != int(pair[3]) - t[1] + t[0]:
-            have.pop(name, None)                              # 이 Mac 쪽이 어긋났다: 다음번엔 통째로
+            have.pop(name, None)                              # this Mac side is out of sync: fetch whole next time
             _FULL.setdefault(host, set()).add((rpath, name))
             tails.pop((rpath, name), None)
             return
@@ -202,11 +202,11 @@ def _put(host: str, rpath: str, f: Path, name: str, pair: list, mt: float, skipp
             fh.write(data)
     else:
         data = base64.b64decode(pair[1]) if kind == "b64" else pair[1].encode("utf-8")
-        if kind == "tail":                                    # 첫 줄 + 끝부분: (첫 줄 길이, 서버에서 끝부분 시작 위치)
+        if kind == "tail":                                    # first line + tail: (first line length, tail start offset on server)
             tails[(rpath, name)] = (int(pair[4]), int(pair[3]))
         else:
             tails.pop((rpath, name), None)
-        if not f.exists() or f.read_bytes() != data:          # 개행을 바꾸지 않고 바이트 그대로(윈도우)
+        if not f.exists() or f.read_bytes() != data:          # raw bytes, newlines untouched (Windows)
             tmp = f.with_name(f.name + ".tmp")
             tmp.write_bytes(data)
             tmp.replace(f)
@@ -215,19 +215,19 @@ def _put(host: str, rpath: str, f: Path, name: str, pair: list, mt: float, skipp
     os.utime(f, (mt, mt))
 
 
-_HAVE: dict[str, dict[str, dict[str, float]]] = {}      # 호스트 → 원격 폴더 → 파일 → 받은 원격 수정 시각
-_FULL: dict[str, set] = {}                               # 호스트 → 이어 받기가 어긋나 통째로 다시 받을 (폴더, 파일)
-_TAIL: dict[str, dict] = {}                              # 호스트 → (폴더, 파일) → (비춤 앞 첫 줄 길이, 서버 쪽 끝부분 시작)
-_SKIPPED: dict[str, list] = {}                           # 호스트 → 지난 읽기에서 한도를 넘어 건너뛴 파일
+_HAVE: dict[str, dict[str, dict[str, float]]] = {}      # host -> remote folder -> file -> received remote mtime
+_FULL: dict[str, set] = {}                               # host -> (folder, file) to refetch whole after resume went out of sync
+_TAIL: dict[str, dict] = {}                              # host -> (folder, file) -> (mirror first-line length, server tail start)
+_SKIPPED: dict[str, list] = {}                           # host -> files skipped over the limit on the last read
 
 
 def skipped(host: str) -> list[dict]:
-    """한도를 넘은 기록 파일. "kept"가 있으면 건너뛴 게 아니라 끝부분(kept 바이트)만 받아 이어 가는 중"""
+    """Log files over the limit. With "kept", not skipped: only the tail (kept bytes) is fetched and continued"""
     return list(_SKIPPED.get(host, []))
 
 
 def _print(f: Path) -> list | None:
-    """비춤 파일의 [크기, 처음 4KB 지문, 마지막 4KB 지문]. 서버가 같은 앞부분인지 보고 뒤만 보낸다"""
+    """[size, first 4KB hash, last 4KB hash] of a mirror file. The server checks the head matches and sends only the rest"""
     try:
         with open(f, "rb") as fh:
             size = os.fstat(fh.fileno()).st_size
@@ -239,7 +239,7 @@ def _print(f: Path) -> list | None:
 
 
 def have_for(host: str) -> dict:
-    """다음 스캔에 보낼 '이미 받은 것' {폴더: {파일: [시각, 크기, 지문, 지문]}}. 비춤 파일이 지워졌으면 빼서 다시 받는다"""
+    """'Already have' for the next scan: {folder: {file: [mtime, size, hash, hash]}}. Deleted mirror files get refetched"""
     out = {}
     full = _FULL.get(host, set())
     for path, files in _HAVE.get(host, {}).items():
@@ -248,7 +248,7 @@ def have_for(host: str) -> dict:
         for n, m in files.items():
             fp = _print(d / n) if d is not None and (path, n) not in full else None
             t = _TAIL.get(host, {}).get((path, n))
-            if fp and t:                                         # 서버 기준 크기로, 처음 지문은 없음(끝 k바이트만 맞춰 본다)
+            if fp and t:                                         # server-side size, no head hash (match only the last k bytes)
                 k = min(4096, fp[0] - t[0])
                 with open(d / n, "rb") as fh:
                     fh.seek(fp[0] - k)
@@ -261,7 +261,7 @@ def have_for(host: str) -> dict:
 
 
 def _safe_rel(name: str) -> bool:
-    """서버가 준 파일 이름이 비춤 폴더 밖으로 못 나가는가. 윈도우에서 절대 경로가 되는 C: 와 \\ 도 막는다"""
+    """Can a server-given file name not escape the mirror folder? Also blocks C: and \\ which become absolute paths on Windows"""
     parts = re.split(r"[\\/]", name)
     return bool(name) and "" not in parts and ".." not in parts and "." not in parts and ":" not in name
 
@@ -270,7 +270,7 @@ _WIN_BAD = re.compile(r'[<>:"|?*%\x00-\x1f]')
 
 
 def _local_name(n: str) -> str:
-    """학습 폴더 이름을 이 기계에서 만들 수 있게. 윈도우에서만 금지 글자와 끝의 점·공백을 %XX로(맥·리눅스는 그대로)"""
+    """Make a run folder name creatable here. On Windows only, bad chars, trailing dots/spaces become %XX (Mac/Linux as is)"""
     if sys.platform != "win32":
         return n
     n = _WIN_BAD.sub(lambda m: "%%%02X" % ord(m.group()), n)
@@ -282,8 +282,8 @@ def _win_path(p: str) -> bool:
 
 
 def local_dir(host: str, remote: str) -> Path | None:
-    """서버 경로 → 비춤 폴더. <호스트>/<부모 경로를 한 칸으로>/<학습 폴더>: scan 깊이 안에 들고, 학습 이름은 그대로.
-    윈도우 서버 경로(C:\\a\\b)는 \\ 로 가르고 부모를 그 모양대로 적어 둔다(remote_path가 되돌린다)"""
+    """Server path -> mirror folder. <host>/<parent path as one level>/<run folder>: stays within scan depth, run name unchanged.
+    Windows server paths (C:\\a\\b) split on \\ and the parent is written in that form (remote_path reverses it)"""
     win = _win_path(remote)
     parts = [p for p in re.split(r"[\\/]" if win else "/", remote) if p]
     if not parts or ".." in parts or "." in parts:
@@ -296,8 +296,8 @@ _PARENT_FILE = ".remote-parent"
 
 
 def _parent_dir(host: str, parent: str) -> Path:
-    """부모 경로 한 칸. 윈도우에서 길면 짧은 이름으로 두고 원래 경로를 그 안의 .remote-parent에 적는다(remote_path가 읽는다).
-    ★윈도우는 경로 260자 제한이라, 서버 경로를 통째로 옮긴 이름이 길면 비춤 파일을 못 만들어 그 학습이 안 보였다"""
+    """One level for the parent path. Long ones on Windows get a short name; original path in its .remote-parent (for remote_path).
+    Windows has a 260-char path limit; previously a long name copied from the server path made mirror files fail, hiding that run"""
     q = urllib.parse.quote(parent, safe="")
     if sys.platform != "win32" or len(q) <= 60:
         return mirror_dir(host) / q
@@ -313,7 +313,7 @@ def _parent_dir(host: str, parent: str) -> Path:
 
 
 def host_of(path: str) -> str | None:
-    """비춰 둔 폴더면 그 호스트 이름(등록할 때 쓴 이름). ★목록마다 부르므로 글자 비교만"""
+    """Host name (as registered) if this is a mirrored folder. Called for every list entry, so string comparison only"""
     base = str(MIRROR) + os.sep
     if not path.startswith(base):
         return None
@@ -322,11 +322,11 @@ def host_of(path: str) -> str | None:
 
 
 def remote_path(path: str) -> str:
-    """비춰 둔 폴더 → 서버의 원래 경로"""
+    """Mirrored folder -> original path on the server"""
     rest = path[len(str(MIRROR)) + 1:].split(os.sep)
     if len(rest) < 3:
         return ""
-    if rest[1].startswith("~"):                                   # 길어서 줄인 부모 경로(_parent_dir)
+    if rest[1].startswith("~"):                                   # shortened long parent path (_parent_dir)
         try:
             parent = (MIRROR / rest[0] / rest[1] / _PARENT_FILE).read_text(encoding="utf-8")
         except OSError:
@@ -339,12 +339,12 @@ def remote_path(path: str) -> str:
 
 
 class Poller:
-    """등록된 서버를 뒤에서 차례로 읽는다. 상태는 status[호스트] = {ok, error, runs, at, python}"""
+    """Reads registered servers in turn in the background. Status is status[host] = {ok, error, runs, at, python}"""
 
     def __init__(self, ssh: str = "ssh"):
         self.ssh = ssh
         self.status: dict[str, dict] = {}
-        self._fails: dict[str, int] = {}        # 연이어 실패한 횟수(간격을 늘린다)
+        self._fails: dict[str, int] = {}        # consecutive failures (widens the interval)
         self._wake = threading.Event()
         self._stop = False
 
@@ -360,14 +360,14 @@ class Poller:
                   "truncated": bool(got.get("truncated")), "skipped": skipped(h),
                   "note": NO_REUSE_NOTE if sys.platform == "win32" else None}
             self._fails.pop(h, None)
-        except (ValueError, OSError) as e:       # OSError: 비춤 폴더를 못 만듦 등. 뒤 스레드가 죽지 않게
+        except (ValueError, OSError) as e:       # OSError: mirror folder not creatable, etc. Keeps the thread alive
             self._fails[h] = min(self._fails.get(h, 0) + 1, 10)
             st = {**self.status.get(h, {}), "ok": False, "error": str(e), "at": time.time()}
         self.status[h] = st
         return st
 
     def due(self, h: str, now: float) -> bool:
-        """실패한 서버는 점점 드물게 본다(2배씩, 최대 MAX_BACKOFF배)"""
+        """Failing servers are checked less and less often (doubling, up to MAX_BACKOFF times)"""
         st = self.status.get(h)
         if not st or st.get("ok"):
             return True
@@ -386,7 +386,7 @@ class Poller:
         while not self._stop:
             now = time.time()
             hosts = [h for h in load() if h.get("on", True) and self.due(h["host"], now)]
-            if hosts:                                    # 서버를 동시에: 죽은 서버의 25초 대기가 줄줄이 쌓이지 않는다
+            if hosts:                                    # servers in parallel: 25 s waits on dead servers do not stack up
                 list(pool.map(self.poll_once, hosts))
             self._wake.wait(EVERY)
             self._wake.clear()

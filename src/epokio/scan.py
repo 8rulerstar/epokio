@@ -11,7 +11,7 @@ from pathlib import Path
 from . import adapters, schema
 
 STALE_SEC = 180       # 이 시간 넘게 안 변하면 진행 중이 아니다
-MIN_EPOCH_SEC = 1.0   # 시간 열 없이 폴더 시각으로 잰 에폭이 이보다 빠르면 잰 게 아니라 복사된 것이다
+COPY_SPREAD_SEC = 0.05   # 시간 열 없이 폴더 시각으로 잰 학습 전체가 이보다 짧으면 잰 게 아니라 복사된 것이다(파일이 한 순간에 생김)
 ENDED_SEC = 30 * 60   # 이 시간 넘으면 '멎은 것'이 아니라 '끝난 것'
 #   ⚠둘을 나눈 이유: 조기종료(patience)로 끝난 run은 total보다 적은 에폭에서 멈춘다.
 #   시간 기준이 없으면 몇 달 전에 정상 종료된 학습까지 전부 "멈춤 경고"로 뜬다.
@@ -23,7 +23,8 @@ SKIP_DIRS = {         # 학습 폴더 안에 있지만 results.csv가 있을 리
     "images", "labels", "weights", "dataset", "datasets",
     ".git", ".venv", "node_modules", "__pycache__",
 }
-
+# 지켜보는 폴더 → 윈도우 경로 260자 제한에 걸려 못 읽은 폴더. /runs가 slow_roots로 알린다(LongPathsEnabled가 꺼진 기본 윈도우)
+TOO_LONG: dict[str, list[str]] = {}
 
 
 @dataclass
@@ -50,6 +51,8 @@ class Run:
     metric_higher: bool = True     # 대표 점수가 높을수록 좋은가. ★화면이 열 이름을 다시 해석하지 않게 실어 보낸다.
     #   기본 True: 이 필드가 없던 옛 agent(원격·SSH) 응답을 from_dict로 읽을 때 예전 가정("높을수록 좋다") 그대로.
     x_axis: str = "epoch"          # "step"이면 epoch·total·best_epoch가 step 번호다(W&B·TensorBoard·CSV의 step 기록). 화면은 단위만 바꾼다
+    error: str = ""                # 실패 이유("RuntimeError: CUDA out of memory"). epokio.start()가 예외로 죽었을 때
+    resumed_from: str = ""         # 이 학습이 이어 한 앞 학습 폴더(Lightning version_1 ← version_0). 앞 것은 알림을 안 낸다
 
     def __post_init__(self):
         if self.lower is None:     # 방향을 안 준 Run(시험·옛 코드): metric_higher가 False면 그대로, 아니면 열 이름으로
@@ -98,7 +101,7 @@ def _read_total_epochs(run_dir: Path) -> int | None:
         return None
 
 
-from .scan_names import alias_of_sibling, display_name, fmt_dur, unique  # noqa: E402,F401  (옛 import 경로 유지)
+from .scan_names import STATE_ORDER, alias_of_sibling, crash_reason, display_name, find_override, fmt_dur, sort_runs, too_long, unique  # noqa: E402,F401  (옛 import 경로 유지)
 from .scan_timing import _to_float, recent_epoch_sec, recent_unit_sec  # noqa: E402,F401
 
 _pick_metric = schema.pick_metric      # 옛 이름(윈도우 쪽 코드·시험이 부른다)
@@ -133,13 +136,13 @@ def stall_limits(epoch_sec: float | None) -> tuple[float, float]:
 
 @dataclass
 class _Meta:
-    """요약에 필요한 것만. ★예전엔 어댑터가 읽은 것(모든 에폭의 모든 행)을 통째로 캐시에 들고 있어서
-    학습 2,000개에서 agent 메모리가 583MB였다(그중 497MB가 CSV 행). 쓰는 건 이 넷뿐이다"""
+    """요약에 필요한 것만. ★어댑터가 읽은 행을 통째로 캐시에 들고 있어 학습 2,000개에서 agent 메모리가 583MB였다"""
     source: Path
     framework: str
     total: int | None          # args.yaml의 epochs(없으면 어댑터가 찾은 값). step 축이면 계획 step 수
     updated: float             # 기록 파일의 수정 시각
     x_axis: str = "epoch"
+    resumed_from: str = ""     # 이어 한 앞 학습 폴더 이름(Lightning version_N)
 
 
 # 학습 폴더 → (기록 파일, (mtime, size), 요약, 메타)
@@ -171,8 +174,7 @@ def _overrides() -> dict[str, tuple[str, bool]]:
 
 def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
     """프레임워크 어댑터로 에폭별 행을 받아 요약한다. 원본 파일이 그대로면 다시 안 읽는다."""
-    # ★기록 파일의 시각·크기부터 본다. 예전엔 파일을 통째로 읽은 뒤에 비교해서, 캐시가 있어도
-    #   폴링마다 모든 학습의 CSV를 다시 읽었다(학습 200개·300에폭에서 한 번 훑는 데 370ms)
+    # ★기록 파일의 시각·크기부터 본다(파일을 다 읽은 뒤 비교해 폴링마다 모든 CSV를 다시 읽었다, 학습 200개에 370ms)
     # 폴더 자체의 수정 시각도 본다. ★Hugging Face는 새 체크포인트를 새 폴더(checkpoint-N)에 써서, 읽은 파일만 보면
     #   첫 체크포인트에서 멈춘 것처럼 보이다가 3분 뒤 '멎음' 알림(폰까지)을 보냈다. 폴더에 항목이 생기면 폴더 시각이 바뀐다
     try:
@@ -180,7 +182,7 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
     except OSError:
         dir_mtime = None
     from .runmeta import key as meta_key
-    ov = _overrides().get(meta_key(str(run_dir)))
+    ov = find_override(_overrides(), run_dir, meta_key)   # 그 학습, 없으면 위 폴더에 정한 기본값
     hit = _cache.get(run_dir)
     if hit:
         try:
@@ -220,9 +222,8 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
     cols = list(last.keys()) + sorted({k for r in rows for k in r} - set(last.keys()))
     chosen = bool(ov and ov[0] in cols)
     mname = ov[0] if chosen else schema.pick_metric(cols)
-    # 방향은 하나로 정한다: 고른 점수면 사람이 정한 방향, 자동이면 열 이름으로(schema.higher_is_better).
-    # Run.lower(윈도우 쪽 이름)와 Run.metric_higher(맥 쪽 이름)는 늘 서로 반대값이다
-    lower = bool(ov[1]) if chosen else (not schema.higher_is_better(mname) if mname else False)
+    # 방향: 고른 점수면 사람이 정한 방향, 자동이면 학습이 적은 방향이나 열 이름(schema.lower_for). lower와 metric_higher는 늘 반대
+    lower = bool(ov[1]) if chosen else schema.lower_for(mname, loaded.args)
     best = best_epoch = None
     if mname:
         vals = []
@@ -264,11 +265,12 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
             parsed.elapsed = max(st.st_mtime - born, 0.0)
         except (OSError, ValueError):
             pass
-        # ★다른 기계에서 복사해 온 폴더는 모든 파일이 한 순간에 생겨 에폭당 0초·남은 시간 0초로 보였다. 모름으로 둔다
-        if axis == "epoch" and parsed.epoch and parsed.elapsed < parsed.epoch * MIN_EPOCH_SEC:
+        # ★복사본은 파일이 한 순간에 생겨 0초로 보였다(모름으로). '에폭 x 1초'로 가르면 빠른 진짜 학습도 시간이 비었다
+        if axis == "epoch" and parsed.epoch and parsed.elapsed < COPY_SPREAD_SEC:
             parsed.elapsed = 0.0
     # args.yaml은 기록 파일이 바뀔 때만 다시 읽는다. step 축이면 args.yaml의 epochs는 단위가 달라 안 본다
-    meta = _Meta(csv_path, loaded.framework, loaded.total if axis == "step" else (_read_total_epochs(run_dir) or loaded.total), st.st_mtime, axis)
+    meta = _Meta(csv_path, loaded.framework, loaded.total if axis == "step" else (_read_total_epochs(run_dir) or loaded.total), st.st_mtime, axis,
+                 str((loaded.args or {}).get("resumed_from") or ""))
     _cache[run_dir] = (csv_path, key, parsed, meta)
     return parsed, meta
 
@@ -290,8 +292,7 @@ def read_run(run_dir: Path, now: float | None = None) -> Run | None:
     p, loaded = got if got else (None, None)
 
     if p is None:
-        # ★results.csv는 1에폭이 끝나야 생긴다. 그 전에도 '시작했다'를 보여 준다.
-        #   args.yaml은 학습이 뜨는 즉시 만들어진다.
+        # ★results.csv는 1에폭이 끝나야 생긴다. 그 전에도 '시작했다'를 보여 준다(args.yaml은 뜨자마자 생긴다)
         args = run_dir / "args.yaml"
         if not args.exists():
             return None
@@ -316,11 +317,11 @@ def read_run(run_dir: Path, now: float | None = None) -> Run | None:
     per = p.unit_sec or ((p.elapsed / p.epoch) if p.epoch and p.elapsed else None)
     stale = _stale_after(p, total)
     ended = max(stall_limits(p.epoch_sec)[1], stale * 3)   # 끝남: 최근 에폭의 10배와 멎음 문턱의 3배 중 큰 쪽
-    if p.diverged:
+    error = crash_reason(run_dir)               # epokio.start()가 예외로 죽으며 남긴 이유(★3분 뒤 '멎음'으로만 보였다)
+    if p.diverged or error:
         state = "failed"
     elif (total and p.epoch >= total) or (run_dir / "epokio_done").exists():
-        # epokio_done: epokio.start() 기록기가 끝날 때 남긴다. ★총 에폭을 모르거나 일찍 멈춘 직접 짠 학습이
-        #   끝나고 3분 뒤 '멎음' 알림(폰까지)을 받았다
+        # epokio_done: epokio.start()가 끝날 때 남긴다(★총 에폭을 모르는 직접 짠 학습이 끝나고 3분 뒤 '멎음' 알림을 받았다)
         state = "done"
     elif idle > ended:
         state = "stopped"     # 조기종료했거나 사람이 껐다
@@ -339,11 +340,11 @@ def read_run(run_dir: Path, now: float | None = None) -> Run | None:
         metric=p.metric, metric_name=p.metric_name, metric_higher=p.metric_higher, lower=p.lower,
         best=p.best, best_epoch=p.best_epoch,
         state=state, idle=idle, updated=updated, history=p.history, framework=loaded.framework,
-        format_warnings=list(getattr(loaded, "warnings", []) or []), x_axis=loaded.x_axis,
-    )
+        format_warnings=list(getattr(loaded, "warnings", []) or []), x_axis=loaded.x_axis, error=error or "",
+               resumed_from=loaded.resumed_from)
 
 
-def _walk(root: Path, depth: int):
+def _walk(root: Path, depth: int, long: list | None = None):
     """results.csv를 가진 폴더만 찾는다. 데이터셋 폴더로 내려가지 않는다."""
     if depth < 0:
         return
@@ -351,35 +352,34 @@ def _walk(root: Path, depth: int):
         with os.scandir(root) as it:           # scandir은 폴더인지를 목록과 같이 준다(★is_dir()이 항목마다 stat을 했다)
             entries = list(it)
     except OSError:
+        if long is not None and too_long(root):
+            long.append(str(root))         # ★WinError 3을 삼켜 260자를 넘는 학습 폴더가 말없이 사라졌다
         return
     names = {e.name for e in entries}
-    if adapters.detect(root, names):
+    found = adapters.detect(root, names)
+    if found and found.name != "custom":
         yield root
         return                      # run 폴더 안으로는 더 안 들어간다
+    kids = []
     for e in entries:
         try:
             is_dir = e.is_dir()
         except OSError:
             continue
         if is_dir and e.name not in SKIP_DIRS and not e.name.startswith(".") and not (e.is_symlink() and alias_of_sibling(Path(e.path), root)):
-            yield from _walk(Path(e.path), depth - 1)
-
-
-STATE_ORDER = {"running": 0, "starting": 1, "stalled": 2, "failed": 3, "stopped": 4, "done": 5}
-
-
-def sort_runs(runs: list[Run]) -> list[Run]:
-    return sorted(runs, key=lambda r: (STATE_ORDER.get(r.state, 9), r.idle))
+            kids.extend(_walk(Path(e.path), depth - 1, long))
+    # ★이름 무관 CSV만 있는 폴더는 아래에 학습이 없을 때만 학습(runs/loss_summary.csv가 아래 학습 8개를 1개로 만들었다)
+    yield from (kids or ([root] if found else []))
 
 
 _broken: set[Path] = set()      # 읽다 예외가 난 학습 폴더(경고는 한 번만)
 
 
 def scan(root: Path, now: float | None = None, max_depth: int = MAX_DEPTH) -> list[Run]:
-    runs = []
+    runs, long = [], []
     # 이 폴더 아래에서 사라진 학습의 요약은 버린다(★지운 학습이 캐시에 영원히 남았다)
     seen = set()
-    for d in _walk(root, max_depth):
+    for d in _walk(root, max_depth, long):
         seen.add(d)
         try:
             r = read_run(d, now=now)
@@ -391,6 +391,9 @@ def scan(root: Path, now: float | None = None, max_depth: int = MAX_DEPTH) -> li
         _broken.discard(d)
         if r:
             runs.append(r)
+        elif too_long(d):
+            long.append(str(d))                 # 폴더는 열리는데 그 안 파일 경로가 260자를 넘는다
+    TOO_LONG[str(root)] = long
     for gone in [d for d in _cache if d not in seen and root in d.parents]:
         _cache.pop(gone, None)
     return sort_runs(runs)

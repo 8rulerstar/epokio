@@ -44,3 +44,22 @@ def test_once_survives_a_console_that_cannot_print_the_bar(tmp_path):
                        capture_output=True, env=env, timeout=60)
     assert r.returncode == 0, r.stderr.decode(errors="replace")[-400:]
     assert b"exp" in r.stdout
+
+
+def test_once_into_a_pipe_uses_ascii_marks_and_bars(capsys):
+    """★--once를 파이프·파일로 받으면 ✓·✗·‖·█가 '?'로 깨지거나 뭉개졌다. 터미널이 아니면 ASCII로 찍는다"""
+    class Feed:
+        where = "folders: x"
+        def runs(self):
+            return [_run("/x/a/train", state="done", total=10, epoch=10), _run("/x/b/train"),
+                    _run("/x/c/train", state="stalled"), _run("/x/d/train", state="failed", meta={"star": True})]
+        def system(self):
+            return None
+    tui.print_once(Feed())                    # capsys의 stdout은 터미널이 아니다
+    out = capsys.readouterr().out
+    assert not set("▶…‖✗■✓★█▌·") & set(out), out
+    lines = out.splitlines()[2:]
+    assert [ln[0] for ln in lines] == [">", "!", "x", "+"] and "#" in lines[0] and "*" in lines[2]
+    assert tui.cells(lines[0]) == tui.cells(lines[3])
+    assert "█" in tui.row(_run("/x/a/train"), 100)          # 터미널 화면(curses)은 그대로
+

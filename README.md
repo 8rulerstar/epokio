@@ -5,8 +5,8 @@
 <h1 align="center">Epokio</h1>
 
 <p align="center">
-  Watches the ML training runs on your machine or a remote GPU server: a macOS menu bar app, plus a web page for Windows, Linux and your phone.<br>
-  No code changes and no account: point it at the folder your runs already write to.
+  <b>Get a phone alert when the training run on your GPU box or server stalls, NaNs or finishes.</b><br>
+  No code changes: it reads the logs you already write. Works over SSH.
 </p>
 
 <p align="center">
@@ -17,14 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/menubar-characters.gif" width="600" alt="A character runs in the menu bar at the speed of your training">
-</p>
-
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/menubar-info-toggle-dark.gif">
-    <img src="docs/images/menubar-info-toggle.gif" width="600" alt="The menu bar item showing progress, epoch and time left as you switch them on">
-  </picture>
+  <img src="docs/images/alert.gif" width="720" alt="A run on the Epokio web page goes from Training to Stalled, and an ntfy alert with the run, epoch and best score arrives on the phone">
 </p>
 
 <p align="center">
@@ -38,15 +31,23 @@
 
 ---
 
+## Why not just use...
+
+| | What it does better than Epokio | What Epokio adds |
+|---|---|---|
+| **TensorBoard** | Rich charts per step, images, histograms, embeddings and the profiler. The reference viewer for event files. | Tells you when a run stalls, hits NaN or finishes, with no browser tab open. One list for many frameworks' logs (it reads TensorBoard files too), and remote boxes over SSH with nothing installed. |
+| **W&B** | Team dashboards, history across machines, sweeps, artifacts, reports and a model registry. Built for sharing. | No account, no logging calls and no upload: data stays on your machines, and it works on servers without internet. It reads W&B's local files, so you can keep both. |
+| **nvitop** | A live view of each GPU, its processes and memory, with process control. | Knows about the run, not only the GPU: epoch, time left, best score, stall and NaN detection, and the phone alert. A busy GPU does not mean training is still progressing. |
+
 ## What it does
 
 * **Reads the logs you already have.** Ultralytics, Hugging Face Trainer, Lightning, Keras, timm, OpenMMLab, W&B local files, TensorBoard event files, MAE/DeiT-style `log.txt` and your own CSV. See [Supported formats](#supported-formats).
 * **Progress, time left and best score in the menu bar**, live. A notification when a run finishes, fails (NaN loss), stalls (a crash or out-of-memory shows up this way) or stops before its last epoch.
 * **Phone alerts** through ntfy, Slack, Discord or Telegram webhooks, sent by the training machine itself, with a test button to check they arrive.
 * **Remote machines over SSH** with nothing installed on the server: only the new tail of each log is copied.
-* **Per-class scores** (precision, recall, mAP per class, weakest first) and a plain-language note on what to change next.
+* **Per-class scores** (precision, recall, mAP per class, weakest first) for Ultralytics runs started from Epokio, or after a one-click per-class check, and a plain-language note on what to change next.
 * **Step-based runs** (W&B without `epoch`, TensorBoard step scalars, a CSV whose first column is `step`, `iter` or `iteration`) show progress in steps.
-* **Compare, review and train** from the Studio window or the web page. Details in [docs/studio.md](docs/studio.md).
+* **More:** a macOS menu bar app (with running characters), a Studio window, compare, starting and queuing runs, labeling review, sweeps and dataset views. See [docs/studio.md](docs/studio.md).
 
 ## Quick start
 
@@ -64,6 +65,17 @@ Full steps for Windows, Linux, the tray icon and remote helpers: [docs/remote.md
 ## What it looks like
 
 <p align="center">
+  <img src="docs/images/menubar-characters.gif" width="600" alt="A character runs in the menu bar at the speed of your training">
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/menubar-info-toggle-dark.gif">
+    <img src="docs/images/menubar-info-toggle.gif" width="600" alt="The menu bar item showing progress, epoch and time left as you switch them on">
+  </picture>
+</p>
+
+<p align="center">
   <img src="docs/images/popover-light.png" width="330" alt="Menu bar popover, light">
   <img src="docs/images/popover-dark.png" width="330" alt="Menu bar popover, dark">
 </p>
@@ -76,38 +88,43 @@ Full steps for Windows, Linux, the tray icon and remote helpers: [docs/remote.md
   <img src="docs/images/studio-compare.png" width="620" alt="Compare: one chart for several runs, their scores, and only the settings that differed">
 </p>
 
-**Resource use.** The background helper alone, watching 50 run folders on a Mac: about 45 MB of memory (RSS) and under 0.25 s of CPU per minute, close to 0%.
+**Resource use.** The background helper alone: about 45 MB of memory (RSS) with 50 run folders on a Mac. CPU is about 0.67 s per minute with 330 run folders and nothing training, and about 1.7 s per minute while one run is live (well under 1% of one core).
 
 ## Supported formats
 
-Epokio reads the files your framework already writes. No logging code to add.
+Epokio reads the files your framework already writes, so there is no logging code to add when your framework writes one of these.
+Keras needs a `CSVLogger` or `TensorBoard` callback; a hand-written loop uses `epokio.start` (see below).
+The best score is shown when the run logs a validation metric (or Hugging Face's `best_metric`); runs that log only a loss show none, except Hugging Face runs that evaluate only `eval_loss`, where the lowest `eval_loss` is the best score.
+Hugging Face runs update when a checkpoint is saved, because that is when `trainer_state.json` is written.
 
-| Framework | What it reads | Watch, results, compare | Start runs | Auto-label, review |
-|---|---|---|---|---|
-| Ultralytics YOLO | `results.csv`, `args.yaml` | ✅ | ✅ | ✅ |
-| Hugging Face Trainer | `trainer_state.json` (also inside `checkpoint-*`) | ✅ | script | |
-| PyTorch Lightning | `CSVLogger` `metrics.csv`, `hparams.yaml` | ✅ | script | |
-| Keras | `CSVLogger` file (`training.log`, `history.csv`) | ✅ | script | |
-| TensorBoard logs | `events.out.tfevents.*` scalars, read without TensorFlow. By epoch when an `epoch` tag exists, otherwise by step | ✅ | script | |
-| Vision research code (MAE, DeiT, DINO, BEiT, ConvNeXt) | `log.txt` with one JSON line per epoch | ✅ | script | |
-| timm `train.py` | `summary.csv` (`eval_top1` becomes the main score), `args.yaml` | ✅ | script | |
-| OpenMMLab (MMDetection 3.x, MMPretrain, MMSegmentation) | `vis_data/scalars.json`, `max_epochs` from the saved config (epoch-based training only) | ✅ | script | |
-| Weights & Biases (local files) | `wandb/run-*/run-*.wandb`, read without installing wandb. By epoch when an `epoch` value is logged, otherwise by `_step`. Also over SSH | ✅ | script | |
-| Your own training loop | a CSV whose first column is `epoch`, `step`, `iter` or `iteration` and that has a loss column | ✅ | script | |
+| Framework | What it reads |
+|---|---|
+| Ultralytics YOLO | `results.csv`, `args.yaml` |
+| Hugging Face Trainer | `trainer_state.json` (also inside `checkpoint-*`) |
+| PyTorch Lightning | `CSVLogger` `metrics.csv`, `hparams.yaml` |
+| Keras | `CSVLogger` file (`training.log`, `history.csv`) |
+| TensorBoard logs | `events.out.tfevents.*` scalars, read without TensorFlow. By epoch when an `epoch` tag exists, otherwise by step |
+| Vision research code (MAE, DeiT, DINO, BEiT, ConvNeXt) | `log.txt` with one JSON line per epoch |
+| timm `train.py` | `summary.csv` (`eval_top1` becomes the main score), `args.yaml` |
+| OpenMMLab (MMDetection 3.x, MMPretrain, MMSegmentation) | `vis_data/scalars.json`, `max_epochs` from the saved config (epoch-based training only) |
+| Weights & Biases (local files) | `wandb/run-*/run-*.wandb`, read without installing wandb. By epoch when an `epoch` value is logged, otherwise by `_step`. Also over SSH |
+| Your own training loop | a CSV whose first column is `epoch`, `step`, `iter` or `iteration` and that has a loss column |
 
 Progress and time left need the planned length: epochs from the framework's own files or a config next to the log
 (`args.yaml`, `args.json`, `config.yaml`, `config.json`, `hparams.yaml`, `opt.yaml`), and for step runs a step total
-such as `max_steps`, `total_steps` or `max_iters` in the same files. Adding another framework is one small adapter
-class, listed in `src/epokio/adapters.py`. To log from your own loop with `epokio.start`, see [docs/remote.md](docs/remote.md).
+such as `max_steps`, `total_steps` or `max_iters` in the same files. Keras's `CSVLogger` does not record the plan, so for it
+Epokio reads `epochs` from an `args.yaml` next to the log. For Lightning it reads `max_epochs` (or `epochs`) from `hparams.yaml`,
+which has it only if you saved it as a hyperparameter. Without these, a run shows its epoch but no progress or time left.
+Adding another framework is one small adapter class, listed in `src/epokio/adapters.py`. To log from your own loop with `epokio.start`, see [docs/remote.md](docs/remote.md).
 
 ## Alerts
 
-The training machine sends the alert itself, so it arrives even when your Mac is off. Webhooks must be `https`.
+The helper on the training machine sends the alert itself, so it arrives with your Mac off, but only while that helper is running. Webhooks must be `https`.
 Add an [ntfy](https://ntfy.sh) address such as `https://ntfy.sh/your-secret-topic`, or a Slack, Discord or Telegram webhook:
 
 * **Mac app:** Settings → Notifications.
 * **Web page:** **Alerts**, then **Send a test** to check that it arrives (`POST /webhooks/test` on the helper).
-* **Terminal**, with no helper running (handy on an SSH-only server):
+* **Terminal**, without opening the app or the page (alerts go out once the helper runs on that machine):
 
 ```bash
 epokio alerts --add https://ntfy.sh/your-secret-topic
@@ -115,6 +132,23 @@ epokio alerts --list
 epokio alerts --test        # one test message to every saved webhook
 epokio alerts --remove https://ntfy.sh/your-secret-topic
 ```
+
+### Colab and notebooks (no helper)
+
+Where no helper can run, the training process can send the alert itself. Save a webhook once (the same file the helper uses), then pass `notify=True`:
+
+```python
+!pip install epokio
+!epokio alerts --add https://ntfy.sh/your-secret-topic
+
+import epokio
+with epokio.start("runs/colab-exp", epochs=20, notify=True) as run:
+    for epoch in range(20):
+        ...
+        run.log(train_loss=tl, val_loss=vl, acc=acc)
+```
+
+It alerts when the `with` block ends (finished) or when it ends with an error (failed, with the error type and message). Only the standard library is used, and a network failure never stops training. If a helper is also watching that folder, it does not send the same alert again.
 
 ## Remote machines over SSH
 
@@ -125,33 +159,37 @@ Nothing is installed or written on the server.
 * **What is copied:** only known log names (`results.csv`, `log.txt`, `summary.csv`, `metrics.csv`, `trainer_state.json`, TensorBoard and W&B files and a few more) and saved configs, never images or weights. Every 15 seconds; unchanged files are skipped and logs that only grow send just the new tail.
 * **Size limit:** 4 MB for text logs, 20 MB for TensorBoard and W&B files (for a file Epokio already has, the limit applies to the new part). A growing text log over the limit keeps its first line and the last 4 MB, then keeps appending. TensorBoard, W&B and config files over the limit are skipped. The Mac app and the web page's SSH panel say how many files were skipped or cut.
 * It looks under your home folder; add paths such as `/scratch/you/runs` under *Other folders*.
-* This is view only. To start training on that machine, install the helper: on Linux `pip install epokio` then `epokio setup --lan --autostart`; on Windows `py -m pip install "epokio[tray]"` then `py -m epokio setup --lan --autostart` (no Python: `Epokio.exe setup --lan --autostart`). Tokens, `--lan` and network safety: [docs/remote.md](docs/remote.md).
+* This is view only. To start training on that machine from elsewhere, install the helper there with `--lan --allow-run` (on Linux `pip install epokio` then `epokio setup --lan --allow-run --autostart`; on Windows `py -m pip install "epokio[tray]"` then `py -m epokio setup --lan --allow-run --autostart`, or `Epokio.exe setup ...` without Python) and give your Mac a run token (`epokio agent --add-token mac --scope run`). Tokens, `--lan` and network safety: [docs/remote.md](docs/remote.md).
+
+### What runs on your server over SSH
+
+Every 15 seconds Epokio runs `ssh -o BatchMode=yes -o ConnectTimeout=8 <host> python3 - '<settings>'` (plus `ControlMaster=auto`, `ControlPersist=120` and a control socket under `~/.epokio/ssh-control` on macOS and Linux, so it logs in once and reuses the connection). On standard input it sends one script, [`src/epokio/ssh_remote.py`](src/epokio/ssh_remote.py) (standard library only, Python 3.6+). That script looks for the known log file names under your home folder and the folders you added, and prints their contents, or only the part added since last time, as JSON. It writes nothing on the server, starts no process, installs nothing and never reads images or weights. BatchMode means it never answers a password or host-key prompt.
 
 ## Limits
 
 * OpenMMLab iteration-based runs (no epoch) are not read.
 * Over SSH, only the known log file names are read, not any CSV. Binary logs and configs over the size limit are skipped.
 * Your own CSV named `results.csv`, `metrics.csv` or `epokio_log.csv` is left to the Ultralytics, Lightning and `epokio.start` readers, so it is not read as your own CSV. Use another name.
-* The resource numbers above are for the background helper alone, measured on a Mac with 50 run folders that were not changing (about 45 MB RSS, under 0.25 s of CPU per minute).
-* The label editor and starting auto-label jobs are Mac only. The web page covers watching, training, the queue, compare, review, sweeps and alerts.
+* The resource numbers above are for the background helper alone (memory: 50 run folders on a Mac; CPU: 330 run folders, about 0.67 s per minute idle and 1.7 s per minute with one live run).
+* **Shared servers:** by default any user who can log in to the machine can read the helper on `127.0.0.1` (runs, settings, logs). Start it with `--require-token` so that viewing needs a token too, then give each person a token limited to their folders: `epokio agent --add-token alice --scope read --root /data/alice/runs` (`--root` can repeat and can be a pattern). That token sees only runs under those folders in the run list, run pages, images, events and the table, and nothing else (no queue, sweeps, settings or changes). Tokens without `--root` see every watched run.
 * The Mac app is not notarized and the Windows app is not signed, so both warn on first launch.
-* The helper speaks plain HTTP. Prefer an SSH tunnel or Tailscale over `--lan`.
+* The helper speaks plain HTTP. Prefer an SSH tunnel or Tailscale over `--lan`. A helper opened with `--lan` only shows runs unless started with `--allow-run`, and new tokens are view-only unless made with `--scope run`.
 
 
 ## How it compares
 
 | | Epokio | TensorBoard | Cloud trackers (W&B, Comet) | MLflow, Aim | Ultralytics Platform | Trackio |
 |---|---|---|---|---|---|---|
-| Code changes in your training script | **None** | None if your framework writes event files | Add logging calls, or one setting via built-in integrations (HF Trainer, Ultralytics) | Add logging calls (MLflow has autolog) | None for Ultralytics: streams local training with an API key | Add `trackio.init` and `log` calls, or import TensorBoard/CSV logs |
+| Code changes in your training script | **None** if your framework writes a supported file (Keras: a `CSVLogger` or `TensorBoard` callback) | None if your framework writes event files | Add logging calls, or one setting via built-in integrations (HF Trainer, Ultralytics) | Add logging calls, or one setting for MLflow via built-in integrations (HF Trainer `report_to="mlflow"`, Lightning `MLFlowLogger`, Ultralytics `mlflow` setting); MLflow also has autolog | None for Ultralytics: streams local training with an API key | Add `trackio.init` and `log` calls, or one setting in HF Trainer (`report_to="trackio"`); imports TensorBoard/CSV logs |
 | Account or server | **None** | None | Account | None locally (`mlflow ui`, `aim up`), or your own server | Account | None |
-| Where your data goes | **Stays on your machines** | Your machine | Their cloud | Local folder (`./mlruns`, `.aim`) or your server | Their cloud | Your machine (or a Hugging Face Space and Dataset you choose) |
+| Where your data goes | **Stays on your machines** | Your machine | Their cloud by default; self-hosted or offline available | Local folder (`./mlruns`, `.aim`) or your server | Their cloud | Your machine (or a Hugging Face Space and Dataset you choose) |
 | Always visible | **Menu bar, terminal, tray** | Browser tab after `tensorboard --logdir` | Browser tab, phone app (iOS) | Browser tab | Browser tab | Browser tab |
 | Formats in one view | **Ultralytics, HF, Lightning, Keras, timm, OpenMMLab, W&B, TensorBoard, CSV** | Its own event files | Their own logs (W&B can sync TensorBoard) | Their own logs (Aim converts TensorBoard, MLflow, W&B logs) | Ultralytics | Its own logs (imports TensorBoard and CSV) |
 | Team sharing, model registry | Not the goal | No | **Yes** | Sharing on your server; registry in MLflow only | **Yes** | Partly |
 | Per-step charts | Progress in steps for step-based runs | **Yes** | **Yes** | **Yes** | Per epoch | **Yes** |
-| Price | Free, MIT | Free | Free tier and paid plans | Free software (hosted plans exist) | Free tier and paid plans | Free |
+| Price (as of 2026-10) | Free, MIT | Free | Free tier and paid plans | Free software (hosted plans exist) | Free tier and paid plans | Free |
 
-Epokio also sends its own alerts (Mac, tray, and phone webhooks) when a run finishes, fails or stalls, and suggests the next run from what it sees in the curves (for example "still improving: train 2× longer from best.pt"),
+Epokio also sends its own alerts (Mac, tray, and phone webhooks while a helper runs) when a run finishes, fails or stalls, and suggests the next run from what it sees in the curves (for example "still improving: train 2× longer from best.pt"),
 using simple rules on your machine rather than a cloud AI.
 
 **Use it alongside a tracker, not instead of one.** If your team already logs to W&B or MLflow, keep doing that.
@@ -164,7 +202,7 @@ Nothing leaves your machines unless you turn it on. The app talks only to helper
 
 | Optional feature | What it sends | Where |
 |---|---|---|
-| Webhooks (ntfy, Slack, Discord, Telegram) | Run name, epoch, best score, event | The address you add |
+| Webhooks (ntfy, Slack, Discord, Telegram) | Run name, epoch, best score and metric name, event, machine name | The address you add |
 | Assistant (plain-word commands) | Your sentence, names of up to 12 recent runs | TypeSafe, with your own API key |
 | Result explanations, polished | Status, task, scores, setting numbers, language, the draft sentences | TypeSafe, only when the Assistant is on |
 | Explanations written on this Mac (macOS 26+) | Nothing | Stays on the Mac |
@@ -175,6 +213,8 @@ Nothing leaves your machines unless you turn it on. The app talks only to helper
 
 Webhooks must be `https`. The TypeSafe key lives in your Keychain and both features are off until you
 turn them on. Error logs stay in `~/.epokio/logs` and leave only through Report Issue, when you click Open.
+The helper's `/ai` view says which AI tools are running on that machine and how busy they are (process names and CPU only,
+never prompts), for the menu-bar character. Like the run list, anyone who can view the helper can read it.
 
 ## When something is off
 
