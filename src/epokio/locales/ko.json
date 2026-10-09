@@ -198,5 +198,12 @@
  "Phone alerts from {machine} work.": "{machine}의 폰 알림이 잘 옵니다.",
  "step": "스텝",
  "{m} stayed at {v:.3f} in every epoch. The score never moved.": "{m}은(는) 모든 에폭에서 {v:.3f}에 머물렀습니다. 점수가 한 번도 움직이지 않았습니다.",
- "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels.": "라벨과 데이터 설정을 확인하세요(YOLO면 data.yaml의 클래스 번호·이름·폴더). 점수가 전혀 움직이지 않으면 보통 모델이 라벨에서 배우지 못하고 있다는 뜻입니다."
+ "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels.": "라벨과 데이터 설정을 확인하세요(YOLO면 data.yaml의 클래스 번호·이름·폴더). 점수가 전혀 움직이지 않으면 보통 모델이 라벨에서 배우지 못하고 있다는 뜻입니다.",
+ "This token is read-only. It can view runs, but not start them or change anything.": "이 토큰은 보기 전용입니다. 학습을 볼 수는 있지만 시작하거나 무엇을 바꿀 수는 없습니다.",
+ "This token can see only some folders and cannot change anything.": "이 토큰은 일부 폴더만 볼 수 있고 아무것도 바꿀 수 없습니다.",
+ "The GPU may be waiting for data. Try a higher dataloader_num_workers or per_device_train_batch_size in TrainingArguments.": "GPU가 데이터를 기다리고 있을 수 있습니다. TrainingArguments의 dataloader_num_workers나 per_device_train_batch_size를 늘려 보세요.",
+ "The GPU may be waiting for data. Try num_workers and pin_memory=True in your DataLoader, or a larger batch size.": "GPU가 데이터를 기다리고 있을 수 있습니다. DataLoader에 num_workers와 pin_memory=True를 주거나 batch size를 키워 보세요.",
+ "The GPU may be waiting for data. Try a tf.data pipeline with .cache() and .prefetch(tf.data.AUTOTUNE), or a larger batch size.": "GPU가 데이터를 기다리고 있을 수 있습니다. tf.data에 .cache()와 .prefetch(tf.data.AUTOTUNE)를 쓰거나 batch size를 키워 보세요.",
+ "The GPU may be waiting for data. Try more data loading workers, keeping the data in memory, or a larger batch size.": "GPU가 데이터를 기다리고 있을 수 있습니다. 데이터를 읽는 작업자를 늘리거나, 데이터를 메모리에 올려 두거나, batch size를 키워 보세요.",
+ "Fixing labels here works for boxes and classes only. Fix pose and mask labels in your labelling tool.": "여기서 라벨 고치기는 상자와 클래스만 됩니다. 포즈·마스크 라벨은 라벨링 도구에서 고치세요."
 }

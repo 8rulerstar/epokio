@@ -225,3 +225,19 @@ def test_a_token_with_folders_sees_only_runs_under_them(_store, tmp_path, monkey
         assert tokens.listed()[0]["roots"] == [str(tmp_path / "data" / "alice" / "runs")]
     finally:
         h.shutdown()
+
+
+def test_login_tells_the_page_what_the_token_may_do_and_403_says_why_in_its_language(srv, _store):
+    """★웹 화면은 토큰이 보기 전용인지 몰라 바꾸는 단추를 다 보였고, 403 문장은 한국어 화면에도 영어였다"""
+    u = srv(True)
+    view, _ = tokens.issue("viewer", tokens.READ)
+    run, _ = tokens.issue("runner", tokens.RUN)
+    assert json.loads(req(u + "/login", {"Authorization": "Bearer " + view}, b"{}")[2])["scope"] == "read"
+    assert json.loads(req(u + "/login", {"Authorization": "Bearer " + run}, b"{}")[2])["scope"] == "run"
+    assert json.loads(req(u + "/login", {"Authorization": "Bearer " + auth.token()}, b"{}")[2])["scope"] == "run"
+    code, _, body = req(u + "/meta", {"Authorization": "Bearer " + view, "Accept-Language": "ko"}, b"{}")
+    got = json.loads(body)
+    assert code == 403 and got["code"] == "read_only" and "보기 전용" in got["error"]
+    limited, _ = tokens.issue("alice", tokens.RUN, roots=[str(_store)])        # 폴더가 정해진 토큰도 바꾸지 못한다
+    assert json.loads(req(u + "/login", {"Authorization": "Bearer " + limited}, b"{}")[2])["scope"] == "read"
+    assert json.loads(req(u + "/jobs", {"Authorization": "Bearer " + limited}, b"{}")[2])["code"] == "read_only"

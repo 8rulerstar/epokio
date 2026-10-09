@@ -146,7 +146,12 @@ def page_url(base: str) -> str:
     Previously the lock card said to run `epokio-agent --show-token`, which exe users don't have, so they were stuck"""
     from urllib.parse import urlsplit
     base = base.rstrip("/") + "/"
-    return base + "#t=" + token() if urlsplit(base).hostname in ("127.0.0.1", "localhost") else base
+    if urlsplit(base).hostname not in ("127.0.0.1", "localhost"):
+        return base
+    # Only when the program on that port proves it holds this token. The page reads '#t=' with JavaScript, so another
+    #   program on 8787 (shared server) would have received the token from the tray's Dashboard item
+    from .port import verify_agent
+    return base + "#t=" + token() if verify_agent(base) else base
 
 
 def check(header_value: str | None) -> bool:

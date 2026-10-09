@@ -6,6 +6,7 @@ const T = { data: null, sort: "best", desc: true, q: "", sel: new Set() };
 const T_MAX = 8;
 const GENERIC_NAME = /^(train|exp|val|predict|run|detect|segment|pose|classify)\d*$/;
 function tName(r) {                       // 흔한 이름("train")이면 상위 폴더를 붙인다(맥 앱 runDisplayName과 같은 규칙)
+  if (r.display) return r.display;        // agent가 정한 이름(목록과 같다). 옛 agent면 아래 규칙
   if (!GENERIC_NAME.test(r.name)) return r.name;
   const parts = r.path.split(/[\\/]/).filter(Boolean).slice(0, -1).filter((p) => !["runs", "detect", "segment", "pose", "classify", "obb"].includes(p));
   return parts.length ? parts[parts.length - 1] + "/" + r.name : r.name;
@@ -42,7 +43,9 @@ function tValue(r, k) {
 }
 
 async function drawTable() {
+  const g = S.gen;
   try { T.data = await api("runs/table"); } catch { T.data = { keys: [], rows: [] }; }
+  if (g !== S.gen || S.tab !== "table") return;      // ★늦게 온 표가 그사이 연 다른 탭을 덮었고, 4초 갱신도 되돌리지 못했다
   paintTable();
 }
 
@@ -58,36 +61,37 @@ function paintTable() {
   const kinds = new Set(d.rows.filter((r) => r.best != null).map((r) => r.metric_name || ""));
   const cmp = d.rows.some((r) => r.metric_higher === false) ? Math.min : Math.max;
   const top = kinds.size === 1 ? cmp(...d.rows.filter((r) => r.best != null).map((r) => r.best)) : null;
-  const head = (k, label) => `<th class="sortable ${T.sort === k ? "on" : ""}" data-sort="${esc(k)}">${esc(label)}${T.sort === k ? (T.desc ? " ↓" : " ↑") : ""}</th>`;
+  // 정렬은 머리 칸 안의 단추로(키보드·화면 읽기 프로그램). ★<th>만 눌려서 마우스로만 정렬했다
+  const head = (k, label) => `<th class="sortable ${T.sort === k ? "on" : ""}" data-sort="${esc(k)}" ${T.sort === k ? `aria-sort="${T.desc ? "descending" : "ascending"}"` : ""}><button class="linkish" data-sortby="${esc(k)}">${esc(label)}${T.sort === k ? (T.desc ? " ↓" : " ↑") : ""}</button></th>`;
   const dot = { running: "var(--good)", starting: "var(--good)", failed: "var(--bad)", stalled: "var(--warn)", done: "var(--brand)" };
   $("#main").innerHTML = `<div class="card" style="padding:14px">
     <div class="toolbar" style="margin:0 0 10px;flex-wrap:wrap">
-      <input id="tq" type="search" placeholder="${esc(t("Filter"))}: lr0<0.01  batch>=16  tag:sample  coco" value="${esc(T.q)}" style="flex:1;min-width:200px"
-        title="name or text, key<value · key>=value · key=value · key!=value, tag:name. All must match.">
-      <span class="hint" style="margin:0">${rows.length} of ${d.rows.length}</span>
-      <button class="btn primary" id="tcmp" ${T.sel.size >= 2 && T.sel.size <= T_MAX ? "" : "disabled"}>Compare ${T.sel.size}</button>
+      <input id="tq" type="search" aria-label="${esc(t("Filter"))}" placeholder="${esc(t("Filter"))}: lr0<0.01  batch>=16  tag:sample  coco" value="${esc(T.q)}" style="flex:1;min-width:200px"
+        title="${esc(t("Name or text, key<value · key>=value · key=value · key!=value, tag:name. All must match."))}">
+      <span class="hint" style="margin:0">${t("{n} of {total}", { n: rows.length, total: d.rows.length })}</span>
+      <button class="btn primary" id="tcmp" ${T.sel.size >= 2 && T.sel.size <= T_MAX ? "" : "disabled"}>${t("Compare {n}", { n: T.sel.size })}</button>
     </div>
-    <div style="overflow-x:auto"><table class="runs-table"><tr><th></th>${head("name", "Run")}${head("best", "Score")}${head("epoch", axisLabel(rows, "Epochs", "Steps", "Epochs / steps"))}
+    <div style="overflow-x:auto"><table class="runs-table"><tr><th></th>${head("name", t("Run"))}${head("best", t("Score"))}${head("epoch", axisLabel(rows, "Epochs", "Steps", "Epochs / steps"))}
       ${d.keys.map((k) => head(k, k)).join("")}<th>${t("Tags")}</th>${head("idle", t("Updated"))}</tr>
       ${rows.map((r) => `<tr class="pick" data-path="${esc(r.path)}">
         <td><input type="checkbox" class="tsel" ${T.sel.has(r.path) ? "checked" : ""} aria-label="${esc(t("Select {name}", { name: tName(r) }))}"></td>
-        <td><span class="dot" style="display:inline-block;margin:0 6px 0 0;--c:${dot[r.state] || "var(--soft)"}"></span>${r.star ? "⭐ " : ""}${esc(tName(r))}</td>
+        <td><span class="dot" style="display:inline-block;margin:0 6px 0 0;--c:${dot[r.state] || "var(--soft)"}" role="img" aria-label="${esc(stateOf(r)[0])}" title="${esc(stateOf(r)[0])}"></span>${r.star ? "⭐ " : ""}<button class="linkish" data-open="1">${esc(tName(r))}</button></td>
         <td class="num" style="${top != null && r.best === top ? "color:var(--brand);font-weight:600" : ""}">${r.best != null ? r.best.toFixed(4) : "–"}</td>
         <td class="num">${xnum(r, r.epoch)}/${xnum(r, r.total)}${isStep(r) ? " " + t("steps") : ""}</td>
         ${d.keys.map((k) => `<td class="num">${esc(r.args[k] ?? "–")}</td>`).join("")}
-        <td class="hint" style="margin:0">${r.tags.map((g) => "#" + esc(g)).join(" ")}</td><td class="hint" style="margin:0">${r.idle != null ? dur(r.idle) + " ago" : "–"}</td></tr>`).join("")}
+        <td class="hint" style="margin:0">${r.tags.map((g) => "#" + esc(g)).join(" ")}</td><td class="hint" style="margin:0">${r.idle != null ? t("{d} ago", { d: dur(r.idle) }) : "–"}</td></tr>`).join("")}
     </table></div></div>`;
   const q = $("#tq");
   q.oninput = () => { T.q = q.value; const pos = q.selectionStart; paintTable(); const n = $("#tq"); n.focus(); n.setSelectionRange(pos, pos); };
   document.querySelectorAll("th.sortable").forEach((th) => th.onclick = () => {
     const k = th.dataset.sort; if (T.sort === k) T.desc = !T.desc; else { T.sort = k; T.desc = k === "best"; }
-    paintTable();
+    paintTable(); document.querySelector(`[data-sortby="${CSS.escape(k)}"]`)?.focus();      // 다시 그려도 키보드 자리 유지
   });
   document.querySelectorAll(".tsel").forEach((c) => c.onclick = (e) => {
     e.stopPropagation();
     const p = c.closest("tr").dataset.path;
-    if (c.checked) { if (T.sel.size >= T_MAX) { c.checked = false; toast(`Pick up to ${T_MAX} runs`, true); return; } T.sel.add(p); } else T.sel.delete(p);
-    paintTable();
+    if (c.checked) { if (T.sel.size >= T_MAX) { c.checked = false; toast(t("Pick up to {n} runs", { n: T_MAX }), true); return; } T.sel.add(p); } else T.sel.delete(p);
+    paintTable(); document.querySelector(`tr[data-path="${CSS.escape(p)}"] .tsel`)?.focus();   // ★고를 때마다 초점이 BODY로 떨어졌다
   });
   document.querySelectorAll("tr.pick").forEach((tr) => tr.onclick = () => { S.sel = tr.dataset.path; tab("runs"); });
   $("#tcmp").onclick = () => { S.picks = [...T.sel]; tab("compare"); };

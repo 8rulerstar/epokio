@@ -256,6 +256,10 @@ def test_resume_needs_a_checkpoint_and_not_a_busy_run(tmp_path, monkeypatch):
     assert a.post("/jobs", body)[0] == 409                      # 방금 바뀌었다: 아직 돌고 있을 수 있다
     old = ckpt.stat().st_mtime - 3600
     os.utime(ckpt, (old, old))
+    # 체크포인트는 오래됐어도 args.yaml을 방금 다시 썼다: 터미널에서 이어 하기로 다시 뜬 학습(첫 에폭이 끝나기 전)
+    # ★그 사이에 '이어 하기'를 누르면 같은 폴더에 두 번째 학습이 붙었다
+    assert a.post("/jobs", body)[0] == 409
+    os.utime(run / "args.yaml", (old, old))
     code, err = a.post("/jobs", body)
     assert code == 400 and "Python" in err["error"]              # 쓸 파이썬이 없다
     monkeypatch.setattr(envs, "list_envs", lambda: [{"path": "py-ready", "ready": True}])
@@ -319,6 +323,7 @@ def test_a_moved_run_is_not_resumed_into_its_old_place(tmp_path, monkeypatch):
     code, err = a.post("/jobs", body)
     assert code == 409 and "moved" in err["error"]
     (run / "args.yaml").write_text(f"task: detect\nsave_dir: {run}\n", encoding="utf-8")
+    os.utime(run / "args.yaml", (old, old))                  # 방금 쓴 args.yaml은 '다시 뜬 학습'으로 본다(409)
     assert a.post("/jobs", body)[0] == 200
 
 

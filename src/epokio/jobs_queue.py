@@ -52,6 +52,7 @@ class Queue:
         self.lanes: list[int | None] = [None]             # start()에서 GPU 수만큼 (gpus.lanes)
         self.locked_out = False
         self.on_finish = None            # 작업이 끝나면 부른다 (agent가 알림 사건으로 쌓는다)
+        self.on_away = None              # 종료 코드를 모르고 끝난 작업(다시 켜기 전에 띄운 것)
         self._load()
 
     @property
@@ -75,6 +76,7 @@ class Queue:
                 except OSError:
                     pass
         self._orphans: list[J.Job] = []
+        self.ended_away: list[J.Job] = []     # 꺼진 사이 끝난 작업. agent가 on_finish를 단 뒤 알린다(★알림이 없었다)
         for j in self.jobs:
             if j.state != "running":
                 continue
@@ -86,6 +88,7 @@ class Queue:
                 # 꺼져 있는 사이에 끝났다. '끝남(종료 코드 모름)'으로 적고 로그에 남긴다. ★실패로 적어 잘 끝난 학습이 실패로 보였다
                 j.state, j.ended, j.pid, j.gpu_index = "done", time.time(), None, None   # ★죽은 작업이 GPU를 잡은 채로 남지 않게
                 _note(j, "\nFinished while Epokio was not running. Its exit code is unknown; check the run's results.\n")
+                self.ended_away.append(j)
 
     def _save(self, jobs: list | None = None):
         from .auth import private_dir
@@ -272,6 +275,7 @@ class Queue:
     def _wait_orphans(self):
         """다시 켜기 전에 띄운 학습이 끝나면 '끝남(종료 코드 모름)'으로 적고 그 자리를 푼다."""
         while True:
+            ended = []
             with self._lock:
                 for j in list(self._orphans):
                     if j.state == "running" and pid_alive(j.pid, j.pid_start):
@@ -279,15 +283,24 @@ class Queue:
                     if j.state == "running":     # 종료 코드는 모른다(우리가 띄운 자식이 아니다)
                         j.state, j.ended = "done", time.time()
                         _note(j, "\nFinished while Epokio was restarting. Its exit code is unknown; check the run's results.\n")
+                        ended.append(j)
                     j.pid, j.gpu_index = None, None
                     self._orphans.remove(j)
                     try:
                         self._save()
                     except OSError:
                         pass
-                if not self._orphans:
+                done = not self._orphans
+                if done:
                     self._wake.set()
-                    return
+            for j in ended:                       # 잠금 밖에서. 종료 코드를 모르니 agent가 결과 폴더로 판단한다(on_away)
+                try:
+                    if self.on_away:
+                        self.on_away(j)
+                except Exception:
+                    pass
+            if done:
+                return
             time.sleep(5)
 
     def _claim(self, lane: int | None) -> J.Job | None:

@@ -64,10 +64,13 @@ extension RunDetailView {
     /// 오른쪽 세로 레일: 다음 할 일. 주요(다시 학습·시험·평가) / 모델 보관(내보내기·상태) / 파일(보고서·폴더)을 간격으로 나눈다
     var actionRail: some View {
         let local = store.isLocal(run)
-        let canTrain = local && detail?.args["data"] != nil, hasModel = local && detail?.weights != nil
+        // 다시 학습: 이 맥의 Ultralytics 학습만(웹 detailHTML의 again과 같은 규칙). framework가 없는 옛 agent는 Ultralytics.
+        // ★Lightning 학습에도 떠서 다른 프레임워크의 data를 YOLO 양식에 채웠다
+        let ultra = (run.framework ?? "ultralytics") == "ultralytics"
+        let canTrain = local && ultra && detail?.args["data"] != nil, hasModel = local && detail?.weights != nil
         let resume = resumeState
         return VStack(spacing: 4) {
-            RailAction(symbol: "arrow.clockwise", title: L("Train Again"), hint: L("Start a new run with the same settings"), enabled: canTrain) { trainAgain() }
+            RailAction(symbol: "arrow.clockwise", title: L("Train Again"), hint: ultra ? L("Start a new run with the same settings") : L("Not available for this format"), enabled: canTrain) { trainAgain() }
             RailAction(symbol: "play.circle", title: L("Resume"), hint: resume.hint, enabled: resume.ok) { resumeRun() }
             // 끈 버튼에도 이유를 띄운다(resumeState와 같은 방식). 다른 기계면 그 사실이, 이 맥이면 best.pt가 없다는 것이 이유다
             RailAction(symbol: "eye", title: L("Try"), hint: hasModel ? L("Try the model on your own images") : noModelHint(L("This run has no best.pt to try.")), enabled: hasModel) { tryModel() }

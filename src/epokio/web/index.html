@@ -22,22 +22,27 @@
 <header>
   <h1><svg width="22" height="22" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#1c1f3d"/><path d="M22.7 32 H44.8 A12.8 12.8 0 1 0 41.8 40.2" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/><circle cx="41.8" cy="40.2" r="4.2" fill="#22d3ee"/></svg>Epokio</h1>
   <span class="sub" id="where"></span>
+  <span class="pill ro" id="ro" hidden></span>
   <div class="sys" id="sys"></div>
   <button class="btn small" id="lang" type="button"></button>
 </header>
-<nav role="tablist">
-  <button role="tab" data-tab="runs" class="on" aria-selected="true">Runs</button>
-  <button role="tab" data-tab="table">Table</button>
-  <button role="tab" data-tab="train">Train</button>
-  <button role="tab" data-tab="queue">Queue<span class="badge" id="busy" hidden></span></button>
-  <button role="tab" data-tab="compare">Compare</button>
-  <button role="tab" data-tab="inbox">Alerts<span class="badge" id="unread" hidden></span></button>
-  <button role="tab" data-tab="review" data-adv>Review</button>
-  <button role="tab" data-tab="sweeps" data-adv>Sweeps</button>
+<nav>
+  <!-- 탭: 화살표·Home·End로 옮긴다(로빙 tabindex, main.js). 더 보기 단추는 탭이 아니라 목록 밖에 둔다 -->
+  <div role="tablist" id="tabs" aria-label="Sections">
+    <button role="tab" data-tab="runs" id="tab-runs" aria-controls="main" class="on" aria-selected="true">Runs</button>
+    <button role="tab" data-tab="table" id="tab-table" aria-controls="main" aria-selected="false" tabindex="-1">Table</button>
+    <button role="tab" data-tab="train" id="tab-train" aria-controls="main" aria-selected="false" tabindex="-1">Train</button>
+    <button role="tab" data-tab="queue" id="tab-queue" aria-controls="main" aria-selected="false" tabindex="-1">Queue<span class="badge" id="busy" hidden></span></button>
+    <button role="tab" data-tab="compare" id="tab-compare" aria-controls="main" aria-selected="false" tabindex="-1">Compare</button>
+    <button role="tab" data-tab="inbox" id="tab-inbox" aria-controls="main" aria-selected="false" tabindex="-1">Alerts<span class="badge" id="unread" hidden></span></button>
+    <button role="tab" data-tab="review" data-adv id="tab-review" aria-controls="main" aria-selected="false" tabindex="-1">Review</button>
+    <button role="tab" data-tab="sweeps" data-adv id="tab-sweeps" aria-controls="main" aria-selected="false" tabindex="-1">Sweeps</button>
+  </div>
   <button type="button" id="more" class="more" aria-pressed="false">More</button>
 </nav>
-<main id="main"></main>
-<span id="sr" class="sr" aria-live="polite"></span>
+<main id="main" role="tabpanel" aria-labelledby="tab-runs"><div class="layout skel" aria-busy="true" role="status"><span class="sr" id="skeltext">Loading…</span><div class="card list"><i></i><i></i><i></i><i></i><i></i></div><div class="card detail"><i class="w40"></i><i class="w25"></i><i class="tall"></i></div></div></main>
+<span id="sr" class="sr" role="status" aria-live="polite"></span>
+<span id="sra" class="sr" role="alert"></span>
 
 <script src="web/lang.js"></script>
 <script src="web/app.js"></script>

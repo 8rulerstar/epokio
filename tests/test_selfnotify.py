@@ -80,3 +80,11 @@ def test_without_notify_nothing_is_sent(tmp_path, sent):
     with epokio.start(tmp_path / "runs" / "quiet", epochs=1) as run:
         run.log(val_loss=1.0)
     assert sent == []
+
+
+def test_notify_without_a_webhook_warns(tmp_path, capsys):
+    """notify=True인데 웹후크가 없으면 아무 말 없이 알림이 안 왔다"""
+    Agent.HOOKS_FILE.unlink(missing_ok=True)
+    with epokio.start(tmp_path / "r", epochs=1, notify=True) as r:
+        r.log(train_loss=1.0)
+    assert "no webhook is saved" in capsys.readouterr().err

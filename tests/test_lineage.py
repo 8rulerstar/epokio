@@ -130,3 +130,12 @@ def test_a_run_keeps_the_data_it_trained_on(tmp_path, monkeypatch):
     monkeypatch.setattr(lineage.versions, "_cache", {})
     v = rundetail.detail_versions(run)
     assert v["data"] == start and v["data_now"] not in (None, start)
+
+
+def test_a_run_resumed_in_place_is_not_its_own_child(tmp_path):
+    """★`yolo train resume`은 args.yaml의 model을 제 weights/last.pt로 바꾼다. 그 학습이 제 자식으로 보였고 '사전 학습 가중치에서 시작'이라 했다"""
+    r = tmp_path / "train"
+    _run(r, str(r / "weights" / "last.pt"))
+    other = _run(tmp_path / "other", "yolo11n.pt")
+    got = lineage.lineage(r, [r, other])
+    assert got["children"] == [] and got["parent"] is None and got["ancestors"] == [] and not got["pretrained"]

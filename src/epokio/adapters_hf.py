@@ -105,7 +105,9 @@ class HuggingFace(Adapter):
         args = {**ta, **args}
         _best_metric_row(st, hist, rows, args)
         _loss_score(rows)
-        return Loaded(self.name, rows, sp, total, args, warns, epoch=done)
+        gs, ms = st.get("global_step"), st.get("max_steps")
+        frac = gs / ms if all(isinstance(x, int) and not isinstance(x, bool) for x in (gs, ms)) and ms > 0 else None
+        return Loaded(self.name, rows, sp, total, args, warns, epoch=done, fraction=frac)
 
     @staticmethod
     def _step_mode(st: dict, ta: dict) -> bool:

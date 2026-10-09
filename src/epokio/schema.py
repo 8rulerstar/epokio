@@ -14,7 +14,7 @@ import re
 # Ultralytics 머리(head) 접미사. OBB도 (B)를 쓴다
 HEADS = {"B": "Box", "P": "Pose", "M": "Mask"}          # 순서 = 대표 머리 우선순위
 
-# Ultralytics 공식 대표 점수(8.4.150 cfg/__init__.py TASK2METRIC). best.pt 저장 기준(fitness)과 같은 열
+# Ultralytics 공식 대표 점수(8.4.150 cfg/__init__.py TASK2METRIC). best.pt를 고르는 값은 아래 FITNESS_SETS(분할·포즈·분류는 박스·top5와 더한다)
 TASK2METRIC = {
     "detect": "metrics/mAP50-95(B)", "segment": "metrics/mAP50-95(M)", "semantic": "metrics/mIoU",
     "depth": "metrics/delta1", "classify": "metrics/accuracy_top1", "pose": "metrics/mAP50-95(P)",
@@ -120,6 +120,10 @@ def info(key: str) -> dict:
     name = base.split("/", 1)[-1]
     if k == "loss":
         name = name.removesuffix("_loss") or "loss"
+        # 손실 이름이 쪽 이름뿐이면(train/train_loss, val/val_loss, val/eval_loss) 그냥 '손실'.
+        # ★HF·Keras·Lightning 곡선 범례가 "train train"·"val eval", 한국어로 "학습 학습"·"검증 검증"이었다
+        if name in (side, "train", "val", "eval", "valid", "validation", "test"):
+            name = "loss"
     return {"kind": k, "name": name, "head": head, "side": side, "higher": higher_is_better(key)}
 
 
@@ -160,3 +164,27 @@ def pick_metric_why(fieldnames, task: str | None = None) -> tuple[str | None, st
         return None, "none"
     return got, "loss_only" if LOSS_WORD.search(got) else "first"
 
+
+
+# best.pt를 고르는 값(Ultralytics 8.4 utils/metrics.py의 fitness). 첫 열이 대표 점수일 때 이 열들을 더한 값이 가장 큰 에폭이 best.pt다.
+# 분할 = 마스크 + 박스 mAP50-95, 포즈 = 키포인트 + 박스 mAP50-95, 분류 = top1 + top5(평균과 순위가 같다). 검출은 mAP50-95(B) 하나라 그대로.
+# ★분할·포즈의 최고 에폭을 마스크·키포인트 열 하나로만 골라, '최고 에폭'·점수 칸·해설이 best.pt가 저장된 에폭과 달랐다
+FITNESS_SETS = (("metrics/mAP50-95(M)", "metrics/mAP50-95(B)"), ("metrics/mAP50-95(P)", "metrics/mAP50-95(B)"),
+                ("metrics/accuracy_top1", "metrics/accuracy_top5"))
+
+
+def fitness_index(rows, main: str | None) -> int | None:
+    """rows 중 best.pt가 저장된 줄의 번호. 대표 점수가 위 열 묶음의 첫 열이 아니거나 열이 없으면 None(대표 점수 최고로 고른다).
+    같은 값이면 앞 에폭(Ultralytics는 더 클 때만 바꾼다)"""
+    fs = next((f for f in FITNESS_SETS if f[0] == main), None)
+    if not fs:
+        return None
+    best = None
+    for i, r in enumerate(rows):
+        try:
+            v = sum(float(r[c]) for c in fs)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if v == v and v not in (float("inf"), float("-inf")) and (best is None or v > best[0]):
+            best = (v, i)
+    return best[1] if best else None

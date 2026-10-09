@@ -7,7 +7,7 @@ function lockedHTML(what) {
     <p class="hint">${t("Starting and cancelling runs is locked, so nobody else on your network can run commands here.")}<br>
     ${t("On this machine, open this page from the Epokio tray icon or <code>epokio setup</code> (it unlocks by itself), or find the token in <code>~/.epokio/token</code> (Windows: <code>%USERPROFILE%\\.epokio\\token</code>).")}<br>${S.tokenCmd ? t("From a terminal on this machine: {cmd}. On a Mac: Settings, Machines.", { cmd: `<code>${esc(S.tokenCmd)}</code>` })
       : t("From a terminal on that machine, run Epokio with <code>agent --show-token</code>, for example <code>.\\Epokio.exe agent --show-token</code>, <code>py -m epokio agent --show-token</code> or <code>epokio agent --show-token</code>. On a Mac: Settings, Machines.")}</p>
-    ${bad ? `<div class="msg" style="--c:var(--red);max-width:460px;margin:12px auto 0"><b>${t("That token did not work.")}</b> ${t("It may have changed on this machine.")}</div>` : ""}
+    ${bad ? `<div class="msg" role="alert" style="--c:var(--red);max-width:460px;margin:12px auto 0"><b>${t("That token did not work.")}</b> ${t("It may have changed on this machine.")}</div>` : ""}
     <div class="inrow"><input class="in" id="tok" type="password" aria-label="${t("Paste the token")}" placeholder="${t("Paste the token")}" autocomplete="off" spellcheck="false"><button class="btn primary" id="unlock">${t("Unlock")}</button></div></div>`;
 }
 /// 토큰을 넣어 보고 맞으면 이 브라우저에 남긴다
@@ -55,7 +55,7 @@ function wireLock() {
 const forgetHTML = `<button class="more" id="forget" title="${t("Remove the token from this browser")}">${t("Lock this page")}</button>`;
 function wireForget() {
   const f = $("#forget"); if (!f) return;
-  f.onclick = () => { delete LS.epokioToken; S.asked = false; S.token = ""; S.locked = false; S.jobs = null; S.pythons = null; S.schema = {}; drawBusy(); refresh(); };
+  f.onclick = () => { delete LS.epokioToken; S.asked = false; S.token = ""; S.locked = false; S.jobs = null; S.pythons = null; S.schema = {}; setReadOnly(false); drawBusy(); refresh(); };
 }
 
 // ── 파이썬 자동 설치 ──
@@ -183,6 +183,12 @@ function fieldHTML(f, i) {
 async function drawTrain() {
   $("#main").classList.remove("static"); S.lastMain = "";               // 학습 폼은 setMain을 거치지 않는다(주기 갱신이 안 그린다)
   if (!S.token || S.locked) { $("#main").innerHTML = lockedHTML(t("Starting a run needs this machine's token")); wireLock(); return; }
+  // 보기 전용 토큰: 폼을 채워 봐야 시작에서 403이다. ★폼이 그대로 나와 다 채운 뒤에야 영어 오류를 봤다
+  if (S.readOnly) {
+    $("#main").innerHTML = `<div class="card locked"><div class="ico">👀</div><h2>${t("This token can only view")}</h2>
+      <p class="hint">${t("Starting runs needs a token that can run. Ask whoever gave you this token, or use the token of the training machine itself.")}</p>${forgetHTML}</div>`;
+    return wireForget();
+  }
   if (!S.pythons) {
     $("#main").innerHTML = `<div class="card pane"><h2>${t("Train")}</h2><p class="hint">${t("Looking for Python environments on {machine}. The first time can take a few seconds.", { machine: esc(S.label || t("this machine")) })}</p></div>`;
     try { S.pythons = (await api("pythons")).envs; }

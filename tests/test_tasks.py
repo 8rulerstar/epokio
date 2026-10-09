@@ -94,6 +94,12 @@ def test_import_route_records_a_finished_check(tmp_path, monkeypatch):
     assert code == 200 and got["task"] == "classify"
     assert a.get(f"/jobs/{got['id']}/eval", {})["overall"]["fp"] == 1
     assert a.post("/review/retrain", {"job": got["id"], "want": ["model_wrong"]})[0] == 400   # 가져온 예측엔 라벨 파일이 없다
+    # 같은 파일을 또 가져와도 앞 결과(판정)를 덮지 않는다
+    a.post("/review/verdicts", {"job": got["id"], "verdicts": {"/i/a.jpg": "unsure"}})
+    code, again = a.post("/review/import", {"path": str(f)})
+    assert code == 200 and again["id"] != got["id"] and a.queue.get(again["id"]).output != a.queue.get(got["id"]).output
+    assert a.get("/review/state", {"job": [got["id"]]})["verdicts"] == {"/i/a.jpg": "unsure"}
+    assert a.get("/review/state", {"job": [again["id"]]})["verdicts"] == {}
     assert a.post("/review/import", {"path": str(tmp_path / "nope.jsonl")})[0] == 400
 
 

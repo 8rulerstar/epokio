@@ -225,9 +225,10 @@ final class Store {
         Task { _ = try? await AgentClient.local.post("remotes/tokens", body) }
     }
 
-    /// 화면에 의미 있는 부분만(흐른 시간 제외)
+    /// 화면에 의미 있는 부분만(흐른 시간 제외). fraction: HF처럼 에폭 안의 진행만 바뀌는 학습
+    ///   ★빠져 있어 같은 에폭 동안 진행 막대가 30초에 한 번만 움직였다
     static func meaningful(_ rs: [Run]) -> [String] {
-        rs.map { "\($0.id)|\($0.state)|\($0.epoch)|\($0.best ?? -1)|\($0.total ?? -1)|\($0.meta?.hashValue ?? 0)" }
+        rs.map { "\($0.id)|\($0.state)|\($0.epoch)|\($0.best ?? -1)|\($0.total ?? -1)|\($0.fraction ?? -1)|\($0.meta?.hashValue ?? 0)" }
     }
 
     static let rank = ["running": 0, "starting": 1, "stalled": 2, "failed": 3, "stopped": 4, "done": 5]

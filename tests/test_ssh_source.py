@@ -271,3 +271,24 @@ def test_oversized_growing_log_keeps_the_tail(tail, monkeypatch):
         assert read()["results.csv"][2] == "append"
     assert f.read_bytes() == head + rest + b"900,0.9,0.1\n901,0.9,0.1\n902,0.9,0.1\n"
     assert {x["name"]: x for x in ssh_source.skipped("gpu")}["results.csv"]["size"] == os.stat(run / "results.csv").st_size
+
+
+def test_removing_a_dot_host_does_not_delete_the_epokio_folder(env, tmp_path):
+    """★POST /ssh/remove {"host": ".."}이 미러 폴더의 부모(~/.epokio: 학습·대기열·토큰·메모)를 통째로 지웠다.
+    "."·""는 모든 서버의 미러를 지웠다"""
+    from types import SimpleNamespace
+    from epokio.api import ssh as api
+    home = tmp_path / "epokio_home"
+    mirror = home / "ssh"
+    (home / "runs" / "keep").mkdir(parents=True)
+    (home / "jobs.json").write_text("[]")
+    (mirror / "gpu-box" / "r").mkdir(parents=True)
+    ssh_source.MIRROR = mirror                       # env 픽스처의 monkeypatch가 끝에 되돌린다
+    agent = SimpleNamespace(ssh=ssh_source.Poller(ssh="/nonexistent/ssh"), _runs_cache=1)
+    for bad in ("..", ".", "", "...", "-x"):
+        assert api.post(agent, "/ssh/remove", {"host": bad})[0] == 400
+        assert not ssh_source.valid_host(bad)
+    ssh_source.remove("..")                          # 직접 불러도 지우지 않는다
+    assert (home / "jobs.json").exists() and (home / "runs" / "keep").is_dir() and (mirror / "gpu-box" / "r").is_dir()
+    assert api.post(agent, "/ssh/remove", {"host": "gpu-box"})[0] == 200 and not (mirror / "gpu-box").exists()
+    assert ssh_source.valid_host("user@gpu.lan") and ssh_source.valid_host("[::1]")

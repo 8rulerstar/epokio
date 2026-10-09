@@ -110,6 +110,8 @@ def build_command(job: Job) -> list[str]:
     elif job.kind == "evaluate":
         params.setdefault("project", str(HOME / "evals"))
         params.setdefault("name", job.name)
+        # ★같은 폴더(이름이 val인 폴더 등)를 다른 모델로 또 평가하면 앞 평가의 결과를 덮어써, 그 평가의 판정·고친 라벨이 새 결과에 붙었다
+        _free_name(params)
         job.output = str(Path(params["project"]) / params["name"])
         src = EVAL_TEMPLATE.format(params=json.dumps(params))       # only collects raw data. Scoring is in review.py
     elif job.kind == "classes":                          # per-class metrics of a finished run, saved in its folder (jobs_templates.write_classes)

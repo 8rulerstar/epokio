@@ -25,9 +25,9 @@ function versionsHTML(r, d) {
     + kids.map((c) => `<button class="node" data-go="${esc(c.path)}">↳ ${esc(c.name)}</button>`).join("") + `</div>`;
   const st = d.stage || "";
   h += `<h3>${t("Stage")}</h3><div class="toolbar"><span class="pill" id="vstage" style="--c:${STAGES[st][1]}">${STAGES[st][0]}</span>`
-    + (local ? `<select id="vset" aria-label="${t("Stage")}">${Object.entries(STAGES).filter(([k]) => k !== "production").map(([k, v]) => `<option value="${k}" ${k === st ? "selected" : ""}>${v[0]}</option>`).join("")}</select>
-       <button class="btn primary" id="vpromote" ${d.weights ? "" : "disabled"} title="${t("Copy best.pt to the model registry as a new version")}">${t("Put in use")}</button>
-       ${d.weights ? "" : `<span class="hint" style="margin:0">ⓘ ${t("This run has no weights/best.pt yet.")}</span>`}` : `<span class="hint">${t("Change it on the machine that has this run.")}</span>`)
+    + (local ? `<select id="vset" class="needs-run" aria-label="${t("Stage")}">${Object.entries(STAGES).filter(([k]) => k !== "production").map(([k, v]) => `<option value="${k}" ${k === st ? "selected" : ""}>${v[0]}</option>`).join("")}</select>
+       <button class="btn primary needs-run" id="vpromote" ${d.weights ? "" : "disabled"} title="${t("Copy best.pt to the model registry as a new version")}">${t("Put in use")}</button>
+       ${d.weights ? "" : `<span class="hint needs-run" style="margin:0">ⓘ ${t("This run has no weights/best.pt yet.")}</span>`}` : `<span class="hint">${t("Change it on the machine that has this run.")}</span>`)
     + `</div>`;
   return h;
 }
@@ -56,17 +56,21 @@ function paintStage(st) {
 
 /// 두 데이터 버전 사이에 더해진·빠진·바뀐 파일
 async function dataDiff(a, b) {
-  const m = document.createElement("div"); m.className = "modal"; m.innerHTML = `<div class="sheet"><p class="hint">${t("Loading…")}</p></div>`;
-  m.onclick = (e) => { if (e.target === m) m.remove(); };
-  document.body.append(m);
+  // 닫는 단추를 늘 둔다. ★배경을 눌러야만 닫혀 키보드로는 갇혔다(4초 갱신도 창이 열린 동안 멈춘다)
+  const close = `<button class="btn small" data-close aria-label="${t("Close")}" style="margin-left:8px">✕</button>`;
+  const m = modal(t("What changed in the data")); m.innerHTML = `<div class="sheet" aria-busy="true"><div class="toolbar" style="margin:0"><p class="hint" style="flex:1">${t("Loading…")}</p>${close}</div></div>`;
+  m.addEventListener("click", (e) => { if (e.target.closest("[data-close]")) m.close(); });
+  openModal(m);
   let d;
   try { d = await api(`data-diff?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`); }
   catch (e) {
-    if (e instanceof Locked) { m.remove(); if (await needToken()) dataDiff(a, b); return; }     // 잠긴 보기: 그 자리에서 토큰을 묻고 다시
-    m.querySelector(".sheet").innerHTML = `<h3 style="margin-top:0">${t("Can't compare")}</h3><p class="hint">${esc(e.message)}</p>`; return;
+    if (e instanceof Locked) { m.close(); if (await needToken()) dataDiff(a, b); return; }     // 잠긴 보기: 그 자리에서 토큰을 묻고 다시
+    if (m.open) m.querySelector(".sheet").innerHTML = `<div class="toolbar" style="margin:0"><h3 style="margin:0;flex:1">${t("Can't compare")}</h3>${close}</div><p class="hint">${esc(e.message)}</p>`; return;
   }
+  if (!m.open) return;                                   // 받는 사이 닫았다
   const list = (xs) => xs.length ? `<div style="max-height:180px;overflow:auto;font:12px ui-monospace,Menlo,monospace">${xs.map(esc).join("<br>")}</div>` : `<p class="hint">${t("None")}</p>`;
-  m.querySelector(".sheet").innerHTML = `<div class="toolbar" style="margin:0"><h3 style="margin:0">${t("What changed in the data")}</h3><span class="hint" style="margin-left:auto">${esc(a)} → ${esc(b)}</span></div>
+  m.querySelector(".sheet").removeAttribute("aria-busy");
+  m.querySelector(".sheet").innerHTML = `<div class="toolbar" style="margin:0"><h3 style="margin:0">${t("What changed in the data")}</h3><span class="hint" style="margin-left:auto">${esc(a)} → ${esc(b)}</span>${close}</div>
     <div class="tiles">${tile(t("Images added"), d.images.added)}${tile(t("Images removed"), d.images.removed)}${tile(t("Labels changed"), d.labels.changed + d.labels.added)}</div>
     ${d.boxes.length ? `<table>${d.boxes.map((x) => `<tr><th>${t("class {c}", { c: esc(x.cls) })}</th><td class="num">${x.before} → ${x.after}</td></tr>`).join("")}</table>` : ""}
     <h3>${t("Added")}</h3>${list(d.added)}<h3>${t("Removed")}</h3>${list(d.removed)}<h3>${t("Changed")}</h3>${list(d.changed)}

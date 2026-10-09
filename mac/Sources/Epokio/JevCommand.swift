@@ -155,8 +155,14 @@ struct CommandBar: View {
         guard let r = i.runs.first else { return }
         switch i.action {
         case .trainAgain:
+            // 이 맥의 Ultralytics 학습만(RunActions canTrain·웹과 같은 규칙). ★다른 기계·SSH 학습의 경로로 이 맥 양식을 채웠다
+            guard store.isLocal(r) else { error = L("Pick a run on this Mac first."); return }
+            guard (r.framework ?? "ultralytics") == "ultralytics" else { error = L("Not available for this format"); return }
             Task {
-                var args = ((try? await store.client(for: r).get("run", ["path": r.path])) as RunDetail?)?.trainArgs ?? [:]
+                guard let d: RunDetail = try? await store.client(for: r).get("run", ["path": r.path]), d.args["data"] != nil else {
+                    error = L("Not available for this format"); return
+                }
+                var args = d.trainArgs
                 if let e = i.epochs { args["epochs"] = String(e) }
                 store.pendingTrainArgs = args; store.section = .train; go()
             }

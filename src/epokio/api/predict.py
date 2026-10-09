@@ -13,9 +13,9 @@ p = json.loads(sys.argv[1])
 r = next(iter(YOLO(p["model"]).predict(source=p["image"], conf=p["conf"], device=p["device"], verbose=False, stream=True)))
 out = {"names": r.names, "size": list(r.orig_shape[::-1]), "boxes": []}
 if r.boxes is not None:
-kps = r.keypoints.xyn.tolist() if getattr(r, "keypoints", None) is not None and r.keypoints is not None else [None] * len(r.boxes)
-for b, c, cf, k in zip(r.boxes.xywhn.tolist(), r.boxes.cls.tolist(), r.boxes.conf.tolist(), kps):
-    out["boxes"].append({"cls": int(c), "box": b, "conf": round(cf, 4), "kpts": k or []})
+    kps = r.keypoints.xyn.tolist() if getattr(r, "keypoints", None) is not None and r.keypoints is not None else [None] * len(r.boxes)
+    for b, c, cf, k in zip(r.boxes.xywhn.tolist(), r.boxes.cls.tolist(), r.boxes.conf.tolist(), kps):
+        out["boxes"].append({"cls": int(c), "box": b, "conf": round(cf, 4), "kpts": k or []})
 print("EPOKIO_JSON" + json.dumps(out))
 '''
 

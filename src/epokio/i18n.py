@@ -23,7 +23,7 @@ PHRASES = {
     "epoch": "epoch", "step": "step", "best": "best",
     "notify.test": "Test alert", "notify.test_body": "Phone alerts from {machine} work.",
     "menu.quit": "Quit Epokio", "notify.done": "Training finished",
-    "notify.failed": "Training failed", "tray.training": "Epokio · {n} training",
+    "notify.failed": "Training failed", "notify.diverged": "loss became NaN", "tray.training": "Epokio · {n} training",
     "tray.nothing": "Epokio · nothing training", "tray.down": "Epokio · cannot reach the helper at {agent}",
     "tray.dashboard": "Open dashboard", "tray.tooltip": "Show in tooltip",
     "tray.which": "Which run", "tray.which.live": "The newest running one",

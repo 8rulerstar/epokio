@@ -66,7 +66,7 @@ virtual environment is the safe choice if you would rather not touch the Python 
 * **Everything else needs the token**, including requests that only look like reading: listing your
   Python environments, reading a training log, and checking a dataset folder all run a process or
   read outside the watched folders.
-* Traffic is plain HTTP. Prefer an SSH tunnel (`ssh -L 8787:127.0.0.1:8787 gpu-pc`) or Tailscale over `--lan`, and keep it off shared or public networks.
+* Traffic is plain HTTP. Prefer an SSH tunnel (`ssh -N -L 18787:127.0.0.1:8787 gpu-pc`, see below) or Tailscale over `--lan`, and keep it off shared or public networks.
 * On a machine other people can log in to, turn on **Settings → General → Ask for the token even on this Mac** (or start the helper with `--require-token`). Otherwise anyone with an account there can read your runs over `127.0.0.1`.
 * Korean and other non-ASCII file names are normalized between macOS (NFD) and Windows (NFC),
   so a path chosen on the Mac is found on the PC.
@@ -113,8 +113,19 @@ python3 -m venv ~/.epokio-venv
 
 On a machine without a display, `--autostart` writes a systemd user service instead of a tray entry
 and prints the two commands that turn it on. Setup does not open a browser there; it prints an
-`ssh -L 8787:127.0.0.1:8787 <server>` command, and then `http://127.0.0.1:8787/` works on your own
-computer. That tunnel is the safest way in. If you use `--lan` instead and ufw is on, allow your
+`ssh -N -L 18787:127.0.0.1:8787 <server>` command, and then `http://127.0.0.1:18787/` works on your own
+computer. That tunnel is the safest way in:
+
+* The local number is not 8787 on purpose. If Epokio also runs on your computer (the Mac app starts a helper on 8787),
+  `ssh -L 8787:...` cannot bind, and the page you open is your own computer's, not the server's.
+* Through the tunnel the server sees you as itself, so viewing needs no token. **Train** and **Queue** ask once
+  for the server's token: run `epokio agent --show-token` on the server.
+* In a terminal on your computer: `epokio watch --agent http://127.0.0.1:18787` (add `--token <server token>` if the
+  helper there was started with `--require-token`). `watch` never sends your own computer's token to a tunnel:
+  that address cannot prove it holds it.
+* Phone alerts come from the server's helper and carry the server's name.
+
+If you use `--lan` instead and ufw is on, allow your
 network only: `sudo ufw allow from 192.168.0.0/16 to any port 8787 proto tcp`. Runs outside your home
 folder (`/data`, `/mnt`, `/workspace`) are not found on their own, so pass `--root`. A quoted pattern such as
 `--root '/data/*/runs'` is expanded again on every scan, so a new person's or experiment's folder shows up
@@ -155,7 +166,7 @@ On the training PC the page opens unlocked from the tray or setup. On another de
 ```bash
 epokio watch                               # reads the helper on this machine, or the current folder
 epokio watch --root runs/                  # no helper needed: read a folder directly
-epokio watch --agent http://gpu-pc:8787    # watch another machine
+epokio watch --agent http://gpu-pc:8787 --token <token>   # watch another machine (its token, or EPOKIO_TOKEN)
 ```
 
 Arrow keys to pick a run, Enter for scores, curves and notes, Tab to switch loss and scores, q to quit.

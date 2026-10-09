@@ -47,6 +47,11 @@ def _indirect() -> dict[str, str]:
         for k, v in getattr(report, name).items():
             out[v] = f"report.{name}[{k!r}]"
     out[report.FOOTNOTE] = "report.FOOTNOTE"
+    # 학습 중 기계 기록의 GPU 쉼 조언: 프레임워크마다 다른 문장을 tr()에 넘긴다(sysrec.note)
+    from epokio import sysrec
+    for k, v in sysrec._IDLE_TIPS.items():
+        out[v] = f"sysrec._IDLE_TIPS[{k!r}]"
+    out[sysrec._IDLE_TIP_OTHER] = "sysrec._IDLE_TIP_OTHER"
     for s in ("train", "val", "test"):          # health.py: tr(split)
         out[s] = "health.py split"
     return out

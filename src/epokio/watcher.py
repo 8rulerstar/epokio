@@ -8,7 +8,7 @@ import json
 import threading
 from pathlib import Path
 
-from . import config, runmeta
+from . import config, runmeta, watch_state
 from .monitor import Monitor
 from .sources import LocalSource
 
@@ -16,6 +16,18 @@ from .sources import LocalSource
 DEFAULT_HOOK_KINDS = ["finished", "failed", "stalled", "stopped_early", "job_done", "job_failed", "goal",
                       "disk_low", "gpu_hot", "gpu_mem", "fan_max"]
 _PUSH_LOCK = threading.Lock()
+RUN_DEFAULTS = (("name", ""), ("path", ""), ("epoch", 0), ("total", None), ("elapsed", 0.0), ("eta", None), ("metric", None),
+                ("metric_name", ""), ("best", None), ("best_epoch", None), ("state", "running"), ("idle", 0.0))
+
+
+def _job_scope(j) -> str:
+    """결과 폴더를 모르는 작업(스크립트)이 학습을 쓸 만한 곳: 작업 폴더(cwd), 없으면 스크립트 파일이 있는 폴더"""
+    import os
+    where = j.cwd if getattr(j, "cwd", "") else ""
+    args = (getattr(j, "params", None) or {}).get("args") or []
+    if not where and args and str(args[0]).lower().endswith(".py"):
+        where = os.path.dirname(os.path.abspath(str(args[0])))
+    return os.path.normcase(os.path.normpath(where)) if where else ""
 
 
 class Watcher:
@@ -27,34 +39,114 @@ class Watcher:
         kind = {"done": "job_done", "failed": "job_failed"}.get(j.state)
         if not kind:
             return
-        self._push(kind, "running", {"name": j.name, "path": j.output, "epoch": 0, "total": None,
-                                    "elapsed": (j.ended or 0) - (j.started or 0), "eta": None,
-                                    "metric": None, "metric_name": "", "best": None,
-                                    "best_epoch": None, "state": j.state, "idle": 0.0,
-                                    "history": [], "source": self.label, "updated": 0.0,
-                                    "job_kind": j.kind})
+        self._push(kind, "running", self._job_run(j), span=(j.started or 0, j.ended or 0, _job_scope(j)))
 
-    def _push(self, kind, before, run):
-        """사건을 쌓는다. 같은 결과 폴더에 2분 안에 또 오면 버린다.
+    def _away_job_event(self, j):
+        """다시 켜기 전에 띄운 작업이 끝났다. 종료 코드를 모르니 학습 폴더가 끝남·실패를 말할 때만 알린다
+        (★재부팅으로 죽은 학습에 '작업 끝남'을 보내면 거짓말이다. 그런 학습은 감시가 '멎음'으로 알린다)"""
+        if not j.output or j.kind not in ("train", "practice", "classes"):
+            return
+        try:
+            from .scan import read_run
+            r = read_run(Path(j.output))
+        except Exception:
+            return
+        kind = {"done": "job_done", "failed": "job_failed"}.get(getattr(r, "state", ""))
+        if kind:
+            self._push(kind, "running", {**r.to_dict(), "source": self.label, "job_kind": j.kind},
+                       span=(j.started or 0, j.ended or 0, _job_scope(j)))
+
+    def _job_run(self, j) -> dict:
+        """작업 알림에 실을 값. 작업이 학습 폴더를 썼으면 그 학습의 실제 에폭·점수, 실패면 로그로 본 이유.
+        ★작업 알림이 늘 '에폭 0/?'였고, 2분 안에 온 같은 결과의 '학습 끝남'(바른 값)을 중복으로 지웠다"""
+        run = {"name": j.name, "path": j.output, "epoch": 0, "total": None,
+               "elapsed": (j.ended or 0) - (j.started or 0), "eta": None, "metric": None, "metric_name": "", "best": None,
+               "best_epoch": None, "state": j.state, "idle": 0.0, "history": [], "source": self.label, "updated": 0.0}
+        if j.output and j.kind in ("train", "practice", "classes"):
+            try:
+                from .scan import read_run
+                r = read_run(Path(j.output))
+                if r is not None:
+                    run = {**r.to_dict(), "source": self.label}
+            except Exception:                  # 알림은 값이 없어도 간다
+                pass
+        if j.state == "failed":
+            try:
+                from .diagnose import diagnose
+                hint = (diagnose(self.queue.tail(j.id, 400)) or [{}])[0].get("title")
+                if hint:
+                    run["error"] = hint
+            except Exception:
+                pass
+        run["job_kind"] = j.kind
+        return run
+
+    # 같은 결과로 보는 시간. 같은 폴더면 30분(★Ultralytics 마지막 검증이 2분을 넘으면 '학습 끝남'과 '작업 끝남'이 둘 다 갔다),
+    # 폴더를 모르는 작업은 이름으로 2분
+    SAME_RESULT_SEC, SAME_NAME_SEC = 1800, 120
+    # 결과(끝남·실패)를 이미 알린 폴더의 뒤늦은 '멎음'·'마지막 에폭 전에 멈춤'은 보내지 않는다(다시 돌기 전까지)
+    # ★대기열 학습 하나가 죽으면 '작업 실패'·'멎음'(급함)·'마지막 에폭 전에 멈춤'이 차례로 세 번 갔다
+    AFTERMATH = ("stalled", "stopped_early", "quiet")
+
+    def _duplicate(self, kind, run, now, span):
+        """이 사건을 버릴까. _PUSH_LOCK 안에서 부른다"""
+        import os
+        p = run.get("path") or ""
+        pk = os.path.normcase(os.path.normpath(p)) if p else ""
+        outcome = {"finished": "ok", "job_done": "ok", "failed": "bad", "job_failed": "bad"}.get(kind)
+        recent = {k: t for k, t in getattr(self, "_recent", {}).items() if now - t < (self.SAME_RESULT_SEC if k[0] else self.SAME_NAME_SEC)}
+        closed = {k: t for k, t in getattr(self, "_closed", {}).items() if now - t < 6 * 3600}
+        spans = [s for s in getattr(self, "_spans", []) if now - s[4] < self.SAME_RESULT_SEC]   # 폴더를 모르는 작업(스크립트)
+        self._recent, self._closed, self._spans = recent, closed, spans
+        if pk and kind in ("started", "recovered"):
+            # 다시 돈다: 그 뒤의 멎음·끝남·실패는 새 결과다. ★닫힌 표시만 지워, 이어 하기 뒤 30분 안의 두 번째 실패가 사라졌다
+            closed.pop(pk, None)
+            for o in ("ok", "bad"):
+                recent.pop((pk, o), None)
+            getattr(self, "_runs_done", {}).pop(pk, None)
+        if pk and kind in self.AFTERMATH and pk in closed:
+            return True
+        if not outcome:
+            return False
+        key = (pk, outcome) if pk else ("", f"{outcome}:{run.get('name')}")
+        if key in recent:
+            return True
+        # 폴더를 모르는 작업(스크립트)과 그 작업이 쓴 학습: 학습의 마지막 기록이 작업이 돈 시간 안이면 같은 결과
+        upd = run.get("updated") or 0
+        # 그 작업의 폴더(cwd 또는 스크립트가 있는 폴더) 아래 학습만. ★폴더를 안 보면 그 사이 끝난 남의 학습 알림까지 지운다
+        def inside(path, scope):
+            return bool(scope) and (path == scope or path.startswith(scope.rstrip(os.sep) + os.sep))
+        if pk and any(o == outcome and a - 10 <= upd <= b + 10 and inside(pk, sc) for a, b, sc, o, _ in spans):
+            return True
+        if not pk and span and span[0] and any(o == outcome and span[0] - 10 <= u <= span[1] + 10 and inside(k, span[2])
+                                               for k, (u, o) in getattr(self, "_runs_done", {}).items()):
+            return True
+        recent[key] = now
+        if pk:
+            closed[pk] = now
+            self._runs_done = {k: v for k, v in getattr(self, "_runs_done", {}).items() if now - closed.get(k, 0) < self.SAME_RESULT_SEC}
+            self._runs_done[pk] = (upd, outcome)
+        elif span and span[0] and span[2]:
+            spans.append((span[0], span[1], span[2], outcome, now))
+        return False
+
+    def _push(self, kind, before, run, span=None):
+        """사건을 쌓는다. 같은 결과(끝남·실패)는 한 번만(_duplicate).
         ★대기열 작업이 results.csv도 쓰면 '작업 끝남'과 '학습 끝남'이 겹쳐 알림이 두 번 떴다."""
         import time
         run.setdefault("source", getattr(self, "label", "local"))      # ★없으면 맥 앱 디코딩이 깨져 알림이 영영 멈췄다
+        # 맥 앱 Run이 꼭 받는 칸(Models.swift의 Optional 아닌 let)도 채운다. ★스윕 조기 중단 사건은 이름·경로만 실어
+        #   /events 디코딩 전체가 실패했고, 그 agent의 맥 알림이 다시 켤 때까지 멈췄다
+        for k, v in RUN_DEFAULTS:
+            run.setdefault(k, v)
         run.setdefault("history", [])
         # 감시 스레드와 대기열 스레드가 같이 부른다. 사건 번호가 겹치지 않게
         with _PUSH_LOCK:
             now = time.time()
-            recent = getattr(self, "_recent", {})
-            self._recent = recent = {k: t for k, t in recent.items() if now - t < 120}
             # 같은 결과 폴더(전체 경로)의 같은 결과(끝남·실패)만 겹친 것으로 본다.
             # ★폴더 이름만 봐서, 다른 프로젝트의 version_0 둘이 연달아 끝나면 두 번째(실패)가 사라졌다
-            import os
-            p = run.get("path") or ""
-            outcome = {"finished": "ok", "job_done": "ok", "failed": "bad", "job_failed": "bad"}.get(kind)
-            key = (os.path.normcase(os.path.normpath(p)) if p else run.get("name"), outcome)
-            if outcome and key in recent:
+            if self._duplicate(kind, run, now, span):
                 return
-            if outcome:
-                recent[key] = now
             self.seq += 1
             self.events.append({"seq": self.seq, "kind": kind, "before": before, "run": run, "at": now})
         self._webhook(kind, run)
@@ -145,6 +237,9 @@ class Watcher:
             from .ssh_source import host_of
             # 이어 한 학습(Lightning version_1 ← version_0)이 있으면 앞 것의 멎음·끝남은 알리지 않는다(★재개마다 앞 것이 '멎음'을 냈다)
             evs = list(mon.refresh())
+            if not getattr(self, "_missed_checked", False):     # 꺼진 사이 끝나거나 멈춘 학습(watch_state.py)
+                self._missed_checked = True
+                evs = watch_state.missed(mon) + evs
             later = {(str(r.path.parent), r.resumed_from) for r in mon.runs if getattr(r, "resumed_from", "")}
             for e in evs:
                 if (str(e.run.path.parent), e.run.path.name) in later and e.kind in ("stalled", "quiet", "finished", "stopped_early"):
@@ -156,6 +251,9 @@ class Watcher:
                     d["source"] = f"ssh:{h}"         #   /runs는 그대로 local + ssh 칸(맥 앱이 source로 기계를 고른다)
                 self._push(e.kind, e.before, d)
             self._scanned = (time.time(), key, mon.runs)   # /runs가 이걸 쓴다(다시 훑지 않게, 같은 폴더 목록일 때만)
+            saver = getattr(self, "_state_saver", None) or watch_state.Saver()
+            self._state_saver = saver
+            saver.save(mon)
         # 스윕 조기 중단: 가망 없는 시도를 멈춘다(켠 스윕만)
         q = getattr(self, "queue", None)
         if q is not None and not getattr(self, "_stop_watching", False):

@@ -42,3 +42,13 @@ def test_only_the_latest_version_alerts(tmp_path, monkeypatch):
     a._watch_once()
     assert [(e["kind"], e["run"]["name"]) for e in a.events] == [("finished", "version_1"), ("failed", "version_0")]
     assert time.time() > 0
+
+
+def test_resumed_from_is_not_a_training_setting(tmp_path):
+    """★이어 한 Lightning 학습의 설정 표와 비교에 'resumed_from: version_0'이 학습 설정처럼 떴다"""
+    from epokio import rundetail
+    _ver(tmp_path / "exp", 0, [0, 1, 2])
+    v1 = _ver(tmp_path / "exp", 1, [3, 4])
+    (v1 / "hparams.yaml").write_text("lr: 0.01\n", encoding="utf-8")
+    args = rundetail.detail(v1)["args"]
+    assert args.get("lr") == "0.01" and "resumed_from" not in args

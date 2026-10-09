@@ -195,8 +195,10 @@ def build(runs: list[Run], asset_dir: Path | None = None, reviews: dict | None =
 def save(runs: list[Run], folder: Path | None = None, reviews: dict | None = None) -> Path:
     folder = folder or (Path.home() / "Desktop")
     stamp = time.strftime("%Y%m%d-%H%M")
-    path = folder / f"training-report-{stamp}.md"
-    assets = folder / f"training-report-{stamp}_files"
+    path, n = folder / f"training-report-{stamp}.md", 2
+    while path.exists():                          # ★같은 분에 두 번 만들면 앞 보고서와 그림을 덮어썼다
+        path, n = folder / f"training-report-{stamp}-{n}.md", n + 1
+    assets = path.with_name(path.stem + "_files")
     assets.mkdir(parents=True, exist_ok=True)
     path.write_text(build(runs, assets, reviews), encoding="utf-8")
     return path

@@ -32,7 +32,7 @@ function sshHTML() {
   S.sshRuns = next;
   const open = S.sshOpen ?? hosts.some((h) => h.status?.ok === false || h.status?.skipped?.some((x) => x.kept == null));   // 문제가 있으면 펼쳐 둔다
   return `<details class="sshbox" id="sshbox"${open ? " open" : ""}><summary>${t("SSH servers")} <span class="pill" style="--c:var(--soft)">${hosts.length}</span>
-    <button type="button" class="btn small" id="sshread" title="${t("Read now")}">${t("Read now")}</button></summary>${body}</details>`;
+    <button type="button" class="btn small needs-run" id="sshread" title="${t("Read now")}">${t("Read now")}</button></summary>${body}</details>`;
 }
 function wireSSH() {
   const b = $("#sshbox"); if (!b) return;

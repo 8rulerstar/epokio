@@ -1379,3 +1379,4 @@
 "Epoch / step" = "에폭 / 스텝";
 "Epochs / steps" = "에폭 / 스텝";
 "%d large log files: only the last part was loaded" = "큰 기록 파일 %d개: 끝부분만 불러옴(앞쪽 기록 없음)";
+"Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "최고 점수, 곧 저장된 가장 좋은 모델(best.pt)의 점수와 비교합니다. 분할·포즈·분류에서는 그 열의 가장 높은 값보다 조금 낮을 수 있습니다.";

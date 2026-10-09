@@ -169,3 +169,40 @@ def test_two_runs_with_the_same_folder_name_both_get_their_alerts(tmp_path, monk
     a._push("failed", "running", {"name": "version_0", "path": "/b/lightning_logs/version_0"})
     a._push("job_done", "running", {"name": "x", "path": "/a/lightning_logs/version_0"})   # 같은 폴더 같은 결과: 겹침
     assert [e["kind"] for e in a.events] == ["finished", "failed"]
+
+
+def test_a_request_without_a_language_keeps_the_saved_alert_language(tmp_path, monkeypatch):
+    """★Accept-Language 없는 POST /webhooks(curl·터미널·스크립트)가 저장된 폰 알림 언어를 영어로 되돌렸다"""
+    from epokio import msg
+    from epokio.agent import Agent
+    monkeypatch.setattr(Agent, "HOOKS_FILE", tmp_path / "hooks.json")
+    a = Agent.__new__(Agent)
+    try:
+        msg.set_from_header("ko-KR")
+        a.post("/webhooks", {"urls": ["https://ntfy.sh/x"]})
+        msg.set_from_header(None)
+        assert not msg.given()
+        a.post("/webhooks", {"urls": ["https://ntfy.sh/y"], "add": True})
+        assert json.loads((tmp_path / "hooks.json").read_text())["lang"] == "ko-KR"
+        msg.set_from_header("ja")                          # 언어를 실은 요청이면 그 언어로
+        a.post("/webhooks", {"urls": ["https://ntfy.sh/y"]})
+        assert json.loads((tmp_path / "hooks.json").read_text())["lang"] == "ja"
+    finally:
+        msg.set_from_header(None)
+    assert msg.resolve("zh-Hant-TW") == "zh-Hant" and msg.resolve("zh_CN") == "zh-Hans" and msg.resolve("pt_BR") == "pt-BR"
+
+
+def test_turning_alerts_off_can_be_undone(tmp_path, monkeypatch):
+    """★웹의 '끄기' 한 번에 맥 앱·터미널에서 넣은 슬랙·텔레그램 주소까지 지워졌고 되돌릴 길이 없었다"""
+    from epokio.agent import Agent
+    monkeypatch.setattr(Agent, "HOOKS_FILE", tmp_path / "hooks.json")
+    a = Agent.__new__(Agent)
+    urls = ["https://ntfy.sh/x", "https://hooks.slack.com/services/T/B/C"]
+    a.post("/webhooks", {"urls": urls, "kinds": ["failed"]})
+    assert a.post("/webhooks", {"urls": []})[0] == 200
+    assert json.loads((tmp_path / "hooks.json").read_text())["urls"] == []
+    code, got = a.post("/webhooks", {"restore": True})
+    cfg = json.loads((tmp_path / "hooks.json").read_text())
+    assert code == 200 and got["count"] == 2 and cfg["urls"] == urls and cfg["kinds"] == ["failed"]
+    (tmp_path / "webhooks.removed.json").unlink()
+    assert a.post("/webhooks", {"restore": True})[0] == 400

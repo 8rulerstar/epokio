@@ -31,6 +31,18 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
+On Windows, `python3` is often only a Microsoft Store shortcut and the venv has no `bin`
+folder. In PowerShell or cmd, call the venv's Python directly (no activation, so the
+script execution policy does not get in the way):
+
+```powershell
+py -m venv .venv
+.venv\Scripts\python -m pip install -e ".[dev]"
+.venv\Scripts\python -m pytest -q
+```
+
+(In Git Bash: `py -m venv .venv && source .venv/Scripts/activate`.)
+
 The agent itself uses only the standard library, so `pip install -e .` pulls in nothing
 on macOS and Linux. The `dev` extra adds `pytest`. Optional extras exist for features
 that need a third-party package: `tray` (Windows and Linux tray icon), `yaml` (a real

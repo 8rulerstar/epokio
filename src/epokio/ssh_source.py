@@ -42,7 +42,8 @@ HOST_RE = re.compile(r"^[A-Za-z0-9_.@:\-\[\]]+$")      # names starting with "-"
 
 
 def valid_host(h: str) -> bool:
-    return bool(h) and not h.startswith("-") and bool(HOST_RE.match(h))
+    """★"."·".."도 통과해 미러 폴더가 ~/.epokio 자신이 됐다(빼기가 그 폴더를 통째로 지웠다). 글자나 숫자가 하나는 있어야 한다"""
+    return bool(h) and not h.startswith("-") and bool(HOST_RE.match(h)) and bool(re.search(r"[A-Za-z0-9]", h))
 
 
 def config_hosts(path: Path | None = None) -> list[str]:
@@ -394,4 +395,6 @@ class Poller:
 
 def remove(host: str) -> None:
     save([h for h in load() if h.get("host") != host])
-    shutil.rmtree(mirror_dir(host), ignore_errors=True)
+    d = mirror_dir(host)
+    if valid_host(host) and d.resolve().parent == MIRROR.resolve():   # 미러 폴더 안의 한 칸만 지운다
+        shutil.rmtree(d, ignore_errors=True)

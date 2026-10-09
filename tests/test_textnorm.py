@@ -22,4 +22,7 @@ def test_mixed_forms(tmp_path):
     (tmp_path / unicodedata.normalize("NFD", "가")).mkdir()
     (tmp_path / unicodedata.normalize("NFC", "나")).mkdir()
     r = mixed_forms(str(tmp_path))
-    assert r["mixed"] and r["nfd"] == 1 and r["nfc"] == 1
+    assert r["mixed"] and r["nfd"] == 1 and r["nfc"] == 1 and r["found"]
+    (tmp_path / "ascii").mkdir()
+    (tmp_path / "ascii" / "a.jpg").write_bytes(b"")
+    assert mixed_forms(str(tmp_path / "ascii"))["found"] and not mixed_forms(str(tmp_path / "nope"))["found"]

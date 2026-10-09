@@ -58,7 +58,8 @@ def resume_check(agent, params: dict, body: dict):
                                      "Ultralytics would continue there, so use Train again instead.", old=saved)}
     # 최근에 바뀌었으면 아직 돌고 있을 수 있다(에폭이 3분보다 긴 학습은 '멎음'으로 보인다).
     # ★터미널에서 띄운 학습에 두 번째 학습을 붙여 같은 GPU·같은 파일에 둘이 썼다
-    newest = max((f.stat().st_mtime for f in (ckpt, run / "results.csv") if f.exists()), default=0)
+    # args.yaml도 본다: 이어 하기로 다시 뜬 학습은 첫 에폭이 끝날 때까지 그것만 새로 쓴다
+    newest = max((f.stat().st_mtime for f in (ckpt, run / "results.csv", run / "args.yaml") if f.exists()), default=0)
     if time.time() - newest < ENDED_SEC and not body.get("force"):
         return 409, {"error": msg.tr("This run changed in the last 30 minutes and may still be training.")}
     # ★대기 중인 작업은 output이 아직 비어 있어 두 번 눌러도 둘 다 들어갔다. 체크포인트로 비교한다

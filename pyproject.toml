@@ -36,7 +36,7 @@ epokio = "epokio.cli:main"
 epokio-tray = "epokio.tray:main"
 epokio-setup = "epokio.onboard:main"        # 시작 메뉴 바로 가기로 부르기 좋게
 epokio-agent = "epokio.agent:main"
-epokio-mcp = "epokio.mcp_server:main"
+epokio-mcp = "epokio.cli:mcp_main"
 
 [build-system]
 requires = ["setuptools>=68"]

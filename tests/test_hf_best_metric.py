@@ -100,3 +100,23 @@ def test_an_eval_loss_only_run_is_explained_shown_once_and_steps_are_called_step
     (d / "trainer_state.json").write_text(json.dumps(st), encoding="utf-8")
     res = explain.explain(d, "finished")
     assert "No validation score was logged" not in res["text"] and "eval_loss" in res["text"]
+
+
+def test_a_multi_epoch_run_has_a_time_left_before_its_first_epoch_ends(tmp_path):
+    """3에폭 LLM 미세 조정: 첫 에폭이 몇 시간이라 그동안 '0/3, – 남음'이었다. global_step/max_steps로 남은 시간"""
+    import os
+    import time
+    d = tmp_path / "llama-ft"
+    ck = d / "checkpoint-300"
+    ck.mkdir(parents=True)
+    logs = [{"loss": 2.0, "epoch": 0.3, "step": 100}, {"eval_loss": 1.9, "epoch": 0.3, "step": 100}]
+    (ck / "trainer_state.json").write_text(json.dumps({"global_step": 300, "max_steps": 1000, "epoch": 0.9,
+                                                       "num_train_epochs": 3, "log_history": logs}))
+    now = time.time()
+    for p in (d, d / "runs", ck):                    # 폴더가 생긴 때(윈도우는 st_birthtime)를 늦출 수 없어 기록 쪽을 5분 뒤로
+        p.mkdir(exist_ok=True)
+        os.utime(p, (now, now))
+    os.utime(ck / "trainer_state.json", (now + 300, now + 300))
+    r = read_run(d, now=now + 300)
+    assert r.state == "running" and r.epoch == 0 and r.total == 3
+    assert r.eta is not None and 600 < r.eta < 800   # 300초에 30% → 남은 70%는 약 700초

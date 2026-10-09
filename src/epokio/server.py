@@ -146,8 +146,10 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
             if tok:
                 self._set_cookie(tok)
 
-        def _login(self, tok: str):
-            body = b'{"ok": true}'
+        def _login(self, tok: str, can_run: bool):
+            # scope: whether the web page may show controls that change things. A read-only token saw Save, Stage and
+            #   Folder buttons that all ended in an English 403 (and the message vanished on the next refresh)
+            body = json.dumps({"ok": True, "scope": tokens.RUN if can_run else tokens.READ}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -179,8 +181,10 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
             if u.path == "/health" and "nonce" in u.query:           # prove this is really this machine's agent (the token is not sent)
                 import hashlib, hmac
                 n = parse_qs(u.query).get("nonce", [""])[0][:128]
-                proof = hmac.new(auth.token().encode(), n.encode(), hashlib.sha256).hexdigest()
-                return self._send(200, {**agent.get("/health", {}), "proof": proof})
+                proof = hmac.new(auth.token().encode(), n.encode(), hashlib.sha256).hexdigest()      # old clients (no port)
+                from .port import proof_for                              # bound to the port this server listens on (relays fail)
+                return self._send(200, {**agent.get("/health", {}), "proof": proof,
+                                        "proof_port": proof_for(auth.token(), n, self.server.server_address[1])})
             if u.path == "/health" and self.client_address[0] in ("127.0.0.1", "::1"):
                 # Only for pages opened on this machine: the command that shows the token (autostart.cli: exe, venv or py form). The web lock card
                 #   said epokio-agent --show-token, not on PATH on Windows. The venv path may contain the user name, so it is not sent outside
@@ -259,12 +263,16 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
             scope = auth.post_scope(self.headers.get("Authorization"))
             if scope is None:
                 return self._send(401, {"error": "token required"})
+            limited = auth.request_roots(self.headers) is not None   # a token limited to folders is read-only (scope.py)
             if u_path_is_login(self.path):                     # web page: if the token is valid, give the image cookie (read-only too)
-                return self._login(auth.bearer(self.headers.get("Authorization")))
+                return self._login(auth.bearer(self.headers.get("Authorization")), scope == tokens.RUN and not limited)
+            # code: the web page hides the controls from then on. The text follows the page language (it came in English)
             if scope != tokens.RUN:                            # token valid but read-only: cannot start training
-                return self._send(403, {"error": "this token is read-only"})
-            if auth.request_roots(self.headers) is not None:   # a token limited to folders is read-only (scope.py)
-                return self._send(403, {"error": "this token can see only some folders and cannot change anything"})
+                return self._send(403, {"error": msg.tr("This token is read-only. It can view runs, but not start them or change anything."),
+                                        "code": "read_only"})
+            if limited:
+                return self._send(403, {"error": msg.tr("This token can see only some folders and cannot change anything."),
+                                        "code": "read_only"})
             try:
                 try:
                     # Reject NaN and Infinity. Previously a NaN goal was saved and sent as is in /runs,

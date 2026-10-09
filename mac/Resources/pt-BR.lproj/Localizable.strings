@@ -68,7 +68,7 @@
 "Ask Epokio, e.g. \"retrain coco8 for 100 epochs\"" = "Peça ao Epokio, ex.: \"retreinar coco8 por 100 épocas\"";
 "Assistant" = "Assistente";
 "At the best epoch. Higher is better." = "Na melhor época. Quanto maior, melhor.";
-"Auto-label" = "Rotular automaticamente";
+"Auto-label" = "Autorrotular";
 "Available for runs on this Mac" = "Disponível para treinos neste Mac";
 "Average best score of the runs that used each value." = "Média da melhor pontuação dos treinos que usaram cada valor.";
 "Average score %@" = "Pontuação média %@";
@@ -1378,3 +1378,4 @@
 "Epoch / step" = "Época / passo";
 "Epochs / steps" = "Épocas / passos";
 "%d large log files: only the last part was loaded" = "%d arquivos de log grandes: só a parte final foi carregada";
+"Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "Comparado com a melhor pontuação, que é a do melhor modelo salvo (best.pt). Em segmentação, pose e classificação, ela pode ficar um pouco abaixo do maior valor da coluna.";

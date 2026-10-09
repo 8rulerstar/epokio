@@ -16,12 +16,10 @@ ENDED_SEC = 30 * 60   # 이 시간 넘으면 '멎은 것'이 아니라 '끝난 �
 #   ⚠둘을 나눈 이유: 조기종료(patience)로 끝난 run은 total보다 적은 에폭에서 멈춘다.
 #   시간 기준이 없으면 몇 달 전에 정상 종료된 학습까지 전부 "멈춤 경고"로 뜬다.
 
-MAX_DEPTH = 4         # runs 폴더 아래로 이만큼만 내려간다
-#   ⚠없으면 사용자가 프로젝트 루트를 가리켰을 때 데이터셋 수만 장까지 훑는다.
+MAX_DEPTH = 4         # runs 폴더 아래로 이만큼만 내려간다. ⚠없으면 프로젝트 루트를 가리켰을 때 데이터셋 수만 장까지 훑는다
 
 SKIP_DIRS = {         # 학습 폴더 안에 있지만 results.csv가 있을 리 없는 곳
-    "images", "labels", "weights", "dataset", "datasets",
-    ".git", ".venv", "node_modules", "__pycache__",
+    "images", "labels", "weights", "dataset", "datasets", ".git", ".venv", "node_modules", "__pycache__",
 }
 # 지켜보는 폴더 → 윈도우 경로 260자 제한에 걸려 못 읽은 폴더. /runs가 slow_roots로 알린다(LongPathsEnabled가 꺼진 기본 윈도우)
 TOO_LONG: dict[str, list[str]] = {}
@@ -53,6 +51,7 @@ class Run:
     x_axis: str = "epoch"          # "step"이면 epoch·total·best_epoch가 step 번호다(W&B·TensorBoard·CSV의 step 기록). 화면은 단위만 바꾼다
     error: str = ""                # 실패 이유("RuntimeError: CUDA out of memory"). epokio.start()가 예외로 죽었을 때
     resumed_from: str = ""         # 이 학습이 이어 한 앞 학습 폴더(Lightning version_1 ← version_0). 앞 것은 알림을 안 낸다
+    fraction: float | None = None  # 에폭보다 잘게 아는 끝낸 몫(HF global_step/max_steps). 진행 막대가 쓴다
 
     def __post_init__(self):
         if self.lower is None:     # 방향을 안 준 Run(시험·옛 코드): metric_higher가 False면 그대로, 아니면 열 이름으로
@@ -83,33 +82,21 @@ class Run:
 
     @property
     def progress(self) -> float | None:
-        if not self.total:
-            return None
-        return min(self.epoch / self.total, 1.0)
+        done = min(self.epoch / self.total, 1.0) if self.total else None
+        f = self.fraction                  # ★HF 첫 에폭 내내 0%인데 남은 시간은 나왔다
+        return max(done, f) if done is not None and done < 1 and f is not None and 0 < f < 1 else done
 
 
 # ── 파일 읽기 ──────────────────────────────────────
 
-def _read_total_epochs(run_dir: Path) -> int | None:
-    """args.yaml에서 epochs만. yamlish(PyYAML 있으면 그것, 없으면 표준 라이브러리 파서)"""
-    from . import yamlish
-    try:
-        text = (run_dir / "args.yaml").read_text(encoding="utf-8", errors="ignore")
-        data, _ = yamlish.load(text)
-        return int(float(data.get("epochs"))) if isinstance(data, dict) and data.get("epochs") not in (None, "") else None
-    except (OSError, ValueError, TypeError):
-        return None
-
-
 from .scan_names import STATE_ORDER, alias_of_sibling, crash_reason, display_name, find_override, fmt_dur, sort_runs, too_long, unique  # noqa: E402,F401  (옛 import 경로 유지)
-from .scan_timing import _to_float, recent_epoch_sec, recent_unit_sec  # noqa: E402,F401
+from .scan_timing import _read_total_epochs, _to_float, args_rewritten, fitness_epoch, patience_stop, recent_epoch_sec, recent_unit_sec  # noqa: E402,F401,E501
 
 _pick_metric = schema.pick_metric      # 옛 이름(윈도우 쪽 코드·시험이 부른다)
 
 
 @dataclass
 class _Parsed:
-    """results.csv 한 번 읽은 결과. mtime이 그대로면 재사용한다."""
     epoch: int
     elapsed: float
     metric: float | None
@@ -122,6 +109,8 @@ class _Parsed:
     lower: bool = False            # 대표 점수가 낮을수록 좋은가(= not metric_higher. 사람이 고른 방향 또는 열 이름으로 추정)
     epoch_sec: float | None = None     # 최근 기록 한 줄 사이의 시간(중앙값). 멈춤 판정이 쓴다
     unit_sec: float | None = None      # 최근 에폭(step 축이면 step) 하나에 걸린 시간(중앙값). ETA가 쓴다
+    frac: float | None = None          # 끝낸 몫(0~1, HF global_step/max_steps). 첫 에폭이 안 끝나도 남은 시간을 낸다
+    fit_epoch: int | None = None       # best.pt 에폭(patience 판정. 사람이 고른 대표 점수와 무관)
 
 
 def stall_limits(epoch_sec: float | None) -> tuple[float, float]:
@@ -237,6 +226,9 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
                 continue
         if vals:
             best, best_epoch = (min if lower else max)(vals, key=lambda t: t[0])
+        fi = None if chosen else schema.fitness_index(rows, mname)    # ★분할·포즈·분류는 best.pt를 고른 값(박스 점수와 더함)으로
+        if fi is not None:
+            best, best_epoch = _to_float(rows[fi].get(mname)), int(float(rows[fi]["epoch"]))
 
     # 발산 판정: 손실 계열 열 중 하나라도 NaN/inf면 실패로 본다
     diverged = any(
@@ -256,13 +248,13 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
         metric=next((v for v in (_to_float(r.get(mname)) for r in reversed(rows)) if v is not None), None) if mname else None,
         metric_name=mname or "",
         metric_higher=not lower, lower=lower,
-        best=best, best_epoch=best_epoch, diverged=diverged,
-        epoch_sec=recent_epoch_sec(rows), unit_sec=recent_unit_sec(rows),
+        best=best, best_epoch=best_epoch, diverged=diverged, fit_epoch=fitness_epoch(rows, schema.pick_metric(cols)) if chosen else best_epoch,
+        epoch_sec=recent_epoch_sec(rows), unit_sec=recent_unit_sec(rows), frac=loaded.fraction,
     )
     if not parsed.elapsed:                     # 시간 열이 없는 프레임워크: 폴더가 생긴 뒤 흐른 시간
         try:
             born = getattr(run_dir.stat(), "st_birthtime", None) or min(p.stat().st_mtime for p in run_dir.iterdir())
-            parsed.elapsed = max(st.st_mtime - born, 0.0)
+            parsed.elapsed = max(st.st_mtime - born, 0.0) if st.st_mtime < time.time() + 3600 else 0.0   # ★미래 시각 파일(시계가 뒤로 감)이 "3285d left"
         except (OSError, ValueError):
             pass
         # ★복사본은 파일이 한 순간에 생겨 0초로 보였다(모름으로). '에폭 x 1초'로 가르면 빠른 진짜 학습도 시간이 비었다
@@ -310,7 +302,7 @@ def read_run(run_dir: Path, now: float | None = None) -> Run | None:
             state="starting", idle=idle, updated=born, history=[],
         )
 
-    updated = loaded.updated                    # _parse가 이미 잰 수정 시각(★같은 파일을 두 번 stat했다)
+    updated = max(loaded.updated, args_rewritten(run_dir, loaded.updated) if loaded.framework == "ultralytics" else 0.0)   # 수정 시각(_parse가 잼) 또는 이어 하기로 다시 쓴 args.yaml
     idle = max(now - updated, 0.0)
     total = loaded.total
 
@@ -323,6 +315,8 @@ def read_run(run_dir: Path, now: float | None = None) -> Run | None:
     elif (total and p.epoch >= total) or (run_dir / "epokio_done").exists():
         # epokio_done: epokio.start()가 끝날 때 남긴다(★총 에폭을 모르는 직접 짠 학습이 끝나고 3분 뒤 '멎음' 알림을 받았다)
         state = "done"
+    elif idle > stale and loaded.framework == "ultralytics" and patience_stop(run_dir, p.epoch, p.fit_epoch, total):
+        state = "done"        # patience로 정상 조기 종료(멎음 경고가 아니다)
     elif idle > ended:
         state = "stopped"     # 조기종료했거나 사람이 껐다
     elif idle > stale:
@@ -333,6 +327,8 @@ def read_run(run_dir: Path, now: float | None = None) -> Run | None:
     eta = None
     if state == "running" and total and per:
         eta = per * max(total - p.epoch, 0)                  # 최근 칸 기준(초반 느린 에폭에 끌려가지 않게)
+    elif state == "running" and p.frac and 0 < p.frac < 1 and p.elapsed >= 30:   # 막 생긴 폴더(경과 0초)면 '0초 남음'이 됐다   # ★3에폭 LLM 미세 조정이 첫 에폭 내내 '0/3, – 남음'
+        eta = p.elapsed * (1 - p.frac) / p.frac
 
     return Run(
         name=unicodedata.normalize("NFC", run_dir.name),
@@ -341,11 +337,10 @@ def read_run(run_dir: Path, now: float | None = None) -> Run | None:
         best=p.best, best_epoch=p.best_epoch,
         state=state, idle=idle, updated=updated, history=p.history, framework=loaded.framework,
         format_warnings=list(getattr(loaded, "warnings", []) or []), x_axis=loaded.x_axis, error=error or "",
-               resumed_from=loaded.resumed_from)
+               resumed_from=loaded.resumed_from, fraction=p.frac)
 
 
 def _walk(root: Path, depth: int, long: list | None = None):
-    """results.csv를 가진 폴더만 찾는다. 데이터셋 폴더로 내려가지 않는다."""
     if depth < 0:
         return
     try:

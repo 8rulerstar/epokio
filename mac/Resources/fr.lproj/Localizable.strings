@@ -1370,3 +1370,4 @@
 "Epoch / step" = "Époque / étape";
 "Epochs / steps" = "Époques / étapes";
 "%d large log files: only the last part was loaded" = "%d fichiers journaux volumineux : seule la dernière partie a été chargée";
+"Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "Comparé au meilleur score, celui du meilleur modèle enregistré (best.pt). En segmentation, pose et classification, il peut être un peu en dessous de la valeur la plus haute de la colonne.";

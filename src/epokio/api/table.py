@@ -33,7 +33,8 @@ def get(agent, route: str, q: dict):
     if route != "/runs/table":
         return NOT_MINE
     runs = agent.get("/runs", {})["runs"]
-    rows = [{"path": r["path"], "name": r["name"], "state": r["state"], "epoch": r["epoch"], "total": r.get("total"),
+    # display: agent가 정한 이름(scan.display_name). ★표에서는 Lightning version_0 세 개가 같은 이름으로 보였다
+    rows = [{"path": r["path"], "name": r["name"], "display": r.get("display"), "state": r["state"], "epoch": r["epoch"], "total": r.get("total"),
              "best": r.get("best"), "metric_name": r.get("metric_name"),
              "metric_higher": bool(r.get("metric_higher", True)), "idle": r.get("idle"),
              "tags": (r.get("meta") or {}).get("tags", []), "star": bool((r.get("meta") or {}).get("star")),

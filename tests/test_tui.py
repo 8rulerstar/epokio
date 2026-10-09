@@ -63,3 +63,147 @@ def test_once_into_a_pipe_uses_ascii_marks_and_bars(capsys):
     assert tui.cells(lines[0]) == tui.cells(lines[3])
     assert "█" in tui.row(_run("/x/a/train"), 100)          # 터미널 화면(curses)은 그대로
 
+
+
+SEKRET = "sekret-" * 6                 # auth.token()은 32자보다 짧은 토큰을 새로 만든다
+
+
+def test_watch_sends_the_local_token_and_names_a_401(monkeypatch, tmp_path):
+    """watch가 토큰을 안 보내 --lan 도우미를 '안 닿음'으로 봤다. 이 기계 토큰만 자동, 다른 기계엔 안 보낸다"""
+    import io
+    import urllib.error
+    import urllib.request
+    from epokio import auth
+    monkeypatch.delenv("EPOKIO_TOKEN", raising=False)
+    monkeypatch.setattr(auth, "TOKEN_FILE", tmp_path / "token")
+    (tmp_path / "token").write_text(SEKRET + "\n", encoding="utf-8")
+    seen = []
+
+    def fake(req, timeout=0):
+        if isinstance(req, str):                 # port.verify_agent: 이 기계의 agent라는 증명(/health?nonce)
+            import hashlib, hmac, json
+            from urllib.parse import parse_qs, urlsplit
+            from epokio.port import proof_for
+            nonce = parse_qs(urlsplit(req).query)["nonce"][0]
+            return io.BytesIO(json.dumps({"proof_port": proof_for(SEKRET, nonce, urlsplit(req).port)}).encode())
+        seen.append((req.full_url, req.get_header("Authorization")))
+        if req.get_header("Authorization") != "Bearer " + SEKRET:
+            raise urllib.error.HTTPError(req.full_url, 401, "token", {}, io.BytesIO(b""))
+        return io.BytesIO(b'{"runs": [], "label": "pc"}')
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    f = tui.Feed("http://127.0.0.1:9", [])
+    f.runs()
+    assert seen[-1][1] == "Bearer " + SEKRET and not f.down
+    g = tui.Feed("http://gpu-pc:9", [])
+    g.runs()
+    assert seen[-1][1] is None and g.down and "needs a token" in g.where
+    w = tui.Feed("http://gpu-pc:9", [], token="wrong")
+    w.runs()
+    assert w.down and "rejected the token" in w.where          # ★틀린 토큰도 '토큰이 필요함'으로만 나왔다
+
+
+def test_watch_does_not_hand_the_token_to_another_program_on_the_port(monkeypatch, tmp_path):
+    """★공용 서버에서 남이 127.0.0.1:8787에 띄운 프로그램이 watch·트레이가 보낸 토큰을 받아 갔다.
+    이 기계의 토큰은 그 주소가 HMAC 증명을 낼 때만 싣는다. 진짜 agent에는 그대로 붙는다"""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from epokio import auth, server
+    from epokio.server_cli import QuietServer
+    monkeypatch.delenv("EPOKIO_TOKEN", raising=False)
+    monkeypatch.setattr(auth, "TOKEN_FILE", tmp_path / "token")
+    auth._CACHE.pop(tmp_path / "token", None)
+    mine = auth.token()
+    heard = []
+
+    class Thief(BaseHTTPRequestHandler):
+        def do_GET(self):
+            heard.append(self.headers.get("Authorization"))
+            body = b'{"ok": true, "runs": [], "label": "x"}'
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    class Stub:
+        def get(self, route, q):
+            return {"runs": [], "label": "mine"} if route == "/runs" else {"ok": True}
+
+        def file(self, p):
+            return None
+
+    thief = ThreadingHTTPServer(("127.0.0.1", 0), Thief)
+    real = QuietServer(("127.0.0.1", 0), server.make_handler(Stub(), reads_need_token=True))
+    for h in (thief, real):
+        threading.Thread(target=h.serve_forever, daemon=True).start()
+    try:
+        f = tui.Feed(f"http://127.0.0.1:{thief.server_port}", [])
+        f.runs(), f.runs()
+        assert heard and not any(heard), heard                   # 증명을 못 낸 곳에는 토큰이 안 간다
+        g = tui.Feed(f"http://127.0.0.1:{real.server_port}", [])
+        g.runs()
+        assert not g.down and "mine" in g.where                  # 진짜 agent(보기에도 토큰)는 토큰으로 읽는다
+        assert mine
+    finally:
+        thief.shutdown()
+        real.shutdown()
+
+
+def _proving(monkeypatch, tmp_path, honest):
+    """가짜 urlopen: honest[0]이 참이면 그 포트에 이 기계의 agent(증명을 낸다), 거짓이면 다른 프로그램. 실린 Authorization을 모은다"""
+    import io
+    import json
+    import urllib.request
+    from urllib.parse import parse_qs, urlsplit
+    from epokio import auth
+    from epokio.port import proof_for
+    monkeypatch.setattr(auth, "TOKEN_FILE", tmp_path / "token")
+    (tmp_path / "token").write_text(SEKRET + "\n", encoding="utf-8")
+    auth._CACHE.pop(tmp_path / "token", None)
+    seen = []
+
+    def fake(req, timeout=0):
+        if isinstance(req, str):
+            u = urlsplit(req)
+            nonce = parse_qs(u.query)["nonce"][0]
+            return io.BytesIO(json.dumps({"proof_port": proof_for(SEKRET if honest[0] else "guess", nonce, u.port)}).encode())
+        seen.append(req.get_header("Authorization"))
+        return io.BytesIO(b'{"runs": [], "label": "pc"}')
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    return seen
+
+
+def test_watch_checks_the_agent_before_every_request(monkeypatch, tmp_path):
+    """★한 번 확인한 것을 기억해, 진짜 agent가 꺼진 자리에 남이 같은 포트로 뜨면 다음 요청이 이 기계의 토큰을 실었다"""
+    monkeypatch.delenv("EPOKIO_TOKEN", raising=False)
+    honest = [True]
+    seen = _proving(monkeypatch, tmp_path, honest)
+    f = tui.Feed("http://127.0.0.1:9", [])
+    f.runs()
+    assert seen[-1] == "Bearer " + SEKRET
+    honest[0] = False                        # 같은 포트에 다른 프로그램
+    f.runs()
+    assert seen[-1] is None
+
+
+def test_watch_sends_a_given_token_to_a_found_local_port_only_after_proof(monkeypatch, tmp_path):
+    """★EPOKIO_TOKEN(다른 기계용)을 찾아 붙은 기본 포트에 확인 없이 보내, 8787의 다른 프로그램이 받았다. --agent로 준 주소에는 그대로"""
+    monkeypatch.setenv("EPOKIO_TOKEN", "remote-secret")
+    seen = _proving(monkeypatch, tmp_path, [False])
+    tui.Feed("http://127.0.0.1:9", []).runs()
+    assert seen[-1] is None
+    tui.Feed("http://127.0.0.1:9", [], explicit=True).runs()
+    assert seen[-1] == "Bearer remote-secret"
+    tui.Feed("http://gpu-pc:9", []).runs()
+    assert seen[-1] == "Bearer remote-secret"
+
+
+def test_dashboard_link_carries_the_token_only_to_a_proven_agent(monkeypatch):
+    """★트레이의 대시보드 항목이 루프백이면 확인 없이 '#t=토큰'을 붙여, 8787의 다른 프로그램 페이지가 자바스크립트로 읽을 수 있었다"""
+    from epokio import auth, port
+    monkeypatch.setattr(port, "verify_agent", lambda *a, **k: False)
+    assert "#t=" not in auth.page_url("http://127.0.0.1:8787")
+    monkeypatch.setattr(port, "verify_agent", lambda *a, **k: True)
+    assert auth.page_url("http://127.0.0.1:8787").endswith("#t=" + auth.token())

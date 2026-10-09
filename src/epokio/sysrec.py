@@ -106,10 +106,21 @@ def read(run_path) -> dict | None:
             "avg": {k: round(avg(k), 1) for k in cols}}
 
 
-def note(rec: dict | None) -> tuple[str, str] | None:
+# GPU가 놀 때 해 볼 것. 프레임워크마다 설정 이름이 다르다.
+# ★Hugging Face·Keras·Lightning 학습에도 울트라리틱스 인자(workers, cache=ram)를 권했다
+_IDLE_TIPS = {
+    "ultralytics": "The GPU may be waiting for data. Try more workers, cache=ram, or a larger batch.",
+    "huggingface": "The GPU may be waiting for data. Try a higher dataloader_num_workers or per_device_train_batch_size in TrainingArguments.",
+    "lightning": "The GPU may be waiting for data. Try num_workers and pin_memory=True in your DataLoader, or a larger batch size.",
+    "keras": "The GPU may be waiting for data. Try a tf.data pipeline with .cache() and .prefetch(tf.data.AUTOTUNE), or a larger batch size.",
+}
+_IDLE_TIP_OTHER = "The GPU may be waiting for data. Try more data loading workers, keeping the data in memory, or a larger batch size."
+
+
+def note(rec: dict | None, framework: str = "ultralytics") -> tuple[str, str] | None:
     """해설 한 줄: GPU를 절반도 못 썼다. 표본이 적거나 GPU 값이 없으면 None"""
     if not rec or rec["samples"] < MIN_SAMPLES or rec["avg"].get("gpu") is None or rec["avg"]["gpu"] >= LOW_GPU:
         return None
     from .msg import tr
     return (tr("The GPU was busy only {pct}% of the time on average while this run trained.", pct=f"{rec['avg']['gpu']:.0f}"),
-            tr("The GPU may be waiting for data. Try more workers, cache=ram, or a larger batch."))
+            tr(_IDLE_TIPS.get(framework, _IDLE_TIP_OTHER)))

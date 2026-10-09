@@ -188,6 +188,12 @@ class Logger:
     def __init__(self, folder: str | Path, epochs: int | None = None, notify: bool = False, **params):
         self.dir = Path(folder)
         self._notify = bool(notify)                 # 도우미 없이 이 프로세스가 폰 알림을 보낸다(selfnotify.py)
+        if self._notify:
+            from . import notify as _n, selfnotify
+            if not [u for u in selfnotify._hooks().get("urls", []) if isinstance(u, str) and _n.valid(u)]:
+                # 웹후크 없이 notify=True면 아무 말 없이 알림이 안 왔다
+                print("epokio: notify=True but no webhook is saved, so no phone alert will be sent. "
+                      "Add one with `epokio alerts --add <url>`.", file=sys.stderr)
         self.rows: list[dict] = []
         self.t0 = time.time()
         self._warned = False

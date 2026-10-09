@@ -27,3 +27,62 @@ def recent_unit_sec(rows: list[dict], n: int = 10) -> float | None:
     pts = [(t, x) for t, x in pts if t is not None and x is not None]
     d = sorted((t2 - t1) / (x2 - x1) for (t1, x1), (t2, x2) in zip(pts, pts[1:]) if t2 > t1 and x2 > x1)
     return d[len(d) // 2] if d else None
+
+
+def _read_total_epochs(run_dir) -> int | None:
+    """args.yaml에서 epochs만. yamlish(PyYAML 있으면 그것, 없으면 표준 라이브러리 파서)"""
+    return _arg_int(run_dir, "epochs")
+
+
+def _arg_int(run_dir, key: str) -> int | None:
+    from . import yamlish
+    try:
+        text = (run_dir / "args.yaml").read_text(encoding="utf-8", errors="ignore")
+        data, _ = yamlish.load(text)
+        return int(float(data.get(key))) if isinstance(data, dict) and data.get(key) not in (None, "") else None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def args_rewritten(run_dir, since: float) -> float:
+    """Ultralytics가 이어 하기로 다시 뜰 때 args.yaml을 새로 쓴다(resume: <last.pt>). 기록 파일(since)보다 새것이고
+    resume이 적혀 있으면 그 시각, 아니면 0. resume을 보는 까닭: 폴더를 복사하면 args.yaml이 늦게 생겨도 이어 한 게 아니다.
+    ★터미널에서 이어 한 학습이 첫 에폭이 끝날 때까지 '중단됨'으로 보였고 '이어 하기' 단추가 두 번째 학습을 같은 폴더에 붙였다"""
+    try:
+        t = (run_dir / "args.yaml").stat().st_mtime
+    except OSError:
+        return 0.0
+    if t <= since + 5:
+        return 0.0
+    from . import yamlish
+    try:
+        data, _ = yamlish.load((run_dir / "args.yaml").read_text(encoding="utf-8", errors="ignore"))
+    except (OSError, ValueError):
+        return 0.0
+    r = data.get("resume") if isinstance(data, dict) else None
+    return t if r not in (None, False, "", "False", "false", "None", "null") else 0.0
+
+
+def patience_stop(run_dir, epoch: int, best_epoch: int | None, total: int | None) -> bool:
+    """Ultralytics patience 조기 종료로 끝났나(EarlyStopping: 지금 에폭 - 최고 에폭 >= patience면 멈춘다).
+    기록이 멎은 뒤에만 부른다. ★정상 조기 종료가 '멎음'(급함)과 '마지막 에폭 전에 멈춤' 두 알림으로 갔다"""
+    if not (total and best_epoch and epoch < total):
+        return False
+    patience = _arg_int(run_dir, "patience")
+    return bool(patience and patience > 0 and epoch - best_epoch >= patience)
+
+
+def fitness_epoch(rows: list[dict], auto: str | None) -> int | None:
+    """Ultralytics가 best.pt·patience에 쓰는 최고 에폭(사람이 고른 대표 점수와 무관하게 자동 점수로).
+    ★고른 열(val/box_loss 등)의 최고 에폭으로 patience를 재서, 멈춘 학습이 '끝남'으로 알려졌다"""
+    from . import schema
+    if not auto:
+        return None
+    fi = schema.fitness_index(rows, auto)
+    try:
+        if fi is not None:
+            return int(float(rows[fi]["epoch"]))
+        vals = [(v, int(float(r["epoch"]))) for r in rows if (v := _to_float(r.get(auto))) is not None]
+    except (KeyError, TypeError, ValueError):
+        return None
+    return (max if schema.higher_is_better(auto) else min)(vals, key=lambda t: t[0])[1] if vals else None

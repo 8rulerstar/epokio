@@ -86,7 +86,7 @@ def test_explicit_port_is_not_moved_and_names_other_program(monkeypatch):
 def test_existing_epokio_on_default_is_not_duplicated(monkeypatch):
     ep, p = serve(json.dumps({"ok": True, "label": "x", "version": "1"}).encode())
     monkeypatch.setattr(port, "DEFAULT_PORT", p)
-    monkeypatch.setattr(port, "verify_agent", lambda url, timeout=2.0: True)    # 내 계정의 agent
+    monkeypatch.setattr(port, "agent_proof", lambda url, timeout=2.0: "ok")    # 내 계정의 agent
     try:
         with pytest.raises(SystemExit) as e:
             port.bind(make, "127.0.0.1", None)
@@ -115,7 +115,7 @@ def test_no_free_port_in_span(monkeypatch):
 
 def test_record_written_found_and_cleared(home, monkeypatch):
     ep, p = serve(json.dumps({"ok": True, "label": "x", "version": "1"}).encode())
-    monkeypatch.setattr(port, "verify_agent", lambda url, timeout=2.0: True)    # 내 계정의 agent
+    monkeypatch.setattr(port, "agent_proof", lambda url, timeout=2.0: "ok")    # 내 계정의 agent
     try:
         port.write_record(p, "127.0.0.1")
         d = json.loads((home / ".epokio" / "agent.json").read_text())
@@ -154,7 +154,7 @@ def test_another_users_agent_on_default_port_moves_to_next(monkeypatch):
     """공용 서버: 8787이 남의 Epokio면 막히지 말고 다음 포트로 옮겨 뜬다"""
     ep, p = serve(json.dumps({"ok": True, "label": "x", "version": "1"}).encode())
     monkeypatch.setattr(port, "DEFAULT_PORT", p)
-    monkeypatch.setattr(port, "verify_agent", lambda url, timeout=2.0: False)   # 남의 agent
+    monkeypatch.setattr(port, "agent_proof", lambda url, timeout=2.0: "no")   # 남의 agent
     try:
         srv, got = port.bind(make, "127.0.0.1", None)
         assert got != p and p < got <= p + port.SPAN

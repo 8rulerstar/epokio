@@ -100,3 +100,104 @@ def test_review_routes_validate(tmp_path, monkeypatch):
     assert a.post("/review/verdicts", {"job": "j1", "verdicts": {"/d/images/a.jpg": "hmm"}})[0] == 400
     assert a.post("/review/verdicts", {"job": "j1", "verdicts": {"/d/images/a.jpg": "label_wrong"}})[0] == 200
     assert a.post("/review/retrain", {"job": "j1", "want": "all"})[0] == 400
+
+
+def test_pose_and_mask_labels_are_not_replaced_by_a_box(tmp_path, monkeypatch):
+    """★고친 라벨은 'cls x y w h' 한 줄이라 포즈의 키포인트(분할의 다각형)를 잃었고, Ultralytics가 그 이미지를 깨진 라벨로
+    빼서 고친 것이 조용히 사라졌다(맥 앱이 포즈 고치기를 열어 두었다). 400으로 이유를 알린다"""
+    monkeypatch.setattr(Agent, "ROOTS_FILE", tmp_path / "roots.json")
+    a = Agent.__new__(Agent)
+    a.roots, a.label = [], "t"
+
+    class J:
+        kind, output, params = "evaluate", str(tmp_path), {"model": "m"}
+
+    class Q:
+        def get(self, i):
+            return J if i == "j1" else None
+    a.queue = Q()
+    for task in ("pose", "segment"):
+        (tmp_path / "epokio_eval.json").write_text(json.dumps({**data(), "task": task}))
+        code, body = a.post("/review/fix", {"job": "j1", "image": "/d/images/a.jpg", "boxes": [{"cls": 0, "box": B}]})
+        assert code == 400 and "labelling tool" in body["error"]
+        assert not (tmp_path / "labels_fixed").exists()
+
+
+def test_pose_review_compares_box_with_box(tmp_path):
+    """★포즈 검수의 '학습 때 점수'는 키포인트(OKS) 머리, 다시 채점한 값은 박스 IoU라 같은 'mAP50'에 다른 것을 나란히 보였다"""
+    from epokio.api import review as review_api
+    run = tmp_path / "pose" / "train"
+    (run / "weights").mkdir(parents=True)
+    (run / "weights" / "best.pt").write_bytes(b"x")
+    (run / "results.csv").write_text("epoch,metrics/precision(B),metrics/recall(B),metrics/mAP50(B),metrics/mAP50-95(B),"
+                                     "metrics/precision(P),metrics/recall(P),metrics/mAP50(P),metrics/mAP50-95(P)\n"
+                                     "1,0.6,0.6,0.665,0.4,0.7,0.7,0.67,0.5\n")
+    got = review_api.trained(str(run / "weights" / "best.pt"), "pose")
+    assert got and got["map50"] == 0.665
+
+
+def test_same_named_images_keep_their_own_fix_and_the_originals_stay_untouched(tmp_path):
+    """★val/cam1/0001.jpg와 val/cam2/0001.jpg를 둘 다 고르면 재학습 세트에서 두 번째 이미지가 첫 번째의 하드링크 위에
+    쓰여 원본 cam1 이미지가 cam2 내용으로 바뀌었다. 고친 라벨도 이름(0001)으로만 저장돼 서로 덮고 둘 다에 들어갔다"""
+    ds = tmp_path / "ds"
+    imgs = []
+    for cam, byte in (("cam1", b"one"), ("cam2", b"two")):
+        (ds / "images/val" / cam).mkdir(parents=True)
+        (ds / "labels/val" / cam).mkdir(parents=True)
+        img = ds / "images/val" / cam / "0001.jpg"; img.write_bytes(byte)
+        (ds / "labels/val" / cam / "0001.txt").write_text("0 0.5 0.5 0.2 0.2\n")
+        imgs.append(img)
+    (ds / "images/train").mkdir(parents=True)
+    (ds / "data.yaml").write_text(f"path: {ds}\ntrain: images/train\nval: images/val\nnames:\n  0: cat\n  1: dog\n")
+    run = tmp_path / "runs/t"; (run / "weights").mkdir(parents=True)
+    (run / "args.yaml").write_text(f"data: {ds / 'data.yaml'}\n")
+    out = tmp_path / "eval"; out.mkdir()
+    d = data(); d["rows"] = [{**d["rows"][0], "image": str(i), "label": str(i).replace("images", "labels")[:-4] + ".txt"} for i in imgs]
+    (out / "epokio_eval.json").write_text(json.dumps(d))
+    (out / "review.csv").write_text(f"image,verdict\n{imgs[0]},model_wrong\n{imgs[1]},model_wrong\n")
+    a = retrain.fix_label(out, str(imgs[0]), [{"cls": 0, "box": [0.1, 0.1, 0.1, 0.1]}])
+    b = retrain.fix_label(out, str(imgs[1]), [{"cls": 1, "box": [0.9, 0.9, 0.1, 0.1]}])
+    assert a != b and len(retrain.fixed_labels(out)) == 2
+    got = retrain.build_retrain(out, str(run / "weights/best.pt"), ["model_wrong"], repeat=2)
+    assert imgs[0].read_bytes() == b"one" and imgs[1].read_bytes() == b"two"          # 원본 그대로
+    labels = sorted(p.read_text(encoding="utf-8") for p in (out / "retrain/labels").glob("*.txt"))
+    assert got["files"] == 4 and len(list((out / "retrain/images").iterdir())) == 4
+    assert labels.count("0 0.100000 0.100000 0.100000 0.100000\n") == 2 and labels.count("1 0.900000 0.900000 0.100000 0.100000\n") == 2
+    import pytest
+    with pytest.raises(FileExistsError):                                               # 있는 이름에는 절대 쓰지 않는다
+        retrain._link(imgs[1], next((out / "retrain/images").iterdir()))
+    assert imgs[0].read_bytes() == b"one"
+
+
+def test_two_tabs_marking_do_not_erase_each_other(tmp_path, monkeypatch):
+    """★웹이 화면의 판정 전체를 보내 review.csv를 통째로 바꿔, 열어 둔 다른 탭이 그사이 매긴 판정을 말없이 지웠다.
+    patch(바뀐 것만, null = 지우기)는 저장된 판정에 섞는다. 맥 앱의 전체 보내기(verdicts)는 그대로 된다"""
+    monkeypatch.setattr(Agent, "ROOTS_FILE", tmp_path / "roots.json")
+    a = Agent.__new__(Agent)
+    a.roots, a.label = [], "t"
+
+    class J:
+        kind, output, params = "evaluate", str(tmp_path), {"model": "m"}
+
+    class Q:
+        def get(self, i):
+            return J if i == "j1" else None
+    a.queue = Q()
+    (tmp_path / "epokio_eval.json").write_text(json.dumps(data()))
+    A, Bimg = "/d/images/a.jpg", "/d/images/b.jpg"
+    assert a.post("/review/verdicts", {"job": "j1", "patch": {A: "model_wrong"}})[0] == 200        # 탭 1
+    code, got = a.post("/review/verdicts", {"job": "j1", "patch": {Bimg: "unsure"}})                 # 탭 2(탭 1의 것을 모른다)
+    assert code == 200 and got["verdicts"] == {A: "model_wrong", Bimg: "unsure"} == retrain.verdicts(tmp_path)
+    assert a.post("/review/verdicts", {"job": "j1", "patch": {A: None}})[1]["verdicts"] == {Bimg: "unsure"}   # 되돌리기
+    assert a.post("/review/verdicts", {"job": "j1", "patch": {"/elsewhere.jpg": "ok"}})[0] == 400
+    assert a.post("/review/verdicts", {"job": "j1", "verdicts": {A: None}})[0] == 400                   # 전체 보내기에는 null이 없다
+    assert a.post("/review/verdicts", {"job": "j1", "verdicts": {A: "ok"}})[1]["verdicts"] == {A: "ok"}
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_two_reports_in_the_same_minute_do_not_overwrite(tmp_path):
+    """★보고서 이름이 분 단위라 같은 분에 두 번 만들면 앞 보고서와 그림 폴더를 덮어썼다"""
+    from epokio import report
+    a = report.save([], tmp_path)
+    b = report.save([], tmp_path)
+    assert a != b and a.exists() and b.exists() and b.with_name(b.stem + "_files").is_dir()

@@ -19,7 +19,12 @@ import urllib.request
 
 from mcp.server.mcpserver import MCPServer
 
-from . import auth
+from . import auth, version
+
+try:                                           # ★mcp 2.x는 ToolError가 아닌 예외를 'Error executing tool X'로만 보여 이유가 사라졌다
+    from mcp.server.mcpserver.exceptions import ToolError as _Refusal
+except ImportError:
+    _Refusal = RuntimeError
 
 try:                                           # 도구 성격 표시(읽기 전용·되돌릴 수 없음). 클라이언트가 읽기는 바로, 실행은 묻게
     from mcp_types import ToolAnnotations
@@ -51,7 +56,7 @@ def _clip(v, n: int = MAX_FIELD):
     return v
 
 server = MCPServer(
-    name="epokio",
+    name="epokio", version=version(),
     instructions=(
         "Epokio watches machine learning training runs on the user's own machines. "
         "Use list_runs first. Before starting training or auto-labeling, confirm the dataset path, "
@@ -60,7 +65,11 @@ server = MCPServer(
 )
 
 
-class AgentError(RuntimeError):
+# 예전처럼 RuntimeError이기도 하다(★ToolError로만 바꾸자 RuntimeError를 잡던 쪽이 놓쳤다)
+_BASES = (_Refusal,) if _Refusal is RuntimeError else (_Refusal, RuntimeError)
+
+
+class AgentError(*_BASES):
     """agent가 거절했거나 꺼져 있다. 메시지를 그대로 AI 도우미에게 보여 준다"""
 
 
@@ -137,7 +146,12 @@ def list_runs(limit: int = 20) -> list[dict]:
 def analyze_run(path: str) -> dict:
     # agent에게 묻는다. ★이 프로세스에서 직접 읽어 다른 기계의 학습은 늘 실패했고, HF·Keras·Lightning은 'no results.csv'였다
     from urllib.parse import quote
-    d = _get(f"/run?path={quote(path)}")
+    try:
+        d = _get(f"/run?path={quote(path)}")
+    except AgentError as e:
+        if "(404)" in str(e):
+            raise AgentError(f"No run at {path!r}. Use a path exactly as list_runs gives it.") from None
+        raise
     cols = d.get("columns") or {}
     return {"name": d.get("name"), "framework": d.get("framework"),
             "heads": d.get("heads"), "notes": d.get("notes"), "settings": d.get("args"),
@@ -189,6 +203,8 @@ def job_log(job_id: str, lines: int = 80) -> str:
     log = _get(f"/jobs/{quote(job_id, safe='')}/log?lines={lines}")["log"]
     if isinstance(log, str) and len(log) > MAX_LOG:
         log = "...[truncated]" + log[-MAX_LOG:]
+    if not log and job_id not in {j.get("id") for j in _get("/jobs")["jobs"]}:   # ★없는 id에도 빈 로그로 답했다
+        raise AgentError(f"No job with id {job_id!r}. queue_status lists the ids.")
     return "[untrusted log output below]\n" + (log or "")
 
 
@@ -203,7 +219,11 @@ def python_envs() -> list[dict]:
              annotations=READ)
 def check_filenames(path: str) -> dict:
     from urllib.parse import quote
-    return _get(f"/names?path={quote(path)}")
+    got = _get(f"/names?path={quote(path)}")
+    # ★없는 폴더에도 '안 섞임'으로 답했다. found가 없는 옛 agent에는 아무 말도 덧붙이지 않는다(영문 이름만 있는 폴더도 0, 0이다)
+    if isinstance(got, dict) and got.get("found") is False:
+        got["note"] = "That folder does not exist on the training machine. Check the path."
+    return got
 
 
 # ── 실행 (토큰) ────────────────────────────────────
@@ -237,7 +257,10 @@ def auto_label(model: str, source: str, python: str, conf: float = 0.25, name: s
                          "results.csv). Always confirm with the user first.", annotations=STOP)
 def cancel_job(job_id: str) -> dict:
     from urllib.parse import quote
-    return _post(f"/jobs/{quote(job_id, safe='')}/cancel", {})
+    got = _post(f"/jobs/{quote(job_id, safe='')}/cancel", {})
+    if isinstance(got, dict) and got.get("ok") is False:          # ★이유 없이 {"ok": false}만 돌려줬다
+        raise AgentError(f"Job {job_id!r} is not queued or running (unknown id, or it already ended). See queue_status.")
+    return got
 
 
 @server.tool(description="Write a Markdown training report (leaderboard, metrics, notes, charts) and return its path.",

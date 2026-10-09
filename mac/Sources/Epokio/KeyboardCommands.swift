@@ -16,6 +16,10 @@ extension Store {
         guard let r = selected, isLocal(r), let d: RunDetail = try? await client(for: r).get("run", ["path": r.path]) else {
             say(L("Pick a run on this Mac first."), bad: true); return
         }
+        // 이 맥의 Ultralytics 학습만(RunActions canTrain·웹과 같은 규칙)
+        guard (r.framework ?? "ultralytics") == "ultralytics", d.args["data"] != nil else {
+            say(L("Not available for this format"), bad: true); return
+        }
         pendingTrainArgs = d.args; section = .train               // ★양식만 채운다. 시작은 사람이
     }
     func trySelected() {

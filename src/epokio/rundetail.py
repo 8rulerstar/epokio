@@ -41,6 +41,20 @@ def _args_file(path: Path, keys: list[str] | None = None) -> dict:
     return out
 
 
+INTERNAL_ARGS = ("x_axis", "epoch_tag", "resumed_from")      # 어댑터가 화면용으로 적는 칸. 학습 설정이 아니다(★이어 한 Lightning 학습의 설정 표·비교에 resumed_from이 떴다)
+
+
+def _shown_args(run_dir: Path, got) -> dict:
+    """설정 표에 보일 값: args.yaml, 없으면 어댑터가 읽은 설정 + Lightning hparams.yaml.
+    ★TensorBoard·Lightning 학습의 설정 표가 hparams.yaml(lr·batch_size)은 빼고 내부 칸(x_axis, epoch_tag)만 보였다"""
+    a = _args(run_dir)
+    if a:
+        return a
+    out = {k: v for k, v in ((got.args if got else None) or {}).items() if k not in INTERNAL_ARGS}
+    out.update({k: v for k, v in _args_file(run_dir / "hparams.yaml").items() if v})    # 여러 줄 값(빈 칸)은 뺀다
+    return out
+
+
 def _env(run_dir: Path) -> dict:
     """epokio_env.json(파이썬·torch·ultralytics·CUDA·GPU·git 커밋·패키지 지문). 없으면 빈 것."""
     import json
@@ -125,13 +139,13 @@ def detail(run_dir: Path) -> dict | None:
         "heads": [{k: v for k, v in asdict(h).items() if k != "f1_curve"} for h in a.heads] if a else [],
         "notes": _notes_with_next(a, _args(run_dir) or (got.args if got else {}), str(best) if best.exists() else None,
                                   got.framework if got else "ultralytics")
-        + _note_row(classes.note(cls := classes.read(run_dir))) + _note_row(sysrec.note(rec := sysrec.read(run_dir))),
+        + _note_row(classes.note(cls := classes.read(run_dir))) + _note_row(sysrec.note(rec := sysrec.read(run_dir), got.framework if got else "ultralytics")),
         "classes": cls,                                   # 클래스별 성능(classes.py). 없으면 None: 화면이 "계산하기"를 보인다
         "snapshots": snapshots(run_dir),                 # 에폭별 예측 사진(켠 학습만)
         "system": rec,                                    # 학습하는 동안의 GPU·CPU·메모리·온도·팬(sysrec.py). 옛 학습·남의 기계는 None
         "images": images(run_dir),
         # 설정을 싣는 칸은 비밀처럼 보이는 키를 뺀다(auth.without_secrets). ★/run은 토큰 없이 열려 api_key가 그대로 보였다
-        "args": without_secrets(_args(run_dir) or (got.args if got else {})),      # 화면에 보여 줄 주요 설정
+        "args": without_secrets(_shown_args(run_dir, got)),      # 화면에 보여 줄 주요 설정
         # "다시 학습"이 채울 모든 설정. ★주요 11개만 옮겨서 seed·lrf·mosaic·close_mosaic 등이 기본값으로 돌아갔다
         "all_args": without_secrets(_args(run_dir, None)),
         "env": without_secrets(_env(run_dir)),                    # 어떤 환경에서 돌았나(epokio_env.json, Epokio 대기열 학습만)

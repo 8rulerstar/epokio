@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import os
+import stat
 import re
 import unicodedata
 
 # version_N: Lightning(★여러 학습이 전부 version_0으로 떴다). 날짜_시각: OpenMMLab work_dirs/<설정>/<시각>(★시각만 보였다)
-_GENERIC = re.compile(r"^(train|exp|val|predict|run|detect|segment|pose|classify)\d*$|^version_\d+$|^\d{8}_\d{6}$")
+# logs·tb·tensorboard·summaries: TensorBoard 기록 폴더(★seed1/logs, seed2/logs가 둘 다 'logs'로 떠 구별이 안 됐다)
+_GENERIC = re.compile(r"^(train|exp|val|predict|run|detect|segment|pose|classify)\d*$|^version_\d+$|^\d{8}_\d{6}$"
+                      r"|^(logs?|tb|tb_logs|tensorboard|summaries|events)$")
 _WANDB = re.compile(r"^(?:offline-)?run-\d{8}_\d{6}-([a-z0-9]+)$")   # W&B: wandb/offline-run-<시각>-<id>
 _SKIP_PARENT = ("runs", "detect", "segment", "pose", "classify", "obb", "lightning_logs", "wandb")
 
@@ -30,14 +33,40 @@ def display_name(r) -> str:
 
 def unique(runs: list) -> list:
     """같은 학습은 한 번만(먼저 온 것). ★한 감시 폴더가 다른 감시 폴더 안에 있으면(직접 더한 ~/proj와 찾은
-    ~/proj/runs) 목록·보고서에 같은 학습이 두 번 나왔다"""
-    seen, out = set(), []
+    ~/proj/runs) 목록·보고서에 같은 학습이 두 번 나왔다.
+    ★바로 가기(심볼릭 링크·윈도우 정션)로 같은 폴더에 두 길로 닿으면 같은 학습이 두 번 나왔다. 로컬은 실제 경로로 비교하고,
+      겹치면 바로 가기를 거치지 않은 쪽을 남긴다"""
+    where: dict = {}
+    out: list = []
+    parents: dict = {}                              # 위 폴더의 실제 경로는 한 번만(★학습마다 realpath라 2,000개면 0.3초, 네트워크 폴더면 더)
     for r in runs:
-        k = (r.source, os.path.normcase(os.path.normpath(str(r.path))))
-        if k not in seen:
-            seen.add(k)
+        p = os.path.normcase(os.path.normpath(str(r.path)))
+        real = p
+        if r.source in ("local", ""):
+            try:
+                real = os.path.normcase(_real(os.path.normpath(str(r.path)), parents))
+            except (OSError, ValueError):
+                pass
+        k = (r.source, real)
+        if k not in where:
+            where[k] = len(out)
             out.append(r)
+        elif p == real:
+            out[where[k]] = r                       # 먼저 온 것이 바로 가기였다
     return out
+
+
+def _real(path: str, parents: dict) -> str:
+    """실제 경로. 위 폴더는 parents에 기억해 두고, 학습 폴더 자체가 바로 가기(링크·정션)일 때만 그것을 따로 푼다"""
+    parent, name = os.path.split(path)
+    if parent not in parents:
+        parents[parent] = os.path.realpath(parent)
+    try:                                                               # 링크 또는 재분석 지점(윈도우 정션, 0x400). isjunction은 3.12부터라 직접 본다
+        st = os.lstat(path)
+        link = stat.S_ISLNK(st.st_mode) or bool(getattr(st, "st_file_attributes", 0) & 0x400)
+    except OSError:
+        link = False
+    return os.path.realpath(path) if link else os.path.join(parents[parent], name)
 
 
 def fmt_dur(sec: float | None, sep: str = " ") -> str:

@@ -76,7 +76,10 @@ def bind(make_server, host: str, port: int | None):
                 who = probe(url_for(p))
                 # ★같은 서버를 여러 사람이 쓰면 8787은 남의 Epokio일 수 있다. 내 것일 때만 "이미 실행 중",
                 #   남의 것이면 조용히 다음 포트로 옮긴다(예전엔 먼저 띄운 사람이 포트를 잡으면 나머지가 못 띄웠다)
-                if who == "epokio" and (explicit or mine_at(p)):
+                mine = agent_proof(url_for(p)) if who == "epokio" else "no"
+                if mine == "old":                   # ★내 옛 도우미를 남의 것으로 보고 다음 포트에 두 번째 도우미를 띄웠다
+                    raise SystemExit(OLD_HELPER.format(url=url_for(p)))
+                if who == "epokio" and (explicit or mine == "ok"):
                     raise SystemExit(f"An Epokio agent is already running at {url_for(p)}")
                 if explicit:
                     why = other_program_message(p) if who == "other" else f"Port {p} is already in use."
@@ -153,30 +156,66 @@ def write_url() -> str:
         raise RuntimeError("No running Epokio agent record (~/.epokio/agent.json missing, not owned by you, "
                            "writable by others, or its process is gone). Start it with `epokio-agent` and retry.")
     url = url_for(d["port"])
-    if not verify_agent(url):
+    got = agent_proof(url)
+    if got == "old":
+        raise RuntimeError(OLD_HELPER.format(url=url))
+    if got != "ok":
         raise RuntimeError(f"The agent at {url} could not prove it holds this machine's Epokio token. "
                            "Not sending the token. Restart `epokio-agent`.")
     return url
 
 
-def verify_agent(url: str, timeout: float = 2.0) -> bool:
-    """/health?nonce=<무작위> 의 proof = HMAC-SHA256(token, nonce) hex 를 내 토큰으로 검증(server.py와 같은 형식).
-    토큰을 보내지 않고 상대가 진짜 이 기계의 agent인지 확인한다"""
+# 증명(proof_port)을 모르는 옛 도우미(0.7 이전): 옛 증명(포트 없음)은 맞는데 새 증명이 없다. 토큰은 보내지 않는다.
+# ★pip으로 올린 뒤 옛 도우미가 그대로 돌면 watch는 '토큰이 필요함'·'8787에 안 닿음'만, MCP는 '증명 못 함'만 말해 엉뚱한 것을 고치게 했다
+OLD_HELPER = ("The Epokio helper at {url} is an older version that this Epokio does not trust with the token. "
+              "Restart it: quit it from the tray icon (or stop epokio-agent), then run `epokio setup`.")
+
+
+def proof_for(token: str, nonce: str, port: int) -> str:
+    """/health?nonce 의 증명. 포트를 같이 넣는다: ★포트 없이는 남이 8787에서 받은 nonce를 다른 포트의 진짜 agent에 물어 와
+    그 증명을 그대로 내밀 수 있었다(중계). 서버는 자기가 듣는 포트, 확인하는 쪽은 자기가 건 포트로 계산한다"""
+    import hashlib
+    import hmac
+    return hmac.new(token.encode(), f"{nonce}:{port}".encode(), hashlib.sha256).hexdigest()
+
+
+def agent_proof(url: str, timeout: float = 2.0) -> str:
+    """/health?nonce=<무작위> 의 증명을 내 토큰으로 검증한다(토큰은 보내지 않는다).
+    'ok' = proof_port(포트까지 묶인 증명)가 맞다 · 'old' = 옛 증명(포트 없음)만 있고 맞다(내 옛 도우미) · 'no' = 그 밖"""
     import hashlib
     import hmac
     import secrets
+    from urllib.parse import urlsplit
     from . import auth
     nonce = secrets.token_hex(16)
     try:
+        u = urlsplit(url)
+        dialed = u.port or (443 if u.scheme == "https" else 80)
         with urllib.request.urlopen(f"{url.rstrip('/')}/health?nonce={nonce}", timeout=timeout) as r:
             d = json.loads(r.read(65536))
     except (OSError, ValueError):
-        return False
-    proof = d.get("proof") if isinstance(d, dict) else None
-    if not isinstance(proof, str):
-        return False
-    want = hmac.new(auth.token().encode(), nonce.encode(), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(proof, want)
+        return "no"
+    if not isinstance(d, dict):
+        return "no"
+    tok = auth.token()
+    # 바이트로 비교한다. ★문자열 compare_digest는 아스키가 아니면 TypeError를 던져 watch가 죽었다
+    same = lambda got, want: isinstance(got, str) and hmac.compare_digest(got.encode("utf-8", "replace"), want.encode())
+    if "proof_port" in d:
+        return "ok" if same(d["proof_port"], proof_for(tok, nonce, dialed)) else "no"
+    return "old" if same(d.get("proof"), hmac.new(tok.encode(), nonce.encode(), hashlib.sha256).hexdigest()) else "no"
+
+
+def verify_agent(url: str, timeout: float = 2.0) -> bool:
+    """토큰을 실어도 되는 이 기계의 agent인가(포트까지 묶인 증명만 믿는다)"""
+    return agent_proof(url, timeout) == "ok"
+
+
+def may_send_token(port: int) -> bool:
+    """이 기계 도우미에 토큰을 실어 보내도 되나(끄기·폴더 더하기). 포트까지 묶인 증명, 또는 내 기록 파일이 가리키는
+    포트의 옛 도우미(옛 증명)만. ★setup·agent --stop·트레이가 8787에 누가 떠 있든 확인 없이 토큰을 보냈다(공용 서버)"""
+    got = agent_proof(url_for(port))
+    rec = trusted_record()
+    return got == "ok" or (got == "old" and bool(rec) and rec.get("port") == port)
 
 
 def mine_at(port: int) -> bool:
@@ -188,11 +227,20 @@ def local_url(warn: bool = False) -> str:
     """이 기계의 agent 주소: 기록 파일 → 기본 포트 순. 아무도 없으면 기본 주소(띄울 자리).
     ★기본 포트 폴백은 내 agent임을 확인했을 때만 쓴다: 공용 서버에서 남의 학습 목록이 내 화면에 뜨던 문제"""
     d = trusted_record() or read_record()
-    if d and probe(url_for(d["port"])) == "epokio" and mine_at(d["port"]):
-        return url_for(d["port"])
+    if d and probe(url_for(d["port"])) == "epokio":
+        got = agent_proof(url_for(d["port"]))
+        if got == "old" and warn:
+            print(OLD_HELPER.format(url=url_for(d["port"])), file=sys.stderr)
+        if got in ("ok", "old"):                        # 옛 도우미도 내 것이다. 보기는 되고 토큰은 안 보낸다(tui._local_token)
+            return url_for(d["port"])
     default = url_for(DEFAULT_PORT)
     who = probe(default)
-    if who == "epokio" and not mine_at(DEFAULT_PORT):
+    got = agent_proof(default) if who == "epokio" else "no"
+    if who == "epokio" and got == "old":
+        if warn:
+            print(OLD_HELPER.format(url=default), file=sys.stderr)
+        return default
+    if who == "epokio" and got != "ok":
         if warn:
             print(f"An Epokio agent at {default} belongs to another user. Start your own with `epokio-agent`.", file=sys.stderr)
         return NO_AGENT                                 # 남의 agent에는 붙지 않는다

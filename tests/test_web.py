@@ -3,6 +3,8 @@ from epokio.server_cli import QuietServer
 import re
 from pathlib import Path
 
+import pytest          # ★없으면 node가 없는 기계에서 pytest.skip이 NameError로 실패했다(test_every_web_script_parses)
+
 from epokio import notify
 
 PAGE = Path(__file__).resolve().parent.parent / "src" / "epokio" / "web" / "index.html"
@@ -13,7 +15,9 @@ SCRIPTS = ("lang.js", "app.js", "compare.js", "alerts.js", "train.js", "queue.js
 
 def _all():
     """화면 코드 전부(index.html + 나눈 스크립트). 문자열 검사는 파일이 어디로 옮겨 가도 따라가게 이것을 본다"""
-    return "\n".join([PAGE.read_text(encoding="utf-8")] + [(WEB / f).read_text(encoding="utf-8") for f in SCRIPTS])
+    # ★SCRIPTS만 읽어 classes·machine·ssh·snapshots.js의 문장은 번역 검사를 빠져나갔다. 폴더의 스크립트 전부를 본다
+    rest = sorted(f.name for f in WEB.glob("*.js") if f.name not in SCRIPTS)
+    return "\n".join([PAGE.read_text(encoding="utf-8")] + [(WEB / f).read_text(encoding="utf-8") for f in (*SCRIPTS, *rest)])
 
 
 def test_page_exists_and_is_self_contained():
@@ -223,6 +227,7 @@ def test_parallel_coords_puts_best_on_top_and_missing_values_apart():
     js = PAGE.parent / "sweeps.js"
     probe = f"""
 const src=require("fs").readFileSync({json.dumps(str(js))},"utf8"); global.esc=s=>String(s); global.W={{}}; global.S={{}};
+global.t=(s,v)=>v?s.replace(/\\{{(\\w+)\\}}/g,(m,k)=>String(v[k])):s;
 eval(src.replace(/^"use strict";/,""));
 const rows=[{{job:"a",trial:{{opt:"SGD"}},best:0.9}},{{job:"b",trial:{{}},best:0.2}},{{job:"c",trial:{{opt:"AdamW"}},best:0.5}}];
 const h=parallelHTML({{rows,higher:false}},["opt"],"val loss");
@@ -247,6 +252,7 @@ def test_run_row_hides_bar_when_total_unknown():
     probe = f"""
 const src=require("fs").readFileSync({json.dumps(str(js))},"utf8");
 const start=src.indexOf("function rowHTML"), end=src.indexOf("\\n}}", start)+2;
+const o0=src.indexOf("const originOf"), o1=src.indexOf("\\n}};", o0)+3; eval(src.slice(o0,o1).replace("const originOf","global.originOf"));
 global.S={{picks:[],sel:null}}; global.STATE={{}}; global.esc=s=>String(s); global.dur=s=>String(s); global.display=r=>r.name;
 global.stateOf=r=>[r.state,""]; global.xprog=r=>"epoch "+r.epoch+"/"+(r.total??"?");
 global.t=(s,v)=>v?s.replace(/\\{{(\\w+)\\}}/g,(m,k)=>String(v[k])):s;
@@ -264,7 +270,7 @@ def test_chart_tooltip_pace_and_overfit_mark_are_wired():
     css = (PAGE.parent / "style.css").read_text(encoding="utf-8")
     assert "function bindCharts" in js and js.count("bindCharts();") >= 2
     assert "ArrowLeft" in js and 'tabindex="0"' in js               # 키보드로 읽는다
-    assert "function valLossLow" in js and "mark: S.curve === 0" in js
+    assert "function valLossLow" in js and "mark: cv === 0" in js
     assert "function paceHTML" in js and "/epoch" in js
     assert ".tip" in css and ".mark-line" in css and "prefers-reduced-motion" in css
 
@@ -315,7 +321,9 @@ def test_compare_shows_what_changed_and_exports():
 def test_phone_alerts_can_be_set_from_the_web():
     """폰 알림 설정이 맥 앱에만 있어서 윈도우·폰 사용자는 켤 방법이 없었다."""
     html = _all()
-    assert 'api("webhooks", "POST", urls.length ? { urls, add: true } : { urls })' in html   # 더하기(다른 웹후크를 지우지 않는다)
+    assert 'save({ urls: [u], add: true })' in html and 'api("webhooks", "POST", body)' in html   # 더하기(다른 웹후크를 지우지 않는다)
+    # 끄기는 묻고(맥 앱·터미널의 주소까지 지운다) 되돌리기를 준다. ★한 번 누르면 확인 없이 전부 사라졌다
+    assert 'if (!confirm(t("Turn off phone alerts?' in html and "save({ restore: true })" in html
 
 
 def test_a_local_page_can_carry_the_token_after_the_hash_only():
@@ -581,3 +589,197 @@ def test_side_features_are_out_of_the_default_tabs_but_reachable():
     js = (PAGE.parent / "main.js").read_text(encoding="utf-8")
     assert "body:not(.adv) nav [data-adv] { display: none; }" in css
     assert 'id="more"' in page and "LS.epokioAdv" in js and "drawReview" in (PAGE.parent / "app.js").read_text(encoding="utf-8")
+
+
+def test_score_curve_hint_follows_the_score_direction():
+    """eval_loss처럼 낮을수록 좋은 점수에도 '점수는 오르다가 평평해져야'라고 했다"""
+    from pathlib import Path
+    web = Path(__file__).resolve().parent.parent / "src" / "epokio" / "web"
+    app, lang = (web / "app.js").read_text(encoding="utf-8"), (web / "lang.js").read_text(encoding="utf-8")
+    msg = "This score is better when lower, so it should go down and level off."
+    assert f'r.lower ? t("{msg}")' in app and f'"{msg}":' in lang
+
+
+def test_curves_fall_back_to_loss_when_there_is_no_score_yet():
+    """★HF 첫 평가 전에는 점수 탭(기본)이 '아직 데이터가 없습니다'만 보여 손실 곡선이 있는 줄 몰랐다"""
+    js = _all()
+    assert "const cv = S.curve === 1 && S.curvePick !== r.path && !curveKeys(1).length && curveKeys(0).length ? 0 : S.curve;" in js
+    assert "const keys = curveKeys(cv);" in js
+
+
+def test_every_web_script_parses():
+    """★한 함수 안에 같은 이름 const를 두 번 두자 app.js 전체가 SyntaxError로 멈춰 목록이 비었는데, 문자열 시험은 다 통과했다"""
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node 없음")
+    for f in sorted(PAGE.parent.glob("*.js")):
+        r = subprocess.run([node, "--check", str(f)], capture_output=True, text=True)
+        assert r.returncode == 0, f"{f.name}: {r.stderr[-400:]}"
+
+
+def _node_or_skip():
+    import shutil
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node 없음")
+    return node
+
+
+def test_a_read_only_token_hides_what_it_cannot_change():
+    """★보기 전용 토큰에도 저장·단계·폴더·학습 단추가 보였고, 누르면 영어 'this token is read-only'가 잠깐 떴다
+    다음 새로 고침에 사라졌다. /login의 scope와 403 code로 알고, CSS가 .needs-run을 숨긴다"""
+    html, css = _all(), (WEB / "style.css").read_text(encoding="utf-8")
+    assert "body.readonly .needs-run { display: none !important; }" in css and "body.readonly .ro-note { display: block; }" in css
+    assert 'if (r.status === 403 && j.code === "read_only") setReadOnly(true);' in html
+    assert 'setReadOnly(j.scope !== "run")' in html and "if (!takeHashToken() && S.token) login();" in html
+    for marker in ('<div class="needs-run"><div class="inrow wrap"', 'id="addfolder" class="needs-run"', '<div class="actions needs-run"',
+                   '`<select id="vset" class="needs-run"', 'class="btn primary needs-run" id="vpromote"', 'class="btn needs-run" id="clscalc"',
+                   'needs-run" style="margin-left:12px" id="newrun"', 'data-op="cancel"', '<div class="inrow needs-run"><input class="in" id="hookurl"',
+                   'class="btn small needs-run" id="report"', "if (S.readOnly) {"):
+        assert marker in html, marker
+    assert 'class="btn small danger needs-run" data-op="cancel"' in html
+
+
+def test_a_read_only_403_switches_the_page_and_keeps_the_message():
+    """node로 실제 api()를 돌린다: 403 read_only면 보기 전용으로 바뀌고, 오류 문장(agent가 화면 언어로 준 것)이 그대로 올라온다"""
+    import json
+    import subprocess
+    node = _node_or_skip()
+    js = WEB / "app.js"
+    probe = f"""
+const src=require("fs").readFileSync({json.dumps(str(js))},"utf8");
+const cut=(a,b)=>src.slice(src.indexOf(a), src.indexOf(b, src.indexOf(a)));
+global.LANG="ko"; global.t=(s)=>s; global.S={{token:"x",readOnly:false}}; let cls=null, ro={{hidden:true}};
+global.document={{body:{{classList:{{toggle:(c,on)=>{{cls=[c,on];}}}}}}}}; global.$=(q)=>q==="#ro"?ro:null;
+global.fetch=async()=>({{status:403, ok:false, json:async()=>({{error:"이 토큰은 보기 전용입니다.", code:"read_only"}})}});
+eval(cut("class Locked", "/// 실행 요청(POST)")); eval(cut("function setReadOnly", "/// 파이썬 환경 목록"));
+api("meta","POST",{{}}).catch((e)=>console.log(JSON.stringify({{msg:e.message, ro:S.readOnly, cls, hidden:ro.hidden}})));
+"""
+    out = json.loads(subprocess.run([node, "-e", probe], capture_output=True, text=True, check=True, encoding="utf-8").stdout)
+    assert out == {"msg": "이 토큰은 보기 전용입니다.", "ro": True, "cls": ["readonly", True], "hidden": False}
+    html = _all()
+    # 대표 점수 저장 실패 문구는 상태에 남아 다음 새로 고침에도 보인다(★4초 뒤 지워졌다). 저장되면 짧은 알림
+    assert "S.metaMsg = { path: r.path, text: e.message }; toast(e.message, true);" in html
+    assert 'S.metaMsg?.path === r.path' in html and 'toast(t("Saved"))' in html
+
+
+def test_the_main_score_line_appears_once():
+    """★'대표 점수:' 줄이 이유 줄과 펼침 줄로 두 번 보였다. 이유는 펼침 줄 안에, 고를 열이 없을 때만 따로"""
+    html = _all()
+    assert html.count('id="scorewhy"') == 1 and "if (!pick.length && why) h += `<p class=\"hint\" id=\"scorewhy\">${mainLine}</p>`;" in html
+    assert "<summary>${mainLine}</summary>" in html
+
+
+def test_loading_empty_offline_and_state_changes_have_their_own_look():
+    """처음 불러오는 동안 자리(스켈레톤), 빈 화면·끊김 그림과 다시 시도, 상태가 바뀐 줄 반짝임. 움직임 줄이기면 전부 멈춘다"""
+    page, html, css = PAGE.read_text(encoding="utf-8"), _all(), (WEB / "style.css").read_text(encoding="utf-8")
+    assert 'class="layout skel" aria-busy="true"' in page
+    assert "${ART.empty}" in html and "${ART.offline}" in html and 'id="retry"' in html and "${ART.bell}" in html and "${ART.queue}" in html
+    assert 'const flip = S.was && S.was[r.path] && S.was[r.path] !== r.state ? " flip" : "";' in html
+    rm = [b for b in re.findall(r"@media \(prefers-reduced-motion: reduce\) \{(.*?)\}\s*(?:\}|$)", css, re.S)]
+    assert any(".skel i" in b and ".row.flip" in b for b in rm), "움직임 줄이기에서 스켈레톤·반짝임이 멈추지 않는다"
+    assert "@media (prefers-reduced-motion: no-preference) {\n  #main#main.static .row.flip" in css     # 갱신 중에도 반짝이되, 줄이기면 안 한다
+    # 움직임 토큰은 '시간 이징' 한 덩어리라 calc에 넣으면 무효다. ★.row.flip이 그래서 선언째 버려져 반짝이지 않았다
+    assert "calc(var(--m-" not in css
+
+
+def test_phone_header_keeps_the_language_button_whole_and_detail_clears_it():
+    """★폰(375)에서 보기 전용 칩이 붙으면 '한국어' 단추가 두 줄로 꺾였고, 학습을 누르면 상세가 붙박이 머리말 밑으로 스크롤돼 제목·점수가 가려졌다"""
+    css = (WEB / "style.css").read_text(encoding="utf-8")
+    assert re.search(r"#lang \{[^}]*white-space: nowrap", css)
+    assert re.search(r"@media \(max-width: 820px\) \{[^\n]*\.detail \{ scroll-margin-top: \d+px; \}", css)
+
+
+def test_chart_width_follows_its_box_so_phone_labels_are_not_squeezed():
+    """★폰에서 640 폭 그림을 310px로 줄여(preserveAspectRatio=none) 축 글자가 옆으로 눌렸다"""
+    html = _all()
+    assert "const W = chartWidth(), H = 240" in html and "function chartWidth()" in html
+
+
+def test_review_new_check_fills_its_own_python_list():
+    """★fillPythons가 그림 크게 보기(openShot)에 있어 New check의 파이썬 목록이 'Looking for Python…'에 멈췄고 400이 났다"""
+    js = (WEB / "review.js").read_text(encoding="utf-8")
+    shot, new = js.index("function openShot"), js.index("async function newCheck")
+    fill = js.index('fillPythons(m.querySelector("#np"))')
+    assert fill > new and js.count('fillPythons(m.querySelector("#np"))') == 1 and not (shot < fill < new)
+
+
+def test_the_table_tab_speaks_korean_and_ignores_late_answers():
+    """★표 탭의 머리·개수·'비교'·'3분 ago'가 한국어 화면에 영어로 남았고, 늦게 온 표가 다른 탭을 덮었다"""
+    js = (WEB / "table.js").read_text(encoding="utf-8")
+    for s in ('t("{n} of {total}"', 't("Compare {n}"', 't("Run")', 't("Score")', 't("{d} ago"', 't("Pick up to {n} runs"', "if (r.display) return r.display;"):
+        assert s in js, s
+    assert 'if (g !== S.gen || S.tab !== "table") return;' in js
+    assert "+ \" ago\"" not in js and "`Compare ${" not in js
+
+
+def test_rows_do_not_say_local_on_every_line():
+    """★목록·상세의 모든 줄에 'local'이 붙어 한국어 화면에도 영어가 섞였다. 이 기계가 아닌 출처(SSH)만 보인다"""
+    import json
+    import subprocess
+    node = _node_or_skip()
+    js = WEB / "app.js"
+    probe = f"""
+const src=require("fs").readFileSync({json.dumps(str(js))},"utf8");
+const start=src.indexOf("function rowHTML"), end=src.indexOf("\\n}}", start)+2;
+const o0=src.indexOf("const originOf"), o1=src.indexOf("\\n}};", o0)+3; eval(src.slice(o0,o1).replace("const originOf","global.originOf"));
+global.S={{picks:[],sel:null}}; global.esc=s=>String(s); global.dur=s=>String(s); global.display=r=>r.name;
+global.stateOf=r=>[r.state,""]; global.xprog=r=>"epoch "+r.epoch; global.t=(s,v)=>v?s.replace(/\\{{(\\w+)\\}}/g,(m,k)=>String(v[k])):s;
+eval(src.slice(start,end));
+const base={{name:"a",path:"/a",state:"stopped",epoch:3,total:5,best:null,idle:5,meta:null}};
+console.log(JSON.stringify([rowHTML({{...base,source:"local"}},0), rowHTML({{...base,source:"local",ssh:{{host:"gpu1",path:"/r/a"}}}},0),
+  rowHTML({{...base,source:"ssh:gpu1"}},0)]));
+"""
+    local, ssh, event = json.loads(subprocess.run([node, "-e", probe], capture_output=True, text=True, check=True).stdout)
+    # ★/runs는 SSH 학습을 source "local" + ssh 칸으로 보낸다. 'local'이 아닌 source만 봐서 서버 이름이 어디에도 없었다(사건은 "ssh:<서버>")
+    assert "local" not in local and "gpu1 (SSH)" in ssh and "gpu1 (SSH)" in event
+
+
+def test_a_long_run_draws_without_running_out_of_stack_and_redraws_only_on_change():
+    """★2만 에폭 x 열 7개(14만 점)면 Math.min(...점)이 RangeError라 학습 상세가 통째로 안 그려졌다. 선마다 점 2만 개라
+    상세 HTML이 950KB였고, 그림마다 새 번호라 바뀐 것이 없어도 4초마다 다시 그렸다(번호 배열도 끝없이 늘었다). node로 실제 chart()"""
+    import json
+    import subprocess
+    node = _node_or_skip()
+    js = WEB / "app.js"
+    probe = f"""
+const src=require("fs").readFileSync({json.dumps(str(js))},"utf8");
+const a=src.indexOf("const CHARTS"), b=src.indexOf("function bindCharts");
+global.t=(s,v)=>v?s.replace(/\\{{(\\w+)\\}}/g,(m,k)=>String(v[k])):s; global.esc=(s)=>String(s);
+eval(src.slice(a,b).replace("const CHARTS","global.CHARTS").replace("function chart(","global.chart=function(").replace("function thin(","global.thin=function("));
+const n=20000, x=Array.from({{length:n}},(_,i)=>i+1);
+const series=Array.from({{length:10}},(_,k)=>({{name:"s"+k,color:"red",x,y:x.map((e)=>Math.sin(e/500+k)+(e===12345?9:0))}}));
+let err=null, h1="", h2="", h3="";
+try {{ h1=chart(series); h2=chart(series); series[0].y[5]=0.123456; h3=chart(series); }} catch(e) {{ err=String(e); }}
+const c=CHARTS.get(h1.match(/data-chart="([^"]+)"/)[1]), top=Math.min(...h1.match(/d="M[^"]*"/)[0].slice(4,-1).split(" L").map((q)=>+q.split(",")[1]));
+const xs2=x.slice(); xs2[100]=99999; const nm=(chart([{{name:"n",color:"red",x:xs2,y:x.map(Math.sin)}}]).match(/d="M[^"]*"/)[0]).split(" L").length;
+for (let i=0;i<60;i++) chart([{{name:"z",color:"red",x:[1,2],y:[i,i+1]}}]);
+const pts=(h)=>(h.match(/d="M[^"]*"/g)||[]).map((d)=>d.split(" L").length);
+console.log(JSON.stringify({{err, nm, same:h1===h2, changed:h1!==h3, kb:Math.round(h1.length/1024), pts:pts(h1), spike:Math.abs(top-c.Y(Math.max(...series[0].y.slice(0,20000))))<1,
+  size:CHARTS.size, small:pts(chart([{{name:"a",color:"red",x:[1,2,3],y:[1,null,3]}}]))}}));
+"""
+    out = json.loads(subprocess.run([node, "-e", probe], capture_output=True, text=True, check=True, encoding="utf-8").stdout)
+    assert out["err"] is None
+    assert out["same"] and out["changed"]                       # 같은 자료면 같은 HTML(다시 안 그림), 값이 바뀌면 다른 그림
+    assert max(out["pts"]) <= 4 * 600 and len(out["pts"]) == 10 and out["kb"] < 300
+    assert out["spike"]                                         # 튀는 점(2만 점 중 하나)도 남는다
+    assert out["nm"] <= 4 * 600                                 # x가 되돌아가는 기록(이어 한 학습)도 줄인다
+    assert out["size"] <= 40 and out["small"] == [2]            # 기억은 40개까지. 짧은 선은 그대로(빈 값은 건너뛴다)
+
+
+def test_the_first_screen_shows_the_list_before_the_detail_arrives():
+    """★처음 고른 학습(도는 학습이 맨 위)의 상세를 받을 때까지 목록도 안 보였다. 2만 줄 학습이면 1초 넘게 스켈레톤만 있었다"""
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    early = js.index('if (first && !S.detail[r.path]) setMain(')
+    assert early < js.index("const d = await detail(r);", early) and '<div class="card detail skel" aria-busy="true">' in js
+    css = (WEB / "style.css").read_text(encoding="utf-8")
+    assert ".detail.skel i.w40" in css and ".detail.skel i.tall" in css
+
+
+def test_zooming_an_image_does_not_leave_window_listeners_behind():
+    """★검수에서 그림을 열 때마다 window에 mousemove·mouseup 손잡이가 둘씩 쌓였다(닫은 그림을 붙든 채)"""
+    js = (WEB / "review.js").read_text(encoding="utf-8")
+    z = js[js.index("function zoomable("):]
+    assert z.count('window.addEventListener(') == 2 and z.count("}, on);") == 2 and "if (!area.isConnected) return ac.abort();" in z

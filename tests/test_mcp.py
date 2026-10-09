@@ -114,3 +114,46 @@ def test_sweep_table_ranks_each_score_on_its_own(mcp, monkeypatch):
     g = {x["score"]: x for x in mcp.sweep_table()["groups"]}
     assert [r["display"] for r in g["val_loss"]["runs"]] == ["l2", "l1"] and g["val_loss"]["lower_is_better"]
     srv.shutdown(); srv.server_close()
+
+
+def test_unknown_ids_and_paths_say_what_to_do(mcp, monkeypatch):
+    """★없는 job id에 빈 로그·{"ok": false}, 없는 학습 경로에 'not found', 없는 폴더에 '안 섞임'만 돌려줬다"""
+    srv, _ = _serve({"/jobs": (200, {"jobs": [{"id": "j1"}]}), "/jobs/zz/log": (200, {"log": ""}),
+                     "/jobs/zz/cancel": (200, {"ok": False}), "/names": (200, {"nfc": 0, "nfd": 0, "mixed": False, "found": False})})
+    monkeypatch.setattr(mcp, "AGENT", f"http://127.0.0.1:{srv.server_address[1]}")
+    with pytest.raises(mcp.AgentError, match="queue_status"):
+        mcp.job_log("zz")
+    with pytest.raises(mcp.AgentError, match="queue_status"):
+        mcp.cancel_job("zz")
+    with pytest.raises(mcp.AgentError, match="list_runs"):
+        mcp.analyze_run("/no/such/run")
+    assert "Check the path" in mcp.check_filenames("/nope")["note"]
+    srv.shutdown(); srv.server_close()
+
+
+def test_check_filenames_does_not_call_an_english_only_folder_missing(mcp, monkeypatch):
+    """★영문 이름만 있는 진짜 폴더도 nfc·nfd가 0이라 'No files found there'라고 했다. 옛 agent(found 없음)에도 덧붙이지 않는다"""
+    for body in ({"nfc": 0, "nfd": 0, "mixed": False, "found": True}, {"nfc": 0, "nfd": 0, "mixed": False}):
+        srv, _ = _serve({"/names": (200, body)})
+        monkeypatch.setattr(mcp, "AGENT", f"http://127.0.0.1:{srv.server_address[1]}")
+        assert "note" not in mcp.check_filenames("/data/ascii_only")
+        srv.shutdown(); srv.server_close()
+
+
+def test_refusals_are_tool_errors_so_the_reason_is_shown():
+    """★mcp 2.x는 ToolError가 아닌 예외를 'Error executing tool X'로만 보여 agent가 말한 이유가 사라졌다"""
+    exc = pytest.importorskip("mcp.server.mcpserver.exceptions")
+    sys.modules.pop("epokio.mcp_server", None)
+    m = importlib.import_module("epokio.mcp_server")
+    assert issubclass(m.AgentError, exc.ToolError) and issubclass(m.InputRefused, exc.ToolError)
+    assert issubclass(m.AgentError, RuntimeError)          # 예전에 RuntimeError로 잡던 쪽이 그대로 잡는다
+
+
+def test_epokio_mcp_without_the_package_hints_on_stderr(monkeypatch, capsys):
+    """★epokio-mcp 진입점은 mcp가 없으면 트레이스백만 냈다. 안내는 stderr(stdout은 MCP 통로)"""
+    from epokio import cli
+    monkeypatch.setitem(sys.modules, "epokio.mcp_server", None)          # import가 ImportError
+    with pytest.raises(SystemExit):
+        cli.mcp_main()
+    out = capsys.readouterr()
+    assert out.out == "" and "epokio[mcp]" in out.err

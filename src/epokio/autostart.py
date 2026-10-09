@@ -64,6 +64,8 @@ def cli(rest: str = "") -> str:
     '인식되지 않는 명령'이었고, exe 사용자에게는 epokio 명령 자체가 없었다"""
     if getattr(sys, "frozen", False):
         head = ".\\" + (PureWindowsPath(sys.executable).name or "Epokio.exe")   # PowerShell은 .\ 없이 현재 폴더 exe를 안 찾는다
+    elif _on_path():
+        head = "epokio"                 # ★venv를 켠 학생에게도 150자짜리 python.exe 경로를 안내했다
     elif venv := venv_python():
         head = f"{venv} -m epokio"
     elif sys.platform == "win32":
@@ -71,6 +73,17 @@ def cli(rest: str = "") -> str:
     else:
         head = "epokio"
     return f"{head} {rest}".strip()
+
+
+def _on_path() -> bool:
+    """PATH의 `epokio`가 바로 이 설치본인가(venv를 켰거나 Scripts가 PATH에 있다). 다른 설치본이면 False"""
+    import os
+    import shutil
+    found = shutil.which("epokio")
+    if not found:
+        return False
+    here = os.path.normcase(os.path.dirname(os.path.abspath(sys.executable)))
+    return os.path.normcase(os.path.dirname(os.path.abspath(found))) == here
 
 
 def short_home(text: str) -> str:

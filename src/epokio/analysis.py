@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .analysis_loss import _train_loss_blowup, _train_loss_rising
-from .schema import HEADS, IMAGE_FILES, head_col, higher_is_better, kind, pick_metric
+from .schema import HEADS, IMAGE_FILES, fitness_index, head_col, higher_is_better, kind, pick_metric
 
 
 def _f(v):
@@ -64,7 +64,9 @@ def _col(rows, name):
     return [_f(r.get(name)) for r in rows]
 
 
-def head_stats(rows, head) -> HeadStats | None:
+def head_stats(rows, head, at: int | None = None) -> HeadStats | None:
+    """한 머리(Box·Mask·Pose)의 성적. at: best.pt가 저장된 줄(fitness_index). 없으면 그 머리의 mAP 최고 줄.
+    ★분할 학습의 Mask 칸은 24에폭, Box 칸은 27에폭이라 '최고 에폭 기준' 칸들이 서로 다른 에폭이었다"""
     P = _col(rows, head_col("precision", head))
     R = _col(rows, head_col("recall", head))
     M50 = _col(rows, head_col("mAP50", head))
@@ -72,7 +74,7 @@ def head_stats(rows, head) -> HeadStats | None:
     if not any(v is not None for v in M + M50):
         return None
     score = [m if m is not None else -1 for m in (M if any(M) else M50)]
-    i = max(range(len(score)), key=lambda k: score[k])
+    i = at if at is not None else max(range(len(score)), key=lambda k: score[k])
     F = [f1(p, r) for p, r in zip(P, R)]
     ep = int(float(rows[i].get("epoch", i + 1)))
     return HeadStats(head, ep, P[i], R[i], F[i], M50[i], M[i])
@@ -83,8 +85,8 @@ OVERFIT_DROP = 0.05
 
 
 def _score(rows) -> tuple[str, list[float | None], bool] | None:
-    """대표 점수 열과 그 값들. schema.pick_metric이 고른다(YOLO는 공식 TASK2METRIC 열 = best.pt 저장 기준 fitness와
-    같은 열. 설치된 ultralytics 8.4.150의 DetMetrics.fitness는 mAP50-95 가중치 1.0이다).
+    """대표 점수 열과 그 값들. schema.pick_metric이 고른다(YOLO는 공식 TASK2METRIC 열. 최고 줄은 _best_i가
+    best.pt 기준(fitness: 검출은 mAP50-95, 분할·포즈는 박스와 더한 값)으로 고른다).
     HF eval_*, Lightning·Keras val_*도 어댑터가 metrics/로 옮겨 주므로 같은 길로 고른다. 손실 열은 대표 점수로 쓰지 않는다"""
     names = []
     for r in rows:
@@ -101,6 +103,12 @@ def _score(rows) -> tuple[str, list[float | None], bool] | None:
 def _best(vals, up) -> int:
     ok = [k for k in range(len(vals)) if vals[k] is not None]
     return (max if up else min)(ok, key=lambda k: vals[k])
+
+
+def _best_i(rows, sc) -> int:
+    """대표 점수의 최고 줄. Ultralytics 분할·포즈·분류는 best.pt를 고른 줄(schema.fitness_index)"""
+    fi = fitness_index(rows, sc[0])
+    return fi if fi is not None else _best(sc[1], sc[2])
 
 
 def _epoch(rows, i) -> int:
@@ -254,7 +262,7 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
 
     # 3)·4) 최고점 위치. 대표 점수 기준이라 YOLO 밖 프레임워크도 판정한다.
     #    '이어 하기'가 아니라 '에폭을 늘려 새로'라고 말한다(이어 하면 이미 줄어든 학습률에서 시작한다)
-    best_ep = _epoch(rows, _best(sc[1], sc[2])) if sc else (main.best_epoch if main else None)
+    best_ep = _epoch(rows, _best_i(rows, sc)) if sc else (main.best_epoch if main else None)
     if best_ep is not None and best_ep >= (_epoch(rows, n - 2) if step else n - 1) and n >= 5:
         tail = 0 if step else _tail(args, n)
         if not tail:
@@ -277,7 +285,7 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
                            "because its learning rate has already wound down."), {"kind": "still_improving", "epochs": n}))
     # 4b) 정체: 점수가 중간에 멈췄고(떨어지지도 않았다) 뒤 에폭은 보탠 게 없다. 조기 종료를 그 프레임워크의 말로
     if sc and n >= 10 and best_ep is not None and max(2, nx * 0.15) < best_ep <= nx * 0.6:
-        b = _best(sc[1], sc[2])
+        b = _best_i(rows, sc)
         last = next(v for v in reversed(sc[1]) if v is not None)
         if abs(sc[1][b] - last) <= abs(sc[1][b]) * OVERFIT_DROP:
             out.append((tr("The score stopped improving after epoch {e} of {n}. The last {k} epochs added nothing.",
@@ -334,7 +342,9 @@ def analyze(run_dir: Path) -> Analysis | None:
     rows = [r for r in _load(run_dir) if r.get("epoch")]
     if not rows:
         return None
-    heads = [h for h in (head_stats(rows, x) for x in HEADS) if h]
+    sc = _score(rows)
+    fi = fitness_index(rows, sc[0]) if sc else None             # best.pt가 저장된 줄: 머리마다 같은 에폭을 본다
+    heads = [h for h in (head_stats(rows, x, fi) for x in HEADS) if h]
     imgs = {k: run_dir / v for k, v in IMAGE_FILES.items() if (run_dir / v).exists()}
     from . import adapters, msg
     got = adapters.load(run_dir)
@@ -347,10 +357,9 @@ def analyze(run_dir: Path) -> Analysis | None:
     for *_, k in found:
         if step:
             k["unit"] = "step"                                  # next_run이 에폭 수를 제안하지 않게
-    sc = _score(rows)
     score = None
     if sc:
-        b = _best(sc[1], sc[2])
+        b = _best_i(rows, sc)
         score = {"metric": sc[0].split("/", 1)[-1], "value": sc[1][b], "best_epoch": _epoch(rows, b)}
     return Analysis(run_dir, len(rows), heads, [(o, t) for o, t, _ in found], imgs, [k for _, _, k in found], score)
 

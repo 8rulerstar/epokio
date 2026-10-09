@@ -37,5 +37,14 @@ def _isolated_home(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(runmeta, "FILE", ep / "runmeta.json")
     monkeypatch.setattr(config, "FILE", ep / "config.json")
     monkeypatch.setattr(auth, "TOKEN_FILE", ep / "token")
+    # ★모듈을 처음 불러올 때 진짜 홈으로 정해진 경로들. setup --lan 시험이 진짜 ~/.epokio/tokens.json에
+    #   'setup-lan' 토큰을 지우고 새로 써서, 사용자가 폰·맥에 준 보기 토큰이 pytest 한 번에 무효가 됐다(2026-10-09)
+    from epokio import aiuse, demo, practice, recipes, repro_runs, ssh_source, sweep, tokens, tray
+    for mod, name, path in ((tokens, "FILE", ep / "tokens.json"), (aiuse, "TOOLS_FILE", ep / "ai_tools.json"),
+                            (demo, "DIR", ep / "demo"), (lineage, "MODEL_DIR", ep / "models"),
+                            (practice, "DIR", ep / "runs" / "practice"), (recipes, "FILE", ep / "recipes.json"),
+                            (repro_runs, "PENDING", ep / "repro"), (ssh_source, "HOME", ep), (sweep, "DIR", ep / "sweeps"),
+                            (tray, "CONFIG", ep / "tray.json")):
+        monkeypatch.setattr(mod, name, path)
     envs.forget()
     yield home

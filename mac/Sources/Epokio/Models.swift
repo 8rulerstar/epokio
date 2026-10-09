@@ -24,6 +24,7 @@ struct Run: Codable, Identifiable, Hashable {
     var ssh: SSHOrigin?                             // SSH 가벼운 모드로 비춰 온 학습(보기 전용)
     var format_warnings: [String]?                  // 못 알아본 열·버전. 목록에 작은 배지
     var metric_higher: Bool?                        // 대표 점수 방향(agent의 schema.py). 옛 agent는 안 보낸다
+    var fraction: Double?                           // 에폭보다 잘게 아는 끝낸 몫(HF global_step/max_steps). 옛 agent는 안 보낸다
     var x_axis: String?                             // "step"이면 epoch·total이 step 번호(W&B·TensorBoard·CSV step 기록). 옛 agent는 안 보낸다
     struct SSHOrigin: Codable, Hashable { let host: String; let path: String }
     /// 대표 점수가 높을수록 좋은가. 옛 agent(필드 없음)면 열 이름으로 어림한다 (RunDetail.higher와 같은 규칙)
@@ -40,7 +41,9 @@ struct Run: Codable, Identifiable, Hashable {
 
     var progress: Double? {
         guard let t = total, t > 0 else { return nil }
-        return min(Double(epoch) / Double(t), 1.0)
+        let done = min(Double(epoch) / Double(t), 1.0)
+        if let f = fraction, done < 1, f > 0, f < 1 { return max(done, f) }
+        return done
     }
     var isLive: Bool { state == "running" || state == "starting" }
     var isStepAxis: Bool { x_axis == "step" }

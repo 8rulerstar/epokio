@@ -21,7 +21,7 @@ PARENT = ("import subprocess,sys,time\n"
 def _alive(pid: int) -> bool:
     if sys.platform == "win32":
         out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"],
-                             capture_output=True, text=True).stdout
+                             capture_output=True, text=True, errors="replace").stdout
         return str(pid) in out
     try:
         import os

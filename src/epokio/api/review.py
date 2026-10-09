@@ -4,8 +4,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .. import retrain, review
+import threading
+
+from .. import msg, retrain, review
 from . import NOT_MINE, result_file as _result
+
+_VERDICT_LOCK = threading.Lock()
 
 
 def get(agent, route: str, q: dict):
@@ -48,10 +52,15 @@ def trained(model, task) -> dict | None:
         return None
     if not rows:
         return None
-    head = {"pose": "P", "segment": "M"}.get(task or "", "B")
+    # 검수 채점(review.py)과 같은 기준끼리: 분할은 마스크, 포즈는 박스 IoU로 맞춘다. ★포즈는 키포인트(OKS) 점수를 박스 점수 옆에 같은 'mAP50'으로 보였다
+    head = {"segment": "M"}.get(task or "", "B")
+    at = None
     if w.stem == "last":
         rows = rows[-1:]
-    h = analysis.head_stats(rows, head) or analysis.head_stats(rows, "B")
+    elif w.stem == "best":                  # best.pt가 저장된 줄(fitness). ★마스크 최고 에폭을 따로 골라 best.pt와 다른 에폭 점수를 보였다
+        from .. import schema
+        at = schema.fitness_index(rows, schema.pick_metric(list(rows[-1].keys())))
+    h = analysis.head_stats(rows, head, at) or analysis.head_stats(rows, "B", at)
     if not h:
         return None
     return {"precision": h.precision, "recall": h.recall, "map50": h.map50, "map50_95": h.map5095,
@@ -70,9 +79,12 @@ def post(agent, route: str, body: dict):
     rows = {r["image"] for r in json.loads((out / "epokio_eval.json").read_text(encoding="utf-8")).get("rows", [])} \
         if (out / "epokio_eval.json").exists() else set()
     if route == "/review/verdicts":
-        v = body.get("verdicts")
+        v = body.get("verdicts") if body.get("patch") is None else body.get("patch")
         ok = {"model_wrong", "label_wrong", "unsure", "ok"}
-        if not isinstance(v, dict) or any(k not in rows or x not in ok for k, x in v.items()):
+        # patch: 바뀐 이미지만(null = 지우기). 저장된 판정에 섞는다. ★늘 화면의 판정 전체를 보내 파일을 통째로 바꿔,
+        #   열어 둔 다른 탭(또는 맥 앱)이 그사이 매긴 판정을 말없이 지웠다
+        patch = body.get("patch") is not None
+        if not isinstance(v, dict) or any(k not in rows or not (x in ok or (patch and x is None)) for k, x in v.items()):
             return 400, {"error": "verdicts must map images of this check to model_wrong, label_wrong, unsure or ok"}
         try:                                          # ★어떤 문턱에서 매긴 판정인지 CSV에 남긴다(첫 줄 메타)
             conf = float(body["conf"]) if body.get("conf") is not None else None
@@ -81,11 +93,20 @@ def post(agent, route: str, body: dict):
             return 400, {"error": "conf and iou must be numbers"}
         if (conf is not None and not 0 <= conf <= 1) or (iou_thr is not None and not 0 < iou_thr < 1):
             return 400, {"error": "conf must be 0..1 and iou between 0 and 1"}
-        return 200, {"saved": retrain.save_verdicts(out, v, conf, iou_thr)}
+        with _VERDICT_LOCK:
+            if patch:
+                v = {**retrain.verdicts(out), **v}
+                v = {k: x for k, x in v.items() if x is not None}
+            return 200, {"saved": retrain.save_verdicts(out, v, conf, iou_thr), "verdicts": v}
     if route == "/review/fix":
         image, boxes = body.get("image"), body.get("boxes")
         if image not in rows or not isinstance(boxes, list):
             return 400, {"error": "image must be from this check and boxes a list"}
+        # 고친 라벨은 'cls x y w h' 한 줄이다. 포즈(키포인트)·분할(다각형) 라벨을 이것으로 바꾸면 Ultralytics가 그 이미지를
+        # 깨진 라벨로 보고 빼거나(포즈) 분할을 통째로 버린다(분할). ★맥 앱이 포즈 고치기를 열어 두어 고친 이미지가 조용히 빠졌다
+        task = json.loads((out / "epokio_eval.json").read_text(encoding="utf-8")).get("task") if (out / "epokio_eval.json").exists() else None
+        if task in ("pose", "segment"):
+            return 400, {"error": msg.tr("Fixing labels here works for boxes and classes only. Fix pose and mask labels in your labelling tool.")}
         try:
             f = retrain.fix_label(out, image, boxes)
         except (KeyError, TypeError, ValueError) as e:
@@ -131,10 +152,12 @@ def _import(agent, body: dict):
     except (OSError, ValueError) as e:
         return 400, {"error": f"could not read predictions: {e}"}
     name = re.sub(r"[^\w.-]+", "_", str(body.get("name") or f.stem))[:60] or "imported"
-    out = HOME / "evals" / f"import_{name}"
-    out.mkdir(parents=True, exist_ok=True)
+    out, n = HOME / "evals" / f"import_{name}", 2
+    while out.exists():                               # ★같은 이름의 예측 파일을 또 가져오면 앞 결과(판정·고친 라벨)를 덮었다
+        out, n = HOME / "evals" / f"import_{name}{n}", n + 1
+    out.mkdir(parents=True)
     (out / "epokio_eval.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    j = agent.queue.record_done("evaluate", f"import_{name}", str(out), {"source": str(f), "imported": True})
+    j = agent.queue.record_done("evaluate", out.name, str(out), {"source": str(f), "imported": True})
     return 200, {"id": j.id, "task": data["task"], "images": data["images"]}
 
 

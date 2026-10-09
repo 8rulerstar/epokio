@@ -22,6 +22,9 @@ def _templates():
     from epokio.diagnose import RULES                   # 표에 두고 돌려줄 때 tr(제목)·tr(고칠 방법)
     for _, title, fix in RULES:
         out.update((title, fix))
+    from epokio.sysrec import _IDLE_TIP_OTHER, _IDLE_TIPS   # GPU가 놀 때 해 볼 것(프레임워크마다, tr(표의 값))
+    out.update(_IDLE_TIPS.values())
+    out.add(_IDLE_TIP_OTHER)
     return out
 
 
@@ -112,3 +115,21 @@ def test_korean_particles_follow_the_word_before_them():
     assert josa("mAP50-95이(가) 높다") == "mAP50-95가 높다"
     assert josa("val_loss은(는)") == "val_loss는" and josa("val_acc1을(를)") == "val_acc1을"
     assert josa("defect_det과(와) 같은") == "defect_det와 같은" and josa("학습(으)로") == "학습으로"
+
+
+def test_tray_menu_and_phone_alert_bodies_are_translated():
+    """★윈도우 트레이 메뉴·툴팁과 폰 알림 본문(디스크·GPU 경고)이 일본어·중국어·스페인어 등 8개 언어에서 영어로 남았고,
+    번체 중국어 표에 간체 글자(小时·轮次)가, 스윕 중단 알림에 '스캔'(扫描)이 있었다"""
+    from epokio import i18n
+    keys = [i18n.PHRASES[k] for k in i18n.PHRASES if k.startswith(("tray.", "info.", "menu."))]
+    keys += ["{gb} GB free on the disk with {folder}", "{gpu} at {c} \u00b0C", "{gpu} memory {used} of {total} GB"]
+    same_ok = {("fr", "Notifications"), ("es", "GPU %"), ("fr", "GPU %"), ("de", "GPU %"), ("pt-BR", "GPU %"), ("vi", "GPU %"),
+               ("ja", "GPU %"), ("zh-Hans", "GPU %"), ("zh-Hant", "GPU %"), ("zh-Hant", "Epoch"), ("vi", "Epoch")}   # 번체·베트남어는 맥 앱처럼 epoch을 그대로 쓴다
+    for code in msg.LANGS:
+        if code in ("en", "ko"):
+            continue
+        left = [k for k in keys if msg.TABLE[code].get(k, k) == k and (code, k) not in same_ok]
+        assert not left, (code, left)
+    hant = msg.TABLE["zh-Hant"]
+    assert "小时" not in hant.values() and "轮次" not in hant.values()
+    assert "扫参" in msg.TABLE["zh-Hans"]["Sweep stopped a run that fell behind"]

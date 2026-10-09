@@ -59,6 +59,9 @@ class Agent(Watcher):
         from . import sysrec                              # per-run machine record, every 15 s, separate from folder scans (sysrec.loop)
         threading.Thread(target=sysrec.loop, args=(self,), daemon=True).start()
         self.queue.on_finish = self._job_event
+        self.queue.on_away = self._away_job_event         # ended with no exit code known (started before this agent)
+        for j in self.queue.ended_away:                   # finished while the agent was off: alert now (previously nothing came)
+            self._away_job_event(j)
 
     ROOTS_FILE = Path.home() / ".epokio" / "roots.json"
     REMOVED_FILE = Path.home() / ".epokio" / "removed_roots.json"

@@ -157,7 +157,7 @@ def main():
         print("  Safer: keep the default 127.0.0.1 and use SSH (Epokio > Settings > Machines > Over SSH), an SSH tunnel or Tailscale.")
     from . import __version__
     logf = setup_log()
-    log.info("start %s · %s · %s:%s · roots %s", __version__, label, a.host, actual, [str(r) for r in roots])
+    log.info("start %s | %s | %s:%s | roots %s", __version__, label, a.host, actual, [str(r) for r in roots])
     from .autostart import console_text
     print(console_text(f"epokio agent {__version__} · {label} · http://{a.host}:{actual}  (log: {logf})"), flush=True)
     if getattr(agent.queue, "locked_out", False):

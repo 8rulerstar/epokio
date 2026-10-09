@@ -1370,3 +1370,4 @@
 "Epoch / step" = "エポック / ステップ";
 "Epochs / steps" = "エポック / ステップ";
 "%d large log files: only the last part was loaded" = "大きなログファイル %d 件：末尾部分のみ読み込みました";
+"Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "最高スコア、つまり保存された最良モデル（best.pt）のスコアと比べます。セグメンテーション・姿勢推定・分類では、その列の最高値より少し低いことがあります。";

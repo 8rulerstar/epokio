@@ -1376,3 +1376,4 @@
 "Epoch / step" = "Epoch / 步";
 "Epochs / steps" = "Epoch / 步數";
 "%d large log files: only the last part was loaded" = "%d 個大型紀錄檔：只載入了最後一部分";
+"Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "與最佳分數比較，也就是已儲存的最佳模型（best.pt）的分數。對於分割、姿態與分類，它可能略低於該欄的最高值。";

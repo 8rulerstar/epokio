@@ -18,7 +18,7 @@ HELP = """usage: epokio <command> [options]
 Run `epokio <command> -h` for options, `epokio --version` for the version."""
 
 
-def main():
+def _main():
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
         print(HELP)
         return
@@ -51,16 +51,34 @@ def main():
     elif cmd == "tray":
         from .tray import main as run
     elif cmd == "mcp":
-        try:
-            from .mcp_server import main as run
-        except ImportError:                       # ★예전엔 ModuleNotFoundError 트레이스백이 그대로 나왔다
-            print("The MCP server needs the mcp package:  pip install \"epokio[mcp]\"")
-            sys.exit(1)
-        return run()
+        return mcp_main()
     else:
         print(HELP)
         sys.exit(2)
     run(rest)
+
+
+def mcp_main():
+    """`epokio mcp`와 `epokio-mcp` 둘 다. ★epokio-mcp는 mcp가 없으면 트레이스백만 냈다. 안내는 stderr로(stdout은 MCP 통로)"""
+    try:
+        from .mcp_server import main as run
+    except ImportError:
+        print("The MCP server needs the mcp package:  pip install \"epokio[mcp]\"", file=sys.stderr)
+        sys.exit(1)
+    return run()
+
+
+def main():
+    """★~/.epokio가 읽기 전용이거나, 같은 이름의 파일이 있거나, 디스크가 차면 파이썬 트레이스백이 그대로 나왔다.
+    무엇을 못 썼는지와 할 일을 한 줄로"""
+    try:
+        _main()
+    except OSError as e:
+        from .autostart import short_home
+        where = short_home(str(e.filename)) if e.filename else ""
+        print(f"epokio: could not use {where or 'a file'}: {e.strerror or e}. "
+              "Check that the folder is writable and the disk is not full.", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

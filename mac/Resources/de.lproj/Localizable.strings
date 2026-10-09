@@ -119,7 +119,7 @@
 "Average best score of the runs that used each value." = "Durchschnittlicher Bestscore der Läufe mit diesem Wert.";
 "Average score %@" = "Durchschnittsscore %@";
 "Averages out the jumps so the trend is easier to see. 0 shows the raw values." = "Glättet Sprünge, damit der Trend leichter zu sehen ist. 0 zeigt die Rohwerte.";
-"Awards" = "Auszeichnungen";
+"Awards" = "Erfolge";
 "Back" = "Zurück";
 "Background" = "Hintergrund";
 "Badges for things like your first finished run. Adds an Achievements screen to the sidebar." = "Abzeichen für Dinge wie deinen ersten fertigen Lauf. Fügt der Seitenleiste einen Bildschirm „Erfolge“ hinzu.";
@@ -1370,3 +1370,4 @@
 "Epoch / step" = "Epoche / Schritt";
 "Epochs / steps" = "Epochen / Schritte";
 "%d large log files: only the last part was loaded" = "%d große Logdateien: nur der letzte Teil wurde geladen";
+"Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "Wird mit dem besten Wert verglichen, also dem Wert des gespeicherten besten Modells (best.pt). Bei Segmentierung, Pose und Klassifizierung kann er etwas unter dem höchsten Wert der Spalte liegen.";

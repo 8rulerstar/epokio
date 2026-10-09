@@ -28,3 +28,13 @@ def test_every_direction_check_sees_a_loss_word_anywhere():
     for k in ("metrics/glossary_acc", "metrics/lossless_acc", "metrics/accuracy"):
         assert schema.higher_is_better(k), k
 
+
+
+def test_a_loss_named_after_its_side_reads_as_loss():
+    """★HF·Keras·Lightning 곡선 범례가 "train train"·"val eval"(한국어 "학습 학습"·"검증 검증")이었다"""
+    for col, side in (("train/train_loss", "train"), ("val/val_loss", "val"), ("val/eval_loss", "val"), ("train/loss", "train")):
+        i = schema.info(col)
+        assert (i["side"], i["name"], i["kind"]) == (side, "loss", "loss"), col
+        assert schema.pretty(col) == f"{side} loss"
+    assert schema.info("train/box_loss")["name"] == "box"            # 울트라리틱스 손실 이름은 그대로
+    assert schema.info("val/dfl_loss")["name"] == "dfl"

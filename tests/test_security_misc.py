@@ -103,7 +103,7 @@ def _fake_health(proof_fn):
     class H(BaseHTTPRequestHandler):
         def do_GET(self):
             n = parse_qs(urlparse(self.path).query).get("nonce", [""])[0]
-            body = json.dumps({"app": "epokio", "proof": proof_fn(n)}).encode()
+            body = json.dumps({"app": "epokio", "proof_port": proof_fn(n, self.server.server_address[1])}).encode()
             self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
             self.wfile.write(body)
 
@@ -124,7 +124,7 @@ def _record_for(home, srv):
 
 def test_wrong_proof_rejected(home):
     import hashlib, hmac
-    srv = _fake_health(lambda n: hmac.new(b"not-the-token" * 3, n.encode(), hashlib.sha256).hexdigest())
+    srv = _fake_health(lambda n, p: hmac.new(b"not-the-token" * 3, f"{n}:{p}".encode(), hashlib.sha256).hexdigest())
     try:
         _record_for(home, srv)
         with pytest.raises(RuntimeError, match="could not prove"):
@@ -134,7 +134,7 @@ def test_wrong_proof_rejected(home):
 
 
 def test_missing_proof_rejected(home):
-    srv = _fake_health(lambda n: None)
+    srv = _fake_health(lambda n, p: None)
     try:
         _record_for(home, srv)
         with pytest.raises(RuntimeError, match="could not prove"):
@@ -144,9 +144,8 @@ def test_missing_proof_rejected(home):
 
 
 def test_correct_proof_accepted(home):
-    import hashlib, hmac
     tok = auth.token()
-    srv = _fake_health(lambda n: hmac.new(tok.encode(), n.encode(), hashlib.sha256).hexdigest())
+    srv = _fake_health(lambda n, p: port.proof_for(tok, n, p))
     try:
         _record_for(home, srv)
         assert port.write_url().endswith(str(srv.server_address[1]))
@@ -237,3 +236,81 @@ def test_web_goal_escaped():
     js = (Path(port.__file__).parent / "web" / "app.js").read_text(encoding="utf-8")
     assert "${r.meta.goal}" not in js
     assert "esc(r.meta.goal)" in js
+
+
+def test_a_proof_relayed_from_another_port_is_rejected(home):
+    """★증명에 포트가 없어, 8787에 뜬 남의 프로그램이 nonce를 다른 포트의 내 agent에 물어 그 증명을 내밀면 토큰을 받았다"""
+    tok = auth.token()
+    srv = _fake_health(lambda n, p: port.proof_for(tok, n, p + 1))         # 다른 포트(진짜 agent)가 낸 증명을 그대로
+    try:
+        assert not port.verify_agent(f"http://127.0.0.1:{srv.server_address[1]}")
+    finally:
+        srv.shutdown()
+
+
+def test_a_non_ascii_proof_is_a_no_not_a_crash(home):
+    """★문자열 compare_digest가 아스키 아닌 글자에 TypeError를 던져 watch가 죽었다"""
+    srv = _fake_health(lambda n, p: "é" * 64)
+    try:
+        assert port.verify_agent(f"http://127.0.0.1:{srv.server_address[1]}") is False
+    finally:
+        srv.shutdown()
+
+
+def _fake_agent(old_proof: bool, seen: list):
+    """옛 도우미(포트 없는 proof만) 또는 남의 프로그램(증명 없음). POST가 오면 Authorization을 seen에 적는다"""
+    import hashlib, hmac, threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from urllib.parse import parse_qs, urlparse
+    tok = auth.token()
+
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            n = parse_qs(urlparse(self.path).query).get("nonce", [""])[0]
+            d = {"ok": True, "label": "x", "version": 3, "epokio": __import__("epokio").version()}
+            if old_proof and n:
+                d["proof"] = hmac.new(tok.encode(), n.encode(), hashlib.sha256).hexdigest()
+            body = json.dumps(d).encode()
+            self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(body)
+
+        def do_POST(self):
+            seen.append(self.headers.get("Authorization"))
+            self.send_response(200); self.end_headers(); self.wfile.write(b"{}")
+
+        def log_message(self, *a): pass
+
+    srv = HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def test_an_older_helper_is_named_and_never_gets_the_token_unless_it_is_my_record(home, capsys):
+    """★pip으로 올린 뒤 옛 도우미(포트에 묶인 증명을 모름)가 돌면 watch는 '토큰이 필요함'·'8787에 안 닿음', MCP는 '증명 못 함'만 말했고,
+    setup은 판 이름이 같으면 '이미 돈다'로 그대로 두었다. setup·agent --stop은 그 포트에 누가 있든 확인 없이 토큰을 보냈다"""
+    from epokio import onboard
+    seen: list = []
+    srv = _fake_agent(old_proof=True, seen=seen)
+    p = srv.server_address[1]
+    try:
+        url = port.url_for(p)
+        assert port.agent_proof(url) == "old" and not port.verify_agent(url)
+        assert onboard.outdated(p).endswith("(older security check)")       # setup이 다시 띄운다
+        assert not port.may_send_token(p)                                     # 내 기록이 가리키는 포트가 아니면 안 보낸다
+        assert not onboard.stop_agent(p, seconds=0.5) and not onboard.add_roots_live(p, [home]) and seen == []
+        _record_for(home, srv)
+        assert port.local_url(warn=True) == url and "older version" in capsys.readouterr().err
+        with pytest.raises(RuntimeError, match="older version"):
+            port.write_url()
+        assert port.may_send_token(p)                                         # 내 기록의 옛 도우미는 끌 수 있다
+        onboard.stop_agent(p, seconds=0.2)
+        assert seen == [f"Bearer {auth.token()}"]
+    finally:
+        srv.shutdown()
+    seen.clear()
+    other = _fake_agent(old_proof=False, seen=seen)                           # 증명이 없는 남의 프로그램
+    try:
+        why: list = []
+        assert port.agent_proof(port.url_for(other.server_address[1])) == "no"
+        assert not onboard.stop_agent(other.server_address[1], seconds=0.2, why=why) and why == [403] and seen == []
+    finally:
+        other.shutdown()

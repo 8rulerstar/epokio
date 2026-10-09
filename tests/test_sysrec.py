@@ -57,3 +57,31 @@ def test_running_runs_and_running_queue_trainings_are_recorded(tmp_path):
                                     SimpleNamespace(state="done", kind="train", output=str(tmp_path / "old"))]))
     assert sysrec.live_paths(agent) == [tmp_path / "a", tmp_path / "q"]
     assert sysrec.live_paths(SimpleNamespace()) == []
+
+
+def test_the_idle_gpu_tip_uses_the_settings_of_the_runs_framework(tmp_path):
+    """★Hugging Face·Keras·Lightning 학습에도 울트라리틱스 인자(workers, cache=ram)를 권했다"""
+    for i in range(sysrec.MIN_SAMPLES):
+        sysrec.record([tmp_path], snap(gpu=20.0), now=i * 20)
+    rec = sysrec.read(tmp_path)
+    tip = {fw: sysrec.note(rec, fw)[1] for fw in ("ultralytics", "huggingface", "lightning", "keras", "tensorboard", "wandb")}
+    assert "cache=ram" in tip["ultralytics"]
+    assert "dataloader_num_workers" in tip["huggingface"] and "per_device_train_batch_size" in tip["huggingface"]
+    assert "DataLoader" in tip["lightning"] and "tf.data" in tip["keras"]
+    for fw in ("huggingface", "lightning", "keras", "tensorboard", "wandb"):
+        assert "cache=ram" not in tip[fw], fw
+
+
+def test_run_detail_gives_the_tip_for_that_framework(tmp_path):
+    """학습 상세(/run)가 프레임워크를 넘긴다: 케라스 학습에 cache=ram이 나오지 않는다"""
+    from epokio import rundetail
+    d = tmp_path / "keras_run"
+    d.mkdir()
+    rows = [f"{e},{0.5 + e / 100},{1 - e / 50},{0.5 + e / 120},{1 - e / 60}" for e in range(12)]
+    (d / "training.log").write_text("\n".join(["epoch,accuracy,loss,val_accuracy,val_loss"] + rows) + "\n")
+    for i in range(sysrec.MIN_SAMPLES):
+        sysrec.record([d], snap(gpu=15.0), now=i * 20)
+    det = rundetail.detail(d)
+    assert det["framework"] == "keras"
+    tips = [n["try"] for n in det["notes"] if "GPU" in n["try"]]
+    assert tips and "tf.data" in tips[0] and "cache=ram" not in tips[0]

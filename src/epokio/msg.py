@@ -32,6 +32,7 @@ _ALIAS = {
 
 _lang: contextvars.ContextVar[str] = contextvars.ContextVar("lang", default="en")
 _tag: contextvars.ContextVar[str] = contextvars.ContextVar("tag", default="en")   # zh-Hans 처럼 전체
+_given: contextvars.ContextVar[bool] = contextvars.ContextVar("given", default=False)   # 요청이 언어를 실어 보냈나
 
 
 def _load(code: str) -> dict[str, str]:
@@ -49,7 +50,10 @@ KO = TABLE["ko"]        # 옛 이름. tests/test_msg.py와 밖의 코드가 이 
 
 def resolve(tag: str | None) -> str:
     """'ko-KR' · 'zh-TW' · 'pt' → 우리 언어 코드. 모르면 'en'."""
-    t = (tag or "").strip().lower()
+    t = (tag or "").strip().lower().replace("_", "-")     # 윈도우 모양(zh_CN)도
+    # 문자 표기 하위 태그가 먼저다. ★zh-Hant-TW가 'zh'로 떨어져 간체로 나갔다(알림 언어 --lang, 저장된 웹후크 언어)
+    if t.startswith("zh-") and ("-hant" in t or "-hans" in t):
+        return "zh-Hant" if "-hant" in t else "zh-Hans"
     if t in _ALIAS:
         return _ALIAS[t]
     for c in LANGS:                     # 'zh-Hans' 같은 정확한 일치를 여기서 잡는다
@@ -67,8 +71,14 @@ def resolve(tag: str | None) -> str:
 def set_from_header(accept_language: str | None) -> None:
     """'ko-KR,ko;q=0.9,en;q=0.8' 에서 첫 언어만 본다."""
     first = (accept_language or "").split(",")[0].split(";")[0].strip()
+    _given.set(bool(first))
     _tag.set(first or "en")
     _lang.set(resolve(first))
+
+
+def given() -> bool:
+    """이 요청이 Accept-Language를 실었나. ★안 실은 요청(curl·터미널)이 저장된 웹후크 언어를 영어로 되돌렸다"""
+    return _given.get()
 
 
 def tag() -> str:

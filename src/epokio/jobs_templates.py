@@ -144,7 +144,7 @@ write_classes(p["run"], m, "val")
 EVAL_HELPERS = '''\
 import math
 
-def read_gt(f, seg=False):
+def read_gt(f, seg=False, kdim=3):
     """YOLO 라벨. 검출: cls cx cy w h, 포즈: 그 뒤에 키포인트(x y v), 분할: cls 뒤에 폴리곤(x y ...).
     ★분할 폴리곤의 앞 숫자 4개를 박스로 읽어서, 분할 모델의 이미지별 점수가 의미 없었다. 폴리곤은 감싸는 박스로 바꾼다"""
     rows = []
@@ -157,8 +157,10 @@ def read_gt(f, seg=False):
             x1, x2, y1, y2 = min(xs), max(xs), min(ys), max(ys)
             rows.append({"cls": int(v[0]), "box": [(x1 + x2) / 2, (y1 + y2) / 2, x2 - x1, y2 - y1], "kpts": []})
         else:
-            kp = v[5:]
-            rows.append({"cls": int(v[0]), "box": v[1:5], "kpts": [kp[k:k + 3] for k in range(0, len(kp) - len(kp) % 3, 3)]})
+            kp = v[5:]                            # kdim: 키포인트 하나의 숫자 수(kpt_shape의 둘째). 2면 보임 1을 붙인다
+            d = kdim if kdim in (2, 3) and len(kp) % kdim == 0 else 3
+            pts = [kp[k:k + d] for k in range(0, len(kp) - len(kp) % d, d)]
+            rows.append({"cls": int(v[0]), "box": v[1:5], "kpts": [q + [1.0] if d == 2 else q for q in pts]})
     return rows
 
 def iou(a, b):

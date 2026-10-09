@@ -19,6 +19,6 @@ function bindSnapshots(r, d) {
   x.oninput = () => {
     const k = +x.value; $("#snapep").textContent = t("epoch {n}", { n: d.snapshots.epochs[k] });
     const g = $("#snapg"); g.innerHTML = snapFigures(r, d.snapshots, k);
-    g.querySelectorAll("figure").forEach((f) => f.onclick = () => lightbox(f.dataset.src));
+    g.querySelectorAll("figure").forEach((f) => f.onclick = () => lightbox(f.dataset.src, f.getAttribute("aria-label")));
   };
 }

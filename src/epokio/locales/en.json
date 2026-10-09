@@ -198,5 +198,12 @@
  "Phone alerts from {machine} work.": "Phone alerts from {machine} work.",
  "step": "step",
  "{m} stayed at {v:.3f} in every epoch. The score never moved.": "{m} stayed at {v:.3f} in every epoch. The score never moved.",
- "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels.": "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels."
+ "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels.": "Check the labels and the data config (for YOLO, data.yaml: class ids, names and folders). A score that never moves usually means the model is not learning from the labels.",
+ "This token is read-only. It can view runs, but not start them or change anything.": "This token is read-only. It can view runs, but not start them or change anything.",
+ "This token can see only some folders and cannot change anything.": "This token can see only some folders and cannot change anything.",
+ "The GPU may be waiting for data. Try a higher dataloader_num_workers or per_device_train_batch_size in TrainingArguments.": "The GPU may be waiting for data. Try a higher dataloader_num_workers or per_device_train_batch_size in TrainingArguments.",
+ "The GPU may be waiting for data. Try num_workers and pin_memory=True in your DataLoader, or a larger batch size.": "The GPU may be waiting for data. Try num_workers and pin_memory=True in your DataLoader, or a larger batch size.",
+ "The GPU may be waiting for data. Try a tf.data pipeline with .cache() and .prefetch(tf.data.AUTOTUNE), or a larger batch size.": "The GPU may be waiting for data. Try a tf.data pipeline with .cache() and .prefetch(tf.data.AUTOTUNE), or a larger batch size.",
+ "The GPU may be waiting for data. Try more data loading workers, keeping the data in memory, or a larger batch size.": "The GPU may be waiting for data. Try more data loading workers, keeping the data in memory, or a larger batch size.",
+ "Fixing labels here works for boxes and classes only. Fix pose and mask labels in your labelling tool.": "Fixing labels here works for boxes and classes only. Fix pose and mask labels in your labelling tool."
 }

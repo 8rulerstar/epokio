@@ -58,6 +58,13 @@ view_conf = float(p.get("conf", 0.25))            # 화면 기본 문턱
 p["conf"] = min(view_conf, 0.05)                  # ★낮게 저장해 두면 앱에서 문턱을 다시 돌리지 않고 바꿀 수 있다
 task = getattr(model, "task", "detect")
 names = {{int(k): v for k, v in (model.names or {{}}).items()}}
+
+def kpt_dim():                                     # 키포인트 하나의 숫자 수: kpt_shape [17, 3]이면 x y 보임, [N, 2](tiger-pose)면 x y뿐
+    try:
+        return int((model.model.yaml.get("kpt_shape") or [0, 3])[1])
+    except Exception:
+        return 3
+KDIM = kpt_dim()
 EXT = {{".jpg", ".jpeg", ".png", ".bmp", ".webp"}}
 imgs = sorted(x for x in src.rglob("*") if x.suffix.lower() in EXT)
 
@@ -82,8 +89,10 @@ def read_gt(f):
             x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
             rows.append({{"cls": int(v[0]), "box": [(x0 + x1) / 2, (y0 + y1) / 2, x1 - x0, y1 - y0], "kpts": [], "poly": poly}})
         else:
-            kp = v[5:]
-            rows.append({{"cls": int(v[0]), "box": v[1:5], "kpts": [kp[k:k + 3] for k in range(0, len(kp) - len(kp) % 3, 3)]}})
+            kp = v[5:]                            # ★늘 3개씩 잘라, 2차원 키포인트(x y만)는 x를 보임으로 읽어 점수가 엉터리였다
+            d = KDIM if KDIM in (2, 3) and len(kp) % KDIM == 0 else 3
+            pts = [kp[k:k + d] for k in range(0, len(kp) - len(kp) % d, d)]
+            rows.append({{"cls": int(v[0]), "box": v[1:5], "kpts": [q + [1.0] if d == 2 else q for q in pts]}})
     return rows
 
 def mask_ious(gt, pred, shape):

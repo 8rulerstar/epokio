@@ -2,6 +2,26 @@
 
 [Back to README](../README.md)
 
+## What it looks like
+
+<p align="center">
+  <img src="images/menubar-characters.gif" width="600" alt="A character runs in the menu bar at the speed of your training">
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/menubar-info-toggle-dark.gif">
+    <img src="images/menubar-info-toggle.gif" width="600" alt="The menu bar item showing progress, epoch and time left as you switch them on">
+  </picture>
+</p>
+
+<p align="center">
+  <img src="images/popover-light.png" width="330" alt="Menu bar popover, light">
+  <img src="images/popover-dark.png" width="330" alt="Menu bar popover, dark">
+</p>
+
+The run page and compare screenshots are under [Results](#results) and [Studio window](#studio-window).
+
 ## What it does
 
 ### Menu bar

@@ -378,3 +378,25 @@ def test_two_evaluations_in_one_hf_epoch_keep_the_best_score(tmp_path):
     assert r.metric_name == "metrics/accuracy" and abs(r.best - 0.9) < 1e-6 and r.best_epoch == 2
     rows = adapters.load(d).rows
     assert rows[1]["metrics/rmse"] == "0.3" and rows[1]["val/loss"] == "0.85" and rows[0]["metrics/accuracy"] == "0.6"
+
+
+def test_settings_table_shows_hparams_not_internal_keys(tmp_path):
+    """★TensorBoard·Lightning 학습의 '사용한 설정'이 hparams.yaml(lr·batch_size)은 빼고 x_axis·epoch_tag만 보였다"""
+    from epokio import rundetail
+    now = time.time()
+    tb = tmp_path / "lightning_logs" / "version_0"
+    tb.mkdir(parents=True)
+    (tb / "hparams.yaml").write_text("lr: 0.001\nbatch_size: 32\nmax_epochs: 10\nmodel:\n  depth: 4\n", encoding="utf-8")
+    ev = [_event(now - 300, 0, version="brain.Event:2")]
+    for e in range(4):
+        ev.append(_event(now - 300 + e * 60, (e + 1) * 30, [_value("val_loss", 0.9 / (e + 1)), _value("val_acc", 0.5 + 0.04 * e),
+                                                            _value("epoch", float(e))]))
+    _write(tb / f"events.out.tfevents.{int(now)}.host.1.0", ev)
+    args = rundetail.detail(tb)["args"]
+    assert args.get("lr") == "0.001" and args.get("batch_size") == "32" and args.get("max_epochs") == "10"
+    assert "x_axis" not in args and "epoch_tag" not in args and "model" not in args   # 여러 줄 값은 뺀다
+    csv = tmp_path / "csv_logs" / "version_0"
+    csv.mkdir(parents=True)
+    (csv / "hparams.yaml").write_text("lr: 0.01\n", encoding="utf-8")
+    (csv / "metrics.csv").write_text("epoch,step,val_loss,val_acc\n0,10,0.9,0.5\n1,20,0.8,0.6\n", encoding="utf-8")
+    assert rundetail.detail(csv)["args"] == {"lr": "0.01"}               # CSVLogger 학습은 설정 표가 아예 없었다

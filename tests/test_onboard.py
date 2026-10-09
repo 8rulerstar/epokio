@@ -120,6 +120,7 @@ def test_setup_does_not_touch_autostart_unless_asked(monkeypatch, tmp_path):
     called = []
     monkeypatch.setattr(autostart, "enable", lambda *a, **k: called.append(1))
     monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "owner", lambda *a, **k: "mine")          # 내 토큰을 증명한 내 도우미
 
     onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser"])
     assert called == []
@@ -128,6 +129,7 @@ def test_setup_does_not_touch_autostart_unless_asked(monkeypatch, tmp_path):
 def test_setup_does_not_open_a_browser_when_told_not_to(monkeypatch, tmp_path):
     import webbrowser
     monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "owner", lambda *a, **k: "mine")          # 내 토큰을 증명한 내 도우미
     monkeypatch.setattr(webbrowser, "open", lambda *a, **k: pytest.fail("브라우저를 열었다"))
     assert onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser"]) == 0
 
@@ -138,6 +140,7 @@ def test_setup_remembers_the_folders_you_gave_it(monkeypatch, tmp_path):
     from epokio import jsonfile
     from epokio.agent import Agent
     monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "owner", lambda *a, **k: "mine")          # 내 토큰을 증명한 내 도우미
     a, b = tmp_path / "a", tmp_path / "b"
     a.mkdir(); b.mkdir()
     jsonfile.write(Agent.REMOVED_FILE, [str(b.resolve())])
@@ -149,8 +152,10 @@ def test_setup_remembers_the_folders_you_gave_it(monkeypatch, tmp_path):
 
 def test_setup_prints_the_address_that_unlocks_the_page(monkeypatch, tmp_path, capsys):
     """브라우저엔 토큰 실은 주소를 열면서 화면엔 맨 주소를 찍어, 그걸로 연 사람은 학습 탭이 잠겨 있었다."""
-    from epokio import auth
+    from epokio import auth, port
     monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "owner", lambda *a, **k: "mine")          # 내 토큰을 증명한 내 도우미
+    monkeypatch.setattr(port, "verify_agent", lambda *a, **k: True)          # 그 포트에 뜬 것이 내 agent다
     monkeypatch.setattr(onboard, "headless", lambda: False)
     monkeypatch.setattr(sys.stdout, "isatty", lambda: True, raising=False)   # 터미널에서 돌린 것처럼
     onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser"])
@@ -234,6 +239,7 @@ def test_rerunning_setup_on_a_server_says_how_to_apply_the_new_settings(monkeypa
     monkeypatch.setattr(onboard, "headless", lambda: True)
     monkeypatch.setattr(autostart, "supported", lambda: True)
     monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "owner", lambda *a, **k: "mine")          # 내 토큰을 증명한 내 도우미
     monkeypatch.setattr(onboard, "find_roots", lambda: [])
     unit = tmp_path / ".config" / "systemd" / "user" / "epokio.service"
     unit.parent.mkdir(parents=True)
@@ -282,6 +288,7 @@ def test_setup_restarts_an_older_helper(monkeypatch, tmp_path, capsys):
     alive = {"v": True}
     monkeypatch.setattr(onboard, "agent_health", lambda *a, **k: {"epokio": "0.2.0"} if alive["v"] else None)
     monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: alive["v"])
+    monkeypatch.setattr(onboard, "owner", lambda *a, **k: "mine" if alive["v"] else None)
     stopped, started = [], []
     monkeypatch.setattr(onboard, "stop_agent", lambda *a, **k: (stopped.append(1), alive.update(v=False)) and True)
     monkeypatch.setattr(onboard, "start_agent", lambda *a, **k: started.append(1))
@@ -314,6 +321,7 @@ def test_setup_root_reaches_a_running_helper(monkeypatch, tmp_path, capsys):
     sent = []
     monkeypatch.setattr(onboard, "outdated", lambda *a, **k: None)
     monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "owner", lambda *a, **k: "mine")          # 내 토큰을 증명한 내 도우미
     monkeypatch.setattr(onboard, "add_roots_live", lambda port, roots: sent.extend(roots) or True)
     monkeypatch.setattr(onboard, "headless", lambda: True)
     onboard.main(["--root", str(runs), "--no-browser"])
@@ -344,3 +352,43 @@ def test_setup_into_a_log_or_notebook_does_not_print_the_token(monkeypatch, tmp_
     onboard.main(["--root", str(tmp_path), "--port", "8798", "--no-browser", "--lan"])
     out = capsys.readouterr().out                       # capsys: 터미널이 아니다
     assert auth.token() not in out and "#t=" not in out and "--show-token" in out
+
+
+def test_doctor_log_tail_has_no_middle_dot(monkeypatch, tmp_path, capsys):
+    """한국어 윈도우에서 agent.log 구분자(가운뎃점)가 doctor 출력에 깨져 보였다"""
+    from pathlib import Path
+    from epokio import envs, doctor
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    (tmp_path / ".epokio").mkdir()
+    (tmp_path / ".epokio" / "agent.log").write_text("x INFO start 0.7.0 · pc · 127.0.0.1:9000\n", encoding="utf-8")
+    monkeypatch.setattr(onboard, "agent_health", lambda *a, **k: None)
+    monkeypatch.setattr(envs, "list_envs", lambda: [])
+    assert onboard.doctor([]) == 0
+    out = capsys.readouterr().out
+    assert "start 0.7.0 | pc | 127.0.0.1:9000" in out and "·" not in out
+    assert doctor._console_safe("a·éb", "ascii") == "a??b"
+
+
+def test_autostart_off_on_a_server_names_the_systemd_service(monkeypatch, tmp_path, capsys):
+    """★화면 없는 서버에서 --off가 'It was not on.'이라 하고, setup이 만든 서비스(--lan이면 0.0.0.0)는 계속 돌았다"""
+    from pathlib import Path
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(onboard, "headless", lambda: True)
+    monkeypatch.setattr(autostart, "supported", lambda: True)
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(autostart, "disable", lambda *a, **k: pytest.fail("looked for a tray entry"))
+    onboard.unit_file().parent.mkdir(parents=True)
+    onboard.unit_file().write_text("x", encoding="utf-8")
+    assert onboard.autostart_main(["--off"]) == 0
+    out = capsys.readouterr().out
+    assert "systemctl --user disable --now epokio" in out and "not on" not in out
+
+
+def test_setup_under_sudo_says_it_is_setting_up_root(monkeypatch):
+    """★`sudo epokio setup`은 아무 말 없이 root의 홈에 서비스·토큰을 썼다"""
+    monkeypatch.setattr(onboard.os, "name", "posix")
+    monkeypatch.setattr(onboard.os, "geteuid", lambda: 0, raising=False)
+    monkeypatch.setenv("SUDO_USER", "lab")
+    assert "for root, not lab" in onboard.sudo_warning()
+    monkeypatch.delenv("SUDO_USER")
+    assert onboard.sudo_warning() == ""

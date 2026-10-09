@@ -18,12 +18,17 @@ struct TableRun: Identifiable, Hashable, Decodable {
     let tags: [String]
     let star: Bool
     let args: [String: String]
+    var agentDisplay: String? = nil          // agent가 정한 보일 이름(/runs/table의 display, scan.display_name). 옛 agent엔 없다
 
-    enum CodingKeys: String, CodingKey { case path, name, state, epoch, total, best, metric_name, metric_higher, idle, tags, star, args }
+    enum CodingKeys: String, CodingKey { case path, name, state, epoch, total, best, metric_name, metric_higher, idle, tags, star, args, agentDisplay = "display" }
     /// 옛 agent(필드 없음)면 열 이름으로 어림한다. Run.metricHigher와 같은 규칙
     var higher: Bool { metric_higher ?? !(metric_name ?? "").lowercased().contains("loss") }
     subscript(arg k: String) -> String { args[k] ?? "" }
-    var display: String { runDisplayName(name, path) }            // "train"만 셋이면 구분이 안 됐다: 목록과 같은 규칙
+    /// agent 이름이 먼저(Run.displayName과 같은 규칙), 옛 agent면 목록과 같은 규칙. ★Lightning version_0 셋이 같은 이름으로 보였다
+    var display: String {
+        if let agentDisplay, !agentDisplay.isEmpty { return agentDisplay }
+        return runDisplayName(name, path)
+    }
     /// 정렬 열쇠. ★낮을수록 좋은 점수는 부호를 뒤집어, 한 표에 섞여 있어도 "위가 더 좋은 쪽"이 된다
     var bestSort: Double { best.map { higher ? $0 : -$0 } ?? -.infinity }
     var totalSort: Int { total ?? 0 }
@@ -52,7 +57,7 @@ enum TableFilter {
                 if !test(have, op, v) { return false }
                 continue
             }
-            let hay = [r.name, r.path, r.state] + Array(r.args.values)
+            let hay = [r.display, r.path, r.state] + Array(r.args.values)     // 보이는 이름으로(웹 tMatch와 같다). 원래 이름은 path에 있다
             if !hay.contains(where: { $0.localizedCaseInsensitiveContains(tok) }) { return false }
         }
         return true

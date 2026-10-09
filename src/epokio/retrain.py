@@ -17,8 +17,28 @@ def fixed_dir(out: Path) -> Path:
     return out / "labels_fixed"
 
 
+def _rows_images(out: Path) -> list[str]:
+    try:
+        return [r["image"] for r in json.loads((out / "epokio_eval.json").read_text(encoding="utf-8")).get("rows", [])]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+
+
+def image_keys(images) -> dict[str, str]:
+    """이미지 경로 → 고친 라벨·재학습 세트에서 쓰는 이름. 보통은 파일 이름(확장자 뺀 것), 이 평가에 같은 이름이 둘 이상이면
+    경로 해시를 붙인다(윈도우는 대소문자를 안 가려 소문자로 센다).
+    ★cam1/0001.jpg와 cam2/0001.jpg가 같은 이름이라 고친 라벨이 서로 덮였고, 재학습 세트에서 두 번째 이미지를 첫 번째의
+      하드링크 위에 써서 원본 데이터셋 이미지가 바뀌었다"""
+    import hashlib
+    from collections import Counter
+    images = list(dict.fromkeys(images))                 # 같은 경로는 한 번만 센다
+    n = Counter(_stem(Path(i)).lower() for i in images)
+    return {i: _stem(Path(i)) if n[_stem(Path(i)).lower()] < 2 else f"{_stem(Path(i))}~{hashlib.sha1(i.encode('utf-8')).hexdigest()[:8]}"
+            for i in images}
+
+
 def fix_label(out: Path, image: str, boxes: list[dict]) -> Path:
-    """고친 라벨을 평가 폴더의 labels_fixed/<이미지 이름>.txt 에 쓴다. 원본은 건드리지 않는다."""
+    """고친 라벨을 평가 폴더의 labels_fixed/<이미지 이름>.txt 에 쓴다(이름은 image_keys). 원본은 건드리지 않는다."""
     lines = []
     for b in boxes:
         try:                                              # ★"invalid literal for int()"이 그대로 화면에 나갔다
@@ -33,7 +53,8 @@ def fix_label(out: Path, image: str, boxes: list[dict]) -> Path:
         lines.append(f"{c} {x:.6f} {y:.6f} {w:.6f} {h:.6f}")
     d = fixed_dir(out)
     d.mkdir(parents=True, exist_ok=True)
-    f = d / (_stem(Path(image)) + ".txt")                  # ★splitext 금지(파일명의 마침표). 확장자 없으면 name[:-0]이 ""였다
+    key = image_keys(_rows_images(out) + [image])[image]  # ★splitext 금지(파일명의 마침표). 확장자 없으면 name[:-0]이 ""였다
+    f = d / (key + ".txt")
     f.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
     return f
 
@@ -114,8 +135,10 @@ def write_csv(path: Path, header: list[str], rows, conf=None, iou=None) -> Path:
     for r in rows:
         w.writerow(r)
     text = buf.getvalue()
-    if path is not None:
-        path.write_text(text, encoding="utf-8-sig")
+    if path is not None:                                   # 반쯤 쓴 파일이 읽히지 않게 새 파일로 쓰고 바꾼다
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(text, encoding="utf-8-sig")
+        tmp.replace(path)
     return text
 
 
@@ -165,14 +188,18 @@ IMG = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
 
 
 def _link(src: Path, dst: Path):
-    """하드링크 → 심볼릭 링크 → 복사 (공간을 거의 안 쓴다)"""
+    """하드링크 → 심볼릭 링크 → 복사 (공간을 거의 안 쓴다). 이미 있는 이름에는 절대 쓰지 않는다:
+    ★그 이름이 원본 이미지의 하드링크·심볼릭 링크면 복사가 원본을 덮어썼다"""
+    if dst.exists() or dst.is_symlink():
+        raise FileExistsError(f"{dst.name} is already in the retrain set")
     try:
         os.link(src, dst)
     except OSError:
         try:
             dst.symlink_to(src)
         except OSError:
-            dst.write_bytes(src.read_bytes())
+            with open(dst, "xb") as f:                     # 새 파일로만 만든다
+                f.write(src.read_bytes())
 
 
 def _stem(p: Path) -> str:
@@ -221,7 +248,10 @@ def build_retrain(out: Path, model: str, want: list[str], repeat: int = 2) -> di
     task = data.get("task") or ("classify" if data.get("rows") and "top" in data["rows"][0] else "detect")
     vd = verdicts(out)
     fixed = fixed_labels(out)
-    pick = [r for r in data.get("rows", []) if vd.get(r["image"]) in want or _stem(Path(r["image"])) in fixed]
+    keys = image_keys(r["image"] for r in data.get("rows", []))
+    # 고친 라벨: 이 이미지의 이름으로, 없으면 옛 방식(확장자 뺀 파일 이름)으로 저장된 것
+    fixes = {i: fixed[k] if k in fixed else fixed.get(_stem(Path(i))) for i, k in keys.items() if k in fixed or _stem(Path(i)) in fixed}
+    pick = [r for r in data.get("rows", []) if vd.get(r["image"]) in want or r["image"] in fixes]
     if not pick:
         raise ValueError("nothing to add: mark some images or fix a label first")
     root = out / "retrain"
@@ -231,22 +261,22 @@ def build_retrain(out: Path, model: str, want: list[str], repeat: int = 2) -> di
     root.mkdir(parents=True)
     base = _base_data(model)
     if task == "classify":
-        return _retrain_classify(root, base, pick, fixed, data, repeat)
-    return _retrain_yolo(root, base, pick, fixed, data, repeat)
+        return _retrain_classify(root, base, pick, fixes, keys, data, repeat)
+    return _retrain_yolo(root, base, pick, fixes, keys, data, repeat)
 
 
-def _retrain_yolo(root: Path, base: Path | None, pick, fixed, data, repeat) -> dict:
+def _retrain_yolo(root: Path, base: Path | None, pick, fixes, keys, data, repeat) -> dict:
     (root / "images").mkdir()
     (root / "labels").mkdir()
     n = 0
     for r in pick:
         img = Path(r["image"])
         lab = Path(r["label"]) if r.get("label") else None
-        fix = fixed.get(_stem(img))
+        fix = fixes.get(r["image"])
         text = "\n".join(f"{b['cls']} {' '.join(f'{v:.6f}' for v in b['box'])}" for b in fix) + "\n" if fix is not None \
             else (lab.read_text(encoding="utf-8") if lab and lab.exists() else "")
         for k in range(max(repeat, 1)):
-            name = f"{_stem(img)}__r{k}" if k else _stem(img)
+            name = f"{keys[r['image']]}__r{k}" if k else keys[r["image"]]
             _link(img, root / "images" / (name + img.suffix))
             (root / "labels" / (name + ".txt")).write_text(text, encoding="utf-8")
             n += 1
@@ -285,7 +315,7 @@ def _retrain_yolo(root: Path, base: Path | None, pick, fixed, data, repeat) -> d
             "moved_from_val": moved, "warning": warning}
 
 
-def _retrain_classify(root: Path, base: Path | None, pick, fixed, data, repeat) -> dict:
+def _retrain_classify(root: Path, base: Path | None, pick, fixes, keys, data, repeat) -> dict:
     """분류: 원래 train/ 전부 + 고른 이미지(고친 클래스로, repeat번) → retrain/train/<클래스>/, val/은 고른 이미지를 뺀 원래 val/"""
     names = {int(k): v for k, v in (data.get("names") or {}).items()}
     if not base or not base.is_dir() or not (base / "train").is_dir():
@@ -305,13 +335,13 @@ def _retrain_classify(root: Path, base: Path | None, pick, fixed, data, repeat) 
                 _link(img, dst / img.name)
     for r in pick:
         img = Path(r["image"])
-        fix = fixed.get(_stem(img))
+        fix = fixes.get(r["image"])
         cls = fix[0]["cls"] if fix else r.get("truth")
         cname = names.get(cls, str(cls)) if cls is not None else img.parent.name
         dst = root / "train" / cname
         dst.mkdir(parents=True, exist_ok=True)
         for k in range(max(repeat, 1)):
-            f = dst / (f"{_stem(img)}__epokio{k}{img.suffix}")
+            f = dst / (f"{keys[r['image']]}__epokio{k}{img.suffix}")
             if not f.exists():
                 _link(img, f)
                 n += 1

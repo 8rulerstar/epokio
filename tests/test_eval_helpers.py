@@ -68,3 +68,48 @@ def test_each_training_records_its_environment(tmp_path, monkeypatch):
     got = json.loads((out / "epokio_env.json").read_text(encoding="utf-8"))
     assert got["python"] and len(got["packages_hash"]) == 12
     assert rundetail._env(out)["python"] == got["python"]
+
+
+def test_two_dimensional_keypoints_are_read_in_pairs(tmp_path):
+    """★kpt_shape [N, 2](tiger-pose 등)인 라벨을 3개씩 잘라 x를 '보임'으로 읽어 검수 키포인트 점수가 엉터리였다"""
+    f = tmp_path / "a.txt"
+    f.write_text("0 0.5 0.5 0.2 0.2 " + " ".join(f"0.{i} 0.{i + 1}" for i in range(1, 7)) + "\n")   # 키포인트 6개 x y
+    two = H["read_gt"](f, kdim=2)[0]["kpts"]
+    assert len(two) == 6 and two[0] == [0.1, 0.2, 1.0] and all(len(k) == 3 for k in two)
+    assert len(H["read_gt"](f)[0]["kpts"]) == 4                     # 예전 방식(3개씩)이면 4개로 잘못 읽힌다
+
+
+def test_the_eval_template_knows_the_keypoint_shape():
+    from epokio.templates import EVAL_TEMPLATE
+    src = EVAL_TEMPLATE.format(params='{"model": "m.pt", "source": "s", "project": "p", "name": "n"}')
+    compile(src, "eval", "exec")
+    assert 'kpt_shape' in src and "KDIM if KDIM in (2, 3)" in src
+
+
+def test_the_try_it_script_compiles_and_reads_a_fake_result(tmp_path):
+    """★/predict의 스크립트가 들여쓰기가 빠져 IndentationError였다(그림 한 장 시험이 늘 500). 가짜 ultralytics로 실제로 돌린다"""
+    import json
+    import subprocess
+    import sys
+    from epokio.api import predict
+    compile(predict.SCRIPT, "predict.py", "exec")
+    fake = tmp_path / "ultralytics"
+    fake.mkdir()
+    (fake / "__init__.py").write_text('''
+class _T:
+    def __init__(self, v): self.v = v
+    def tolist(self): return self.v
+class _B:
+    xywhn, cls, conf = _T([[0.5, 0.5, 0.2, 0.2]]), _T([1.0]), _T([0.87654])
+    def __len__(self): return 1
+class _R:
+    names, orig_shape, boxes, keypoints = {1: "dog"}, (480, 640), _B(), None
+class YOLO:
+    def __init__(self, m): pass
+    def predict(self, **k): return iter([_R()])
+''')
+    r = subprocess.run([sys.executable, "-c", predict.SCRIPT, json.dumps({"model": "m.pt", "image": "a.jpg", "conf": 0.25, "device": None})],
+                       capture_output=True, text=True, timeout=60, env={**__import__("os").environ, "PYTHONPATH": str(tmp_path)})
+    line = next(x for x in r.stdout.splitlines() if x.startswith("EPOKIO_JSON"))
+    got = json.loads(line[len("EPOKIO_JSON"):])
+    assert got["size"] == [640, 480] and got["boxes"] == [{"cls": 1, "box": [0.5, 0.5, 0.2, 0.2], "conf": 0.8765, "kpts": []}]

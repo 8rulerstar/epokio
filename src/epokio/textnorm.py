@@ -76,7 +76,9 @@ def mixed_forms(folder: str) -> dict:
                 nfd_n += 1
                 if len(samples) < 5:
                     samples.append(os.path.join(root, n))
-    return {"nfc": nfc_n, "nfd": nfd_n, "mixed": nfc_n > 0 and nfd_n > 0, "nfd_samples": samples}
+    # found: 그 폴더가 있는가. ★영문 이름만 있는 폴더도 nfc·nfd가 0이라, MCP가 '파일이 없다'고 잘못 말했다
+    return {"nfc": nfc_n, "nfd": nfd_n, "mixed": nfc_n > 0 and nfd_n > 0, "nfd_samples": samples,
+            "found": os.path.isdir(folder)}
 
 
 def err_text(ex: BaseException) -> str:

@@ -14,6 +14,7 @@
    "error": "str",
    "eta": "num",
    "format_warnings": [],
+   "fraction": "NoneType",
    "framework": "str",
    "history": [
     "num"

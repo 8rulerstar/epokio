@@ -14,7 +14,7 @@ def doctor(argv: list[str] | None = None) -> int:
     """문제 보고용 한눈 보기(`epokio doctor`). 토큰은 싣지 않는다. --json 이면 JSON으로"""
     import json
     import platform
-    from . import envs, version
+    from . import envs, jsonfile, version
     from .agent import Agent
     ap = argparse.ArgumentParser(prog="epokio doctor", description="Print what Epokio sees, for a bug report.")
     ap.add_argument("--port", type=int, default=None, help=f"the helper's port (default: the running one, else {onboard.PORT})")
@@ -28,10 +28,17 @@ def doctor(argv: list[str] | None = None) -> int:
     h = onboard.agent_health(a.port)
     roots = []
     try:
-        from . import jsonfile
         roots = [str(r) for r in jsonfile.read(Agent.ROOTS_FILE, [])]
     except (OSError, ValueError):
         pass
+    # ★'알림이 안 와요' 보고에 웹후크가 저장돼 있는지가 안 보였다. 주소는 비밀이라 개수만
+    from . import notify
+    try:
+        saved = jsonfile.read(Agent.HOOKS_FILE, {}, move_broken=False)
+        urls = [u for u in saved.get("urls", []) if isinstance(u, str)] if isinstance(saved, dict) else []
+        hooks = {"saved": len(urls), "usable": sum(map(notify.valid, urls))}
+    except (OSError, ValueError):
+        hooks = {"error": "webhooks.json could not be read"}
     runs_info = None
     if h:
         try:
@@ -52,6 +59,7 @@ def doctor(argv: list[str] | None = None) -> int:
         "helper": ({"running": True, "epokio": h.get("epokio", "older"), "api": h.get("api", h.get("version")),
                     "label": h.get("label"), "port": a.port} if h else {"running": False, "port": a.port}),
         "saved_folders": roots, "watching": runs_info,
+        "webhooks": hooks,
         "token_file": (Path.home() / ".epokio" / "token").exists(),
         "allowed_hosts": os.environ.get("EPOKIO_ALLOWED_HOSTS", ""),
         "autostart": autostart.enabled() if autostart.supported() else None,
@@ -80,11 +88,24 @@ def doctor(argv: list[str] | None = None) -> int:
         for r in w["roots"]:
             print(f"    {r}{'' if Path(r).exists() else '   ! missing'}")
     print(f"  saved folders: {', '.join(roots) or 'none'}")
+    wh = info["webhooks"]
+    print("  phone alerts: " + (wh["error"] if "error" in wh else f"{wh['saved']} webhooks saved"
+                                + (f" ({wh['saved'] - wh['usable']} not usable)" if wh["usable"] < wh["saved"] else "")))
     print(f"  token file: {'yes' if info['token_file'] else 'no'} | allowed hosts: {info['allowed_hosts'] or '-'}"
           f" | start at login: {info['autostart']}")
     print(f"  pythons for training: " + (", ".join(f"{p['path']}{'' if p['ready'] else ' (no ultralytics)'}"
                                                  for p in info["pythons"]) or "none found"))
     print(f"\n  last lines of {logf}:" if tail else f"\n  no log yet at {logf}")
     for line in tail:
-        print("    " + line)
+        # 옛 agent.log의 가운뎃점은 한국어 윈도우 콘솔·파이프에서 깨져 보였다(��). 출력 인코딩에 없는 글자는 ASCII로
+        print("    " + _console_safe(line.replace("·", "|")))
     return 0
+
+
+def _console_safe(text: str, enc: str | None = None) -> str:
+    """Keep only what the console encoding can show; anything else becomes '?' instead of mojibake"""
+    enc = enc or getattr(sys.stdout, "encoding", None) or "ascii"
+    try:
+        return text.encode(enc, errors="replace").decode(enc, errors="replace")
+    except LookupError:
+        return text.encode("ascii", errors="replace").decode("ascii")

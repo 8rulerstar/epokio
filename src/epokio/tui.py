@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import unicodedata
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -21,7 +23,7 @@ from pathlib import Path
 from . import rundetail, schema, sysinfo
 from .scan import Run, fmt_dur, scan
 from .scan import display_name as _display_name
-from .scan_names import x_count
+from .scan_names import unique, x_count
 
 BLOCKS = "▁▂▃▄▅▆▇█"
 STATE = {"running": ("▶", "Training"), "starting": ("…", "Starting"), "stalled": ("‖", "Stalled"),
@@ -46,16 +48,48 @@ def plain_out(stream=None) -> bool:
 # ── 데이터: agent 또는 폴더 ─────────────────────────────
 
 class Feed:
-    def __init__(self, agent: str | None, roots: list[Path]):
+    def __init__(self, agent: str | None, roots: list[Path], token: str | None = None, explicit: bool = False):
         self.agent = agent.rstrip("/") if agent else None
+        self.token = token or os.environ.get("EPOKIO_TOKEN") or None      # 사람이 준 토큰(다른 기계용)
+        self.explicit = explicit         # 사람이 --agent로 준 주소인가. 아니면(이 기계를 찾아 붙었으면) 어떤 토큰도 증명 뒤에만
         self.roots = roots
         self.where = ""
         self.down = False                # agent에 닿지 않는다(트레이가 '도는 학습 없음' 대신 이것을 보인다)
 
     def _get(self, route: str, **q):
         url = f"{self.agent}/{route}" + ("?" + urllib.parse.urlencode(q) if q else "")
-        with urllib.request.urlopen(url, timeout=4) as r:
+        tok = self._token()
+        self._sent = bool(tok)
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {tok}"} if tok else {})
+        with urllib.request.urlopen(req, timeout=4) as r:
             return json.loads(r.read())
+
+    def _loopback(self) -> bool:
+        return (urllib.parse.urlsplit(self.agent or "").hostname or "") in ("127.0.0.1", "localhost", "::1")
+
+    def _token(self) -> str | None:
+        """이번 요청에 실을 토큰. 사람이 --agent로 준 주소면 준 토큰을 그대로.
+        ★이 기계를 찾아 붙은 루프백 주소면 EPOKIO_TOKEN(다른 기계용)까지 확인 없이 보내, 8787에 남이 띄운 프로그램이 받아 갔다"""
+        if self.token and (self.explicit or not self._loopback()):
+            return self.token
+        local = self._local_token()
+        return (self.token or local) if local else None
+
+    def _local_token(self) -> str | None:
+        """이 기계의 도우미면 ~/.epokio/token. ★토큰을 안 보내 --lan·--require-token 도우미를 '안 닿음'으로 봤다. 다른 기계엔 안 보낸다.
+        ★확인 없이 루프백 주소에 보내서, 공용 서버에서 남이 8787에 띄운 프로그램이 토큰을 받아 갈 수 있었다.
+          그래서 그 주소가 내 토큰의 HMAC 증명(/health?nonce)을 낼 때만 싣는다(MCP의 port.write_url과 같은 확인)"""
+        host = urllib.parse.urlsplit(self.agent or "").hostname or ""
+        if host not in ("127.0.0.1", "localhost", "::1"):
+            return None
+        try:
+            from . import auth
+            tok = auth.TOKEN_FILE.read_text(encoding="utf-8").strip() or None
+        except OSError:
+            return None
+        # 요청마다 다시 확인한다. ★한 번 확인한 것을 기억해, 진짜 agent가 꺼진 자리에 남이 같은 포트로 뜨면 다음 요청이 토큰을 실었다
+        from .port import verify_agent
+        return tok if tok and verify_agent(self.agent) else None
 
     def runs(self) -> list[Run]:
         if self.agent:
@@ -64,6 +98,16 @@ class Feed:
                 self.down = False
                 self.where = f"agent {self.agent} ({d.get('label', '')})"
                 return [Run.from_dict(x) for x in d["runs"]]
+            except urllib.error.HTTPError as e:
+                self.down = True
+                # ★틀린 토큰을 줘도 '토큰이 필요함'으로만 나와, 토큰을 줬는지 안 줬는지 헷갈렸다
+                need = ("rejected the token" if getattr(self, "_sent", False) else "needs a token (--token or EPOKIO_TOKEN)")                     if e.code in (401, 403) else f"answered {e.code}"
+                self.where = f"agent {self.agent} {need}, reading folders"
+                # 이 기계의 옛 도우미면 토큰 탓이 아니다(새 증명을 몰라 토큰을 안 보냈다). ★'토큰이 필요함'만 보여 엉뚱한 것을 고쳤다
+                if e.code == 401 and self._loopback() and not getattr(self, "_sent", False):
+                    from .port import OLD_HELPER, agent_proof
+                    if agent_proof(self.agent) == "old":
+                        self.where = OLD_HELPER.format(url=self.agent) + " Reading folders for now."
             except OSError:
                 self.down = True
                 self.where = f"agent {self.agent} not reachable, reading folders"
@@ -74,7 +118,7 @@ class Feed:
         for r in expand(self.roots):                 # --root '/data/*/runs' 무늬는 훑을 때마다 펼친다
             if r.exists():
                 out += scan(r)
-        return out
+        return unique(out)                           # ★감시 폴더가 겹치거나 정션으로 두 번 닿으면 같은 학습이 두 번 나왔다
 
     def system(self) -> dict | None:
         if self.agent:
@@ -283,6 +327,7 @@ def main(argv: list[str] | None = None):
     ap = argparse.ArgumentParser(prog="epokio watch", description="Watch training runs in the terminal.")
     ap.add_argument("--agent", help="agent address, default: this machine's agent (falls back to reading folders)")
     ap.add_argument("--root", action="append", help="folder with runs (repeatable), or a pattern such as '/data/*/runs'. Default: current folder")
+    ap.add_argument("--token", help="token for a helper on another machine (or EPOKIO_TOKEN). This machine's token is used automatically")
     ap.add_argument("--every", type=float, default=2.0, help="refresh seconds")
     ap.add_argument("--once", action="store_true", help="print the table once and exit")
     a = ap.parse_args(argv)
@@ -300,7 +345,7 @@ def main(argv: list[str] | None = None):
     else:
         from . import port
         agent = port.local_url(warn=True)     # ~/.epokio/agent.json → 기본 8787
-    feed = Feed(agent, roots)
+    feed = Feed(agent, roots, a.token, explicit=bool(a.agent))
     if a.once or not sys.stdout.isatty():
         print_once(feed)
     else:

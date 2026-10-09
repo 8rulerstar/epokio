@@ -42,9 +42,16 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if not (a.add or a.remove or a.list or a.test or a.lang):
         a.list = True                                 # 아무것도 안 주면 목록만 보여 준다
-    bad = [u for u in a.add if not notify.valid(u)]
+    # ★'notaurl'에 "Not saved: ... (/*** (95ea))"만 나와 무엇이 틀렸는지 몰랐다. 이유를 말하고 예시를 보인다
+    bad = [(u, notify.problem(u)) for u in a.add if not notify.valid(u)]
+    for u, why in bad:
+        print(f"Not saved: {why}.")
     if bad:
-        print(f"Not saved: every webhook must start with https:// ({', '.join(_show(u) for u in bad)})")
+        print("A webhook looks like  https://ntfy.sh/your-long-random-topic")
+        return 2
+    if a.lang and i18n.use(a.lang) == "en" and a.lang.replace("_", "-").split("-")[0].lower() != "en":
+        # ★'--lang zz'도 "Saved"라 하고 저장해, 알림이 말없이 영어로 갔다
+        print(f"Unknown language: {a.lang}. Use one of: " + ", ".join(sorted(set(i18n.msg.LANGS) | set(i18n.TRAY_ONLY))))
         return 2
     f = hooks_file()
     try:
@@ -57,9 +64,13 @@ def main(argv=None) -> int:
     urls = [u for u in cfg.get("urls", []) if isinstance(u, str)]
     if a.add or a.remove or a.lang:
         gone = [u for u in a.remove if u not in urls]
+        if gone and not a.add and not a.lang and len(gone) == len(a.remove):
+            for u in gone:                            # ★없는 주소를 지우라 해도 "Saved"라고 해 지운 줄 알았다
+                print(f"Not in the list: {_show(u)}. Nothing changed.")
+            return 1
         urls = [u for u in dict.fromkeys(urls + a.add) if u not in a.remove]
         from .watcher import DEFAULT_HOOK_KINDS
-        cfg = {"urls": urls, "kinds": cfg.get("kinds") or DEFAULT_HOOK_KINDS,
+        cfg = {"urls": urls, "kinds": cfg["kinds"] if isinstance(cfg.get("kinds"), list) else DEFAULT_HOOK_KINDS,   # 빈 목록 = 전부 끔
                "lang": a.lang or cfg.get("lang") or i18n.system_language() or "en"}
         f.parent.mkdir(parents=True, exist_ok=True)
         jsonfile.write(f, cfg)

@@ -22,7 +22,7 @@ async function drawCompare(periodic) {
     const vals = runs.map((r) => r.best).filter((v) => v != null);
     const top = same && vals.length ? (runs[0].lower ? Math.min(...vals) : Math.max(...vals)) : null;
     right = `<div style="display:flex;align-items:center;gap:10px"><h2 style="margin:0;font-size:18px">${t("Compare runs")}</h2>
-      <select id="ck" style="margin-left:auto;font:inherit;padding:4px 8px;border-radius:8px">${keys.map((k) => `<option value="${esc(k)}" ${k === S.cmpKey ? "selected" : ""}>${esc(pretty(k, ds.find((d) => d && d.column_info && d.column_info[k])))}</option>`).join("")}</select></div>`
+      <select id="ck" aria-label="${t("Column to compare")}" style="margin-left:auto;font:inherit;padding:4px 8px;border-radius:8px">${keys.map((k) => `<option value="${esc(k)}" ${k === S.cmpKey ? "selected" : ""}>${esc(pretty(k, ds.find((d) => d && d.column_info && d.column_info[k])))}</option>`).join("")}</select></div>`
       + chart(runs.map((r, i) => ({ name: display(r), x: ds[i]?.columns.epoch || [], y: ds[i]?.columns[S.cmpKey] || [], color: COLORS[i] })), { xname: runs.every(isStep) ? xname(runs[0]) : undefined })
       + `<table style="margin-top:14px"><tr><th>${t("Run")}</th><th>${axisLabel(runs, "Epochs", "Steps", "Epochs / steps")}</th><th>${t("Score")}</th><th>${t("Precision")}</th><th>${t("Recall")}</th><th>F1</th><th>mAP50-95</th><th>${t("Model")}</th></tr>`
       + runs.map((r, i) => { const h = ds[i]?.heads[0] || {}; const a = ds[i]?.args || {};
@@ -36,7 +36,7 @@ async function drawCompare(periodic) {
   right += settingsTableHTML();
   const shown = filteredRuns();
   if (!setMain(`<div class="layout"><div class="card list" data-keep="cmplist">
-      <div class="inrow" style="margin:6px"><input class="in" id="q" aria-label="${t("Filter by name or #tag")}" placeholder="${t("Filter by name or #tag")}" value="${esc(S.q || "")}" spellcheck="false"><button class="btn small" id="csv" title="${t("All runs as a spreadsheet")}">CSV</button><button class="btn small" id="report" title="${t("A Markdown report of the picked runs (or all shown), saved on the training machine")}">${t("Report")}</button></div>
+      <div class="inrow" style="margin:6px"><input class="in" id="q" aria-label="${t("Filter by name or #tag")}" placeholder="${t("Filter by name or #tag")}" value="${esc(S.q || "")}" spellcheck="false"><button class="btn small" id="csv" title="${t("All runs as a spreadsheet")}">CSV</button><button class="btn small needs-run" id="report" title="${t("A Markdown report of the picked runs (or all shown), saved on the training machine")}">${t("Report")}</button></div>
       <p class="hint" style="margin:2px 10px 6px${S.pickFull && Date.now() - S.pickFull < 4000 ? ";color:var(--orange)" : ""}">${S.pickFull && Date.now() - S.pickFull < 4000 ? t("Up to 8 runs. Untick one first.") : t("Pick up to 8 runs")}</p>${shown.map((x, i) => rowHTML(x, i, true)).join("") || `<p class="hint" style="margin:10px">${t("No run matches.")}</p>`}</div>
     <div class="card detail">${right}</div></div>`, periodic)) return;
   document.querySelectorAll(".row").forEach((el) => el.onclick = () => {

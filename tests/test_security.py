@@ -116,9 +116,9 @@ def test_shared_machine_does_not_attach_to_another_users_agent(tmp_path, monkeyp
     from epokio import port
     monkeypatch.setattr(port, "record_file", lambda: tmp_path / "agent.json")
     monkeypatch.setattr(port, "probe", lambda url, timeout=1.0: "epokio")
-    monkeypatch.setattr(port, "verify_agent", lambda url, timeout=2.0: False)      # 남의 agent(내 토큰으로 증명 못 함)
+    monkeypatch.setattr(port, "agent_proof", lambda url, timeout=2.0: "no")      # 남의 agent(내 토큰으로 증명 못 함)
     assert port.local_url() == port.NO_AGENT
-    monkeypatch.setattr(port, "verify_agent", lambda url, timeout=2.0: True)       # 내 agent
+    monkeypatch.setattr(port, "agent_proof", lambda url, timeout=2.0: "ok")       # 내 agent
     assert port.local_url() == port.url_for(port.DEFAULT_PORT)
 
 

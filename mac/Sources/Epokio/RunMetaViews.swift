@@ -111,6 +111,7 @@ struct RunNotes: View {
                     .accessibilityLabel(run.meta?.goal_hit == true ? "Goal reached" : "Goal")
                 Text(L("Tell me when %@ reaches", run.metric_name.replacingOccurrences(of: "metrics/", with: ""))).font(.ui(12.5))
                 TextField("0.80", text: $goal).textFieldStyle(.roundedBorder).frame(width: 70).onSubmit(save)
+                    .help(L("Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value."))
                 if run.meta?.goal_hit == true {
                     Text("Reached").font(.ui(12, weight: .semibold)).foregroundStyle(.good)
                         .transition(.scale.combined(with: .opacity))

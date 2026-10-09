@@ -59,8 +59,9 @@ struct EvalResult: Codable {
     var deep: Bool { overall != nil }
     var isClassify: Bool { task == "classify" }
     var imported: Bool { source != nil }
-    /// 라벨 고치기: 검출·자세는 박스 편집, 분류는 클래스 고르기. 분할(다각형)과 가져온 예측은 아직 안 된다
-    var canFix: Bool { !imported && task != "segment" }
+    /// 라벨 고치기: 검출은 박스 편집, 분류는 클래스 고르기. 분할(다각형)·포즈(키포인트)와 가져온 예측은 안 된다
+    // 고친 라벨은 상자 한 줄이라 키포인트·다각형을 잃는다(agent도 포즈·분할은 400). ★포즈 고치기가 이미지를 조용히 빼게 만들었다
+    var canFix: Bool { !imported && task != "segment" && task != "pose" }
 }
 
 /// 혼동 행렬 칸 하나로 이미지 거르기: 정답 클래스 g, 예측 클래스 p (-1 = 배경)

@@ -203,3 +203,12 @@ def test_a_damaged_queue_file_is_kept_and_old_jobs_are_pruned(tmp_path, monkeypa
         q.jobs.append(Job(id=f"f{i}", kind="script", name="n", python="py", state="done"))
     q.add("script", "new", "py", {"args": []})
     assert [j.id for j in q.jobs if j.state == "done"] == ["f3", "f4", "f5"]
+
+
+def test_checking_the_same_folder_twice_keeps_the_first_check(tmp_path, monkeypatch):
+    """★두 번째 평가가 ~/.epokio/evals/eval_val을 덮어써, 첫 평가의 판정·고친 라벨이 새 결과에 붙었다"""
+    monkeypatch.setattr(jobs, "SCRIPTS", tmp_path / "s")
+    (tmp_path / "evals" / "eval_val").mkdir(parents=True)
+    j = Job(id="e2", kind="evaluate", name="eval_val", python="py", params={"model": "b.pt", "source": str(tmp_path / "val"), "project": str(tmp_path / "evals")})
+    jobs.build_command(j)
+    assert j.output == str(tmp_path / "evals" / "eval_val2")

@@ -27,6 +27,8 @@ def post(agent, route: str, body: dict):
         agent._runs_cache = None
         return 200, {"ok": True, "status": st}
     if route == "/ssh/remove":
+        if not ssh_source.valid_host(str(body.get("host", ""))):
+            return 400, {"error": "give an SSH host name from the list"}
         ssh_source.remove(str(body.get("host", "")))
         agent.ssh.status.pop(str(body.get("host", "")), None)
         agent._runs_cache = None

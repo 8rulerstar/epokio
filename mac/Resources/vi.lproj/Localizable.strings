@@ -1370,3 +1370,4 @@
 "Epoch / step" = "Epoch / bước";
 "Epochs / steps" = "Epoch / bước";
 "%d large log files: only the last part was loaded" = "%d tệp nhật ký lớn: chỉ tải phần cuối";
+"Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "So với điểm tốt nhất, tức là điểm của mô hình tốt nhất đã lưu (best.pt). Với phân đoạn, tư thế và phân loại, điểm này có thể thấp hơn một chút so với giá trị cao nhất của cột.";

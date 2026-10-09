@@ -44,10 +44,10 @@ async function drawQueue(periodic) {
     const exit = j.returncode && j.state !== "cancelled" ? " · " + t("exit {code}", { code: j.returncode }) : "";   // 멈추면 죽인 흔적으로 1이 남는다. 실패가 아니다
     const w = waiting.indexOf(j.id);
     const ops = [
-      w > 0 ? `<button class="btn small" data-op="up" title="${t("Move up")}" aria-label="${t("Move up")}: ${esc(j.name)}">↑</button>` : "",
-      w >= 0 && w < waiting.length - 1 ? `<button class="btn small" data-op="down" title="${t("Move down")}" aria-label="${t("Move down")}: ${esc(j.name)}">↓</button>` : "",
+      w > 0 ? `<button class="btn small needs-run" data-op="up" title="${t("Move up")}" aria-label="${t("Move up")}: ${esc(j.name)}">↑</button>` : "",
+      w >= 0 && w < waiting.length - 1 ? `<button class="btn small needs-run" data-op="down" title="${t("Move down")}" aria-label="${t("Move down")}: ${esc(j.name)}">↓</button>` : "",
       `<button class="btn small" data-op="log" aria-expanded="${j.id in S.logs}" aria-label="${j.id in S.logs ? t("Hide log") : t("Log")}: ${esc(j.name)}">${j.id in S.logs ? t("Hide log") : t("Log")}</button>`,
-      j.state === "running" || j.state === "queued" ? `<button class="btn small danger" data-op="cancel" data-stop="${j.state === "running" ? 1 : ""}" aria-label="${j.state === "running" ? t("Stop") : t("Cancel")}: ${esc(j.name)}">${j.state === "running" ? t("Stop") : t("Cancel")}</button>` : "",
+      j.state === "running" || j.state === "queued" ? `<button class="btn small danger needs-run" data-op="cancel" data-stop="${j.state === "running" ? 1 : ""}" aria-label="${j.state === "running" ? t("Stop") : t("Cancel")}: ${esc(j.name)}">${j.state === "running" ? t("Stop") : t("Cancel")}</button>` : "",
     ].join("");
     return `<div class="job ${j.state}" style="--c:${c};animation-delay:${Math.min(k, 12) * 20}ms" data-id="${esc(j.id)}"><span class="dot"></span>
       <span class="name">${esc(j.name)}</span><span class="ops">${ops}</span>
@@ -56,8 +56,8 @@ async function drawQueue(periodic) {
   };
   if (!setMain(`<div class="card pane" style="max-width:none;padding:6px 0 0"><div style="display:flex;align-items:center;padding:12px 20px 6px">
       <h2>${t("Queue")}</h2><span class="hint" style="margin:0 0 0 auto">${t("One at a time on {machine}", { machine: esc(S.label || t("this machine")) })}</span>
-      <button class="btn small" style="margin-left:12px" id="newrun">${t("New run")}</button></div>
-    ${jobs.length ? jobs.map(row).join("") : `<div class="empty">${t("Nothing here yet. Start a run from Train, or from the Mac app.")}</div>`}
+      <button class="btn small needs-run" style="margin-left:12px" id="newrun">${t("New run")}</button></div>
+    ${jobs.length ? jobs.map(row).join("") : `<div class="empty">${ART.queue}${t("Nothing here yet. Start a run from Train, or from the Mac app.")}</div>`}
     <div style="padding:0 20px 14px">${forgetHTML}</div></div>`, periodic)) return;
   wireForget();
   $("#newrun").onclick = () => tab("train");

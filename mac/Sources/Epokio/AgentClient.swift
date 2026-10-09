@@ -98,13 +98,14 @@ enum JSONValue: Codable, Hashable {
 }
 
 enum AgentError: LocalizedError {
-    case noToken, http(Int, String), bad
+    case noToken, http(Int, String), refused(String), bad     // refused: agent가 화면 언어로 준 거절 문장 그대로(보기 전용 토큰)
     var errorDescription: String? {
         switch self {
         case .noToken: L("No access token for this machine. Run `epokio-agent --show-token` there and paste it in Settings.")
         case .http(401, _): L("This machine did not accept the token. Paste it again in Settings, Machines.")
         case .http(403, _): L("This machine does not accept this address. Use its IP address, or set EPOKIO_ALLOWED_HOSTS there.")
         case .http(let c, let m): L("The helper refused (%d): %@", c, m)
+        case .refused(let m): m
         case .bad: L("Could not reach the helper. Is it running?")
         }
     }
@@ -166,7 +167,12 @@ struct AgentClient {
         let (data, resp) = try await URLSession.shared.data(for: req)
         let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
-        guard code == 200 else { throw AgentError.http(code, obj["error"] as? String ?? "") }
+        guard code == 200 else {
+            let m = obj["error"] as? String ?? ""
+            // 보기 전용 토큰: 403 + code "read_only" + 이유 문장(server.py). ★주소 이름 거절(Host 403) 문장이 떠 엉뚱한 것을 고치게 했다
+            if code == 403, obj["code"] as? String == "read_only", !m.isEmpty { throw AgentError.refused(m) }
+            throw AgentError.http(code, m)
+        }
         return obj
     }
 }

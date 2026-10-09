@@ -233,11 +233,16 @@ def lineage(run_dir: Path, all_runs: list[Path]) -> dict:
     parent = _run_of_weights(w) if w else None
     norm = lambda p: unicodedata.normalize("NFC", str(Path(p).resolve()))
     me = norm(run_dir)
+    # 제 가중치(weights/last.pt)에서 시작했으면 이어 한 학습이다(`yolo train resume`). 부모도 자식도 아니고, 처음부터 학습한 것도 아니다.
+    # ★자기를 자기 자식으로 보였고 '사전 학습 가중치에서 시작'이라 했다
+    resumed = bool(parent) and norm(parent) == me
+    if resumed:
+        parent = None
     kids = []
     for r in all_runs:
         sw = start_weights(r)
         pr = _run_of_weights(sw) if sw else None
-        if pr and norm(pr) == me:
+        if pr and norm(pr) == me and norm(r) != me:
             kids.append({"path": str(r), "name": r.name})
     chain, seen, cur = [], {me}, parent
     while cur and len(chain) < 12:                          # 조상 사슬 (돌고 도는 경우 막기)
@@ -248,7 +253,7 @@ def lineage(run_dir: Path, all_runs: list[Path]) -> dict:
         sw = start_weights(cur)
         cur = _run_of_weights(sw) if sw else None
     return {"weights": w, "parent": chain[0] if chain else None, "ancestors": chain, "children": kids,
-            "pretrained": bool(w) and parent is None}
+            "pretrained": bool(w) and parent is None and not resumed}
 
 
 # ── 모델 등록부 ──────────────────────────────────────

@@ -161,3 +161,17 @@ def test_windows_network_errors_are_not_mojibake(monkeypatch):
         import ctypes
         assert r["error"].endswith(ctypes.FormatError(11001).strip())
     assert err_text(ValueError("plain")) == "plain"
+
+
+def test_cli_refuses_an_unknown_language_and_a_missing_remove(capsys):
+    """'--lang zz'와 없는 주소 --remove가 "Saved"라고 했다"""
+    alerts_cli.main(["--add", "https://ntfy.sh/keep", "--lang", "ko"])
+    capsys.readouterr()
+    assert alerts_cli.main(["--lang", "zz"]) == 2
+    assert "Unknown language" in capsys.readouterr().out
+    assert alerts_cli.main(["--remove", "https://ntfy.sh/nothere"]) == 1
+    out = capsys.readouterr().out
+    assert "Nothing changed" in out and "Saved" not in out
+    cfg = json.loads(Agent.HOOKS_FILE.read_text(encoding="utf-8"))
+    assert cfg["urls"] == ["https://ntfy.sh/keep"] and cfg["lang"] == "ko"
+    assert alerts_cli.main(["--lang", "pt_BR"]) == 0 and alerts_cli.main(["--lang", "ru"]) == 0

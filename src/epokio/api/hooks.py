@@ -30,7 +30,7 @@ def _test(agent, body: dict):
     from .. import i18n, notify
     if body.get("url") is not None:
         if not notify.valid(body["url"]):
-            return 400, {"error": "every webhook must start with https://"}
+            return 400, {"error": f"not a usable webhook: {notify.problem(body['url'])}"}
         urls = [body["url"]]
     else:
         try:
@@ -45,16 +45,32 @@ def _test(agent, body: dict):
     return 200, {"results": [notify.send_test(u, getattr(agent, "label", None)) for u in urls]}
 
 
+def _backup(agent):
+    return agent.HOOKS_FILE.with_name("webhooks.removed.json")
+
+
 def post(agent, route: str, body: dict):
     if route == "/webhooks/test":
         return _test(agent, body)
+    if route == "/webhooks" and body.get("restore"):  # 되돌리기: 마지막으로 지운 목록(웹의 '끄기' 뒤 되돌리기)
+        with _HOOKS_LOCK:
+            try:
+                bak = jsonfile.read(_backup(agent), None, move_broken=False)
+            except (OSError, ValueError):
+                bak = None
+            if not isinstance(bak, dict) or not bak.get("urls"):
+                return 400, {"error": "nothing to restore"}
+            jsonfile.write(agent.HOOKS_FILE, bak)
+        return 200, {"ok": True, "count": len(bak["urls"])}
     if route == "/webhooks":
         urls = body.get("urls", [])
         if not isinstance(urls, list):                 # ★문자열을 주면 글자별로 걸러져 기존 웹후크가 지워졌다
             return 400, {"error": "urls must be a list"}
-        ok = [u for u in urls if isinstance(u, str) and u.startswith("https://")]
+        from .. import notify
+        ok = [u for u in urls if notify.valid(u)]
         if len(ok) != len(urls):
-            return 400, {"error": "every webhook must start with https://", "accepted": len(ok)}
+            why = next(notify.problem(u) for u in urls if not notify.valid(u))
+            return 400, {"error": f"not a usable webhook: {why}", "accepted": len(ok)}
         # 읽고 고치고 쓰는 사이에 다른 요청이 끼면 한쪽이 사라졌다(★브라우저 탭 둘에서 동시에 더하면 200번 중 200번).
         with _HOOKS_LOCK:
             try:
@@ -66,7 +82,12 @@ def post(agent, route: str, body: dict):
                 ok = list(dict.fromkeys(old.get("urls", []) + ok))
             # 종류를 안 보내면 저장된 것을 그대로(★맥에서 끈 '멎음' 알림 등이 기본값으로 되돌아갔다).
             # 폰 알림 문구는 설정한 앱의 언어로. ★예전엔 언어를 고르는 곳이 없어 17개 언어 표가 있는데도 늘 영어였다
-            cfg = {"urls": ok, "kinds": body.get("kinds") or old.get("kinds") or DEFAULT_HOOK_KINDS, "lang": msg.tag()}
+            # ★빈 목록(전부 끔)도 사용자가 고른 것이다. `or`로 이어 빈 목록이 기본값(전부 켬)으로 되돌아갔다
+            kinds = body.get("kinds") if isinstance(body.get("kinds"), list) else old.get("kinds", DEFAULT_HOOK_KINDS)
+            cfg = {"urls": ok, "kinds": [k for k in kinds if isinstance(k, str)], "lang": msg.tag() if msg.given() else old.get("lang") or msg.tag()}
+            # 주소가 빠지면 빠지기 전 것을 남긴다(되돌리기). ★웹의 '끄기' 한 번에 맥 앱·터미널에서 넣은 주소까지 사라졌다
+            if set(old.get("urls", [])) - set(ok):
+                jsonfile.write(_backup(agent), old)
             jsonfile.write(agent.HOOKS_FILE, cfg)
         return 200, {"ok": True, "count": len(cfg["urls"])}
     return NOT_MINE

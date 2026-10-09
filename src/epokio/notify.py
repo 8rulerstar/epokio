@@ -48,12 +48,18 @@ def body_of(e: Event, machine: str | None = None) -> str:
         return " · ".join(x for x in (r.name, where) if x)
     from .scan import display_name
     from .scan_names import x_count
-    parts = [display_name(r), f"{i18n.t(getattr(r, 'x_axis', 'epoch'))} {x_count(r)}"]   # step-based runs: 'step 12,000/100,000'
+    parts = [display_name(r)]
+    # A job that is not a training run (setup, export, labelling, a script) has no epochs. Previously it said 'epoch 0/?'
+    if not (e.kind in ("job_done", "job_failed") and not r.epoch and r.total is None):
+        parts.append(f"{i18n.t(getattr(r, 'x_axis', 'epoch'))} {x_count(r)}")   # step-based runs: 'step 12,000/100,000'
     if r.best is not None:
         metric = (r.metric_name or "").split("/", 1)[-1]
         parts.append(f"{i18n.t('best')} {metric + ' ' if metric else ''}{r.best:.4f}")
-    if e.kind == "failed" and getattr(r, "error", ""):
+    if e.kind in ("failed", "job_failed") and getattr(r, "error", ""):
         parts.append(r.error[:120])                    # previously why it died (OOM etc.) never reached the phone
+    elif e.kind == "failed":
+        # a run with no crash reason failed because a loss went NaN or infinite (scan.py). Previously the alert gave no reason
+        parts.append(i18n.t("notify.diverged"))
     if where:
         parts.append(where)
     return " · ".join(parts)
@@ -74,14 +80,44 @@ def _request(url: str, head: str, body: str, urgent: bool = False) -> urllib.req
             "Title": "=?UTF-8?B?" + base64.b64encode(f"Epokio: {head}".encode()).decode() + "?=",
             "Tags": "warning" if urgent else "white_check_mark",
             "Priority": "high" if urgent else "default"})
-    # Slack uses text, Discord uses content. Telegram (...sendMessage?chat_id=...) takes only text
-    payload = {"text": text} if "api.telegram.org" in url else {"text": text, "content": text}
+    if "api.telegram.org" in url:
+        # Telegram (...sendMessage?chat_id=...) shows plain text as is: '*Training finished*' arrived with the asterisks.
+        # HTML mode, not Markdown: a run name like my_run_v2 breaks Telegram's Markdown parser and the whole alert is refused
+        import html
+        payload = {"text": f"<b>{html.escape(head, quote=False)}</b>\n{html.escape(body, quote=False)}", "parse_mode": "HTML"}
+    else:                 # Slack uses text (*bold*), Discord uses content
+        payload = {"text": text, "content": text}
     return urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
 
 
+def problem(url) -> str | None:
+    """Why a webhook address cannot work, or None. Same rule for the API and the CLI.
+    Previously only the https:// prefix was checked, so 'https://' alone, an address with spaces, or an ntfy topic
+    in Korean was saved and then never delivered (ntfy topics allow only letters, digits, - and _)"""
+    import re
+    from urllib.parse import urlsplit
+    if not isinstance(url, str) or not url.startswith("https://"):
+        return "it must start with https://"
+    if any(c.isspace() or ord(c) < 32 for c in url):
+        return "it has a space in it"
+    try:
+        p = urlsplit(url)
+        host = p.hostname or ""
+        p.port
+    except ValueError:
+        return "it is not a web address"
+    if not host or not re.fullmatch(r"[A-Za-z0-9.-]+|[0-9A-Fa-f:.]+", host if host.isascii() else "!"):
+        return "it has no valid server name after https://"
+    if host.lower() == "ntfy.sh":
+        topic = p.path.strip("/")
+        if not re.fullmatch(r"[-_A-Za-z0-9]{1,64}", topic):
+            return "an ntfy topic may only use letters, digits, - and _ (e.g. https://ntfy.sh/your-secret-topic)"
+    return None
+
+
 def valid(url) -> bool:
-    """Webhook address check (same rule for API and CLI). Only https is accepted"""
-    return isinstance(url, str) and url.startswith("https://")
+    """Webhook address check (same rule for API and CLI)"""
+    return problem(url) is None
 
 
 def safe_url(url: str) -> str:
@@ -125,16 +161,37 @@ def send_test(url: str, machine: str | None = None, timeout: float = 5) -> dict:
         return out
 
 
+# Waits before the second and third try. A Wi-Fi blip or a busy server at the moment a run ended used to lose that alert for good
+RETRY_DELAYS = (5, 30)
+
+
+def deliver(req: urllib.request.Request, url: str, delays=None) -> bool:
+    """Send one request, trying again after a network error, 429 or 5xx. A 4xx (wrong address, revoked hook) is not retried"""
+    import logging
+    import time
+    import urllib.error
+    from .textnorm import err_text
+    waits = (0,) + tuple(RETRY_DELAYS if delays is None else delays)
+    for i, wait in enumerate(waits):
+        if wait:
+            time.sleep(wait)
+        try:
+            with urllib.request.urlopen(req, timeout=6) as r:
+                r.read()
+            return True
+        except urllib.error.HTTPError as ex:
+            last, retry = ex, ex.code == 429 or ex.code >= 500
+        except Exception as ex:                          # URLError, timeout, connection reset
+            last, retry = ex, True
+        if not retry or i == len(waits) - 1:
+            # previously silent: no way to tell why phone alerts never came
+            logging.getLogger("epokio").warning("webhook to %s failed after %d tries: %s", safe_url(url), i + 1, err_text(last))
+            return False
+    return False
+
+
 def webhook(url: str, e: Event, machine: str | None = None):
     """Send in a shape that fits Slack, Discord and generic webhooks at once. The app keeps running on failure."""
     # Build all text here. If built inside the sending thread, another event could switch the language meanwhile
     req = _request(url, title(e.kind), body_of(e, machine), e.kind in URGENT)
-
-    def send():
-        try:
-            urllib.request.urlopen(req, timeout=6).read()
-        except Exception as ex:                          # previously silent: no way to tell why phone alerts never came
-            import logging
-            from .textnorm import err_text
-            logging.getLogger("epokio").warning("webhook to %s failed: %s", safe_url(url), err_text(ex))
-    threading.Thread(target=send, daemon=True).start()
+    threading.Thread(target=deliver, args=(req, url), daemon=True).start()
