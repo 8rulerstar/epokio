@@ -180,8 +180,12 @@ class Watcher:
 
     def stop_watch(self, timeout: float = 5.0):
         """감시 스레드를 멈추고 끝날 때까지 기다린다. 한 프로세스에 Agent를 여럿 만드는 시험용.
-        ★멈추지 않은 스레드가 뒤 시험이 바꿔 둔 sweep.DIR을 읽어, 그 시험의 스윕 시도를 제 대기열에 넣었다"""
+        ★멈추지 않은 스레드가 뒤 시험이 바꿔 둔 sweep.DIR을 읽어, 그 시험의 스윕 시도를 제 대기열에 넣었다.
+        ★기계 표본 스레드도 멈춘다. 남은 수십 개가 CPU 직전 표본(전역)을 계속 바꿔, 뒤 시험의 CPU 값이 비었다(0.8.0 CI)"""
         self._stop_watching = True
+        stop = getattr(getattr(self, "sampler", None), "stop", None)
+        if stop is not None:
+            stop()
         pace = getattr(self, "pace", None)
         if pace is not None:
             pace.wake.set()

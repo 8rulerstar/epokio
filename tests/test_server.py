@@ -226,23 +226,30 @@ def test_scan_mode_exists_before_the_first_request(agent_url):
 
 def test_the_same_run_list_is_encoded_once(agent_url, monkeypatch):
     """★보는 화면마다, 요청마다 학습 수천 개를 다시 직렬화·압축했다. 1초 안의 같은 목록은 한 번만"""
+    import time
     from epokio import server
     base, _ = agent_url
     calls = []
-    real = server.json.dumps
-    # ★server.json은 json 모듈 자체라 다른 스레드(감시·상태 저장)의 dumps까지 셌다. 전체 실행 중에만 흔들렸다.
-    #   학습 목록(runs가 든 응답)을 만든 횟수만 센다
-    def counting(obj, *a, **k):
+    real = server.deep_nfc
+    # ★server.json은 json 모듈 자체라 다른 스레드(감시·상태 저장)의 dumps까지 셌다. runs가 든 것만 세도 모자랐다:
+    #   0.8.0부터 감시 스레드가 첫 바퀴에 watch_state.json({"at", "runs"})을 json.dumps로 써서, 그 순간이 세 요청
+    #   사이에 걸리면 2가 됐다(리눅스·맥 CI에서 거의 매번, 윈도우는 가끔). 목록을 두 번 만든 게 아니었다.
+    #   서버가 응답을 직렬화할 때만 부르는 deep_nfc를 센다
+    def counting(obj):
         if isinstance(obj, dict) and "runs" in obj:
             calls.append(1)
-        return real(obj, *a, **k)
-    monkeypatch.setattr(server.json, "dumps", counting)
+        return real(obj)
+    monkeypatch.setattr(server, "deep_nfc", counting)
     # ★캐시는 스캔 모드가 같을 때만 다시 쓴다. 모드는 배터리 판정(pmset)을 따르는데, 노트북이 배터리로 돌면
     #   부하 중 판정이 흔들려 auto와 saver 사이를 오가며 목록을 두 번 만들었다(간헐적). 이 시험은 배터리가 아니라
     #   '같은 목록은 한 번만'을 잰다. 배터리 판정의 경합은 test_pace.py가 따로 본다
     monkeypatch.setattr(AGENTS[-1].pace, "on_battery", lambda: False)
-    for _ in range(3):
-        assert fetch(base + "/runs?lite=1")[0] == 200
+    # 캐시 수명(auto 1초)은 벽시계로 잰다. 부하가 큰 CI에서 세 요청이 1초를 넘기면 정당하게 다시 만드니, 그동안 시계를 멈춘다
+    with monkeypatch.context() as frozen:
+        now = time.time()
+        frozen.setattr(time, "time", lambda: now)
+        for _ in range(3):
+            assert fetch(base + "/runs?lite=1")[0] == 200
     assert len(calls) == 1
 
 

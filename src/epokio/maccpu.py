@@ -27,7 +27,7 @@ CPU_STATE_MAX = 4           # user, system, idle, nice
 CPU_STATE_IDLE = 2
 
 _lock = threading.Lock()
-_state: dict = {"lib": None, "failed": False, "prev": None}
+_state: dict = {"lib": None, "failed": False, "prev": None, "last": None}
 
 
 def _lib():
@@ -75,7 +75,9 @@ def busy_pct(prev: list[int] | None, cur: list[int] | None) -> float | None:
 
 
 def cpu_percent() -> float | None:
-    """직전 호출 이후 구간의 CPU 사용률 %. 첫 호출과 실패는 None."""
+    """직전 호출 이후 구간의 CPU 사용률 %. 첫 호출과 실패는 None.
+    ★눈금은 100Hz라, 다른 호출이 같은 눈금 안에서 바로 앞에 읽었으면 차이가 0이라 None이 났다.
+      그때는 기준을 그대로 두고 직전 값을 준다"""
     with _lock:
         if _state["failed"]:
             return None
@@ -88,11 +90,15 @@ def cpu_percent() -> float | None:
             return None
         if cur is None:
             return None
-        prev, _state["prev"] = _state["prev"], cur
-        return busy_pct(prev, cur)
+        prev = _state["prev"]
+        if prev == cur:
+            return _state["last"]
+        _state["prev"] = cur
+        _state["last"] = pct = busy_pct(prev, cur)
+        return pct
 
 
 def reset():
     """테스트용: 직전 눈금을 잊는다(다음 호출이 다시 첫 호출이 된다)."""
     with _lock:
-        _state["prev"] = None
+        _state["prev"] = _state["last"] = None

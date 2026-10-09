@@ -84,6 +84,9 @@ def test_health_shows_the_token_command_without_the_user_folder(monkeypatch):
     from epokio import autostart
     home = os.path.expanduser("~")
     monkeypatch.setattr(autostart, "venv_python", lambda: os.path.join(home, "envs", "ml", "python"))
+    # ★PATH 찾기를 못 박는다. 리눅스 CI는 epokio가 python 옆(PATH)에 깔려 cli()가 짧은 `epokio`를 냈고,
+    #   바꿀 경로가 없어 ~로 시작하지 않았다(0.8.0 CI). 이 시험은 venv 경로를 줄이는지를 본다
+    monkeypatch.setattr(autostart, "_on_path", lambda: False)
     cmd = autostart.short_home(autostart.cli("agent --show-token"))
     assert home not in cmd and cmd.startswith("~") and cmd.endswith("agent --show-token")
     q = autostart.short_home('& "' + os.path.join(home, "my venv", "python.exe") + '" -m epokio')

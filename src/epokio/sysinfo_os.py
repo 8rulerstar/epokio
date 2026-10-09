@@ -4,8 +4,11 @@ sysinfo가 이 이름들을 다시 내보낸다(sysinfo._cpu_delta 등 기존 �
 from __future__ import annotations
 
 import re
+import threading
 
 _cpu_prev: dict[str, tuple[float, float]] = {}
+_cpu_last: dict[str, float | None] = {}
+_cpu_lock = threading.Lock()
 
 
 def _cpu_delta(who: str, busy: float, total: float) -> float | None:
@@ -13,15 +16,18 @@ def _cpu_delta(who: str, busy: float, total: float) -> float | None:
 
     그래서 첫 호출은 None이다(psutil.cpu_percent(interval=None)과 같은 방식).
     Sampler가 주기적으로 부르므로 두 번째부터 값이 나온다.
+    ★카운터는 눈금(리눅스 10ms, 윈도우 약 15.6ms)마다만 오른다. 다른 호출이 같은 눈금 안에서 바로 앞에 읽었으면
+      차이가 0이라 None이 났다. 그때는 기준을 그대로 두고 직전 값을 준다(0으로 나누지도 않는다)
     """
-    prev = _cpu_prev.get(who)
-    _cpu_prev[who] = (busy, total)
-    if prev is None:
-        return None
-    db, dt = busy - prev[0], total - prev[1]
-    if dt <= 0:
-        return None
-    return max(0.0, min(100.0, 100.0 * db / dt))
+    with _cpu_lock:
+        prev = _cpu_prev.get(who)
+        if prev is not None and total == prev[1]:
+            return _cpu_last.get(who)
+        _cpu_prev[who] = (busy, total)
+        db, dt = (busy - prev[0], total - prev[1]) if prev else (0.0, 0.0)
+        pct = max(0.0, min(100.0, 100.0 * db / dt)) if dt > 0 else None     # 첫 호출, 되감긴 카운터는 새 기준
+        _cpu_last[who] = pct
+        return pct
 
 
 def _windows_cpu_mem():

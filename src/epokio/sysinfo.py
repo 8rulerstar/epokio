@@ -364,6 +364,7 @@ class Sampler:
 
     def stop(self):
         self._stop.set()
+        self._wake.set()            # 쉬는 중(최대 15초)이어도 바로 끝낸다
 
     def touch(self):
         """누가 보고 있다: 다음 샘플을 바로, 그 뒤로 빠르게. (★아무도 안 볼 때도 1.5초마다 프로그램 5개를 띄워 CPU 5%를 먹었다)"""

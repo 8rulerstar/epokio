@@ -35,6 +35,8 @@
 
 ### Fixed
 
+- **Shorter paths in hints:** the home folder becomes `~` only when a whole path segment matches it, so another user whose folder name starts with yours is no longer shown under your `~`, and single-quoted paths are left as they are.
+- **CPU use** no longer goes blank for a moment when two readers sample within the same clock tick; the last value is kept. Stopping the helper also stops its machine sampler.
 - **Mac app notifications stopped** after a sweep stopped a run that fell behind: that event lacked fields the app needs, so every later alert from that helper was dropped until it restarted. Every event now carries them, and a test reads the required fields from the Swift model.
 - **A YOLO run resumed from a terminal** shows as training from the moment it restarts (`args.yaml` is rewritten), instead of *Stopped* with a Resume button that could start a second training in the same folder until its first epoch ended. Such a run is no longer listed as its own child or as *started from pretrained weights*.
 - **Alerts:** a patience early stop is *Training finished*, not the urgent *may have stopped* followed by *Stopped before the last epoch*; a queued job's alert carries the run's epochs and best score (not *epoch 0/?*), and a failed job says why; one result sends one alert even when the last validation takes more than two minutes or the job is a script; a crashed queued run no longer also sends *may have stopped* and *Stopped before the last epoch*.

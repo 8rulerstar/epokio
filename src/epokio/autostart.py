@@ -76,27 +76,55 @@ def cli(rest: str = "") -> str:
 
 
 def _on_path() -> bool:
-    """PATH의 `epokio`가 바로 이 설치본인가(venv를 켰거나 Scripts가 PATH에 있다). 다른 설치본이면 False"""
-    import os
+    """PATH의 `epokio`가 바로 이 설치본인가(venv를 켰거나 Scripts가 PATH에 있다). 다른 설치본이면 False.
+    ★안내 문구 하나를 고르는 곳이라 무슨 일이 있어도 예외를 내지 않는다(못 찾으면 PATH에 없는 것으로).
+      sys.platform만 win32로 바꾼 맥·리눅스에서 파이썬 3.12+ shutil.which가 윈도우 분기로 들어가
+      _winapi(None)를 불러 AttributeError로 죽었다(0.8.0 CI)"""
     import shutil
-    found = shutil.which("epokio")
-    if not found:
+    try:
+        found = shutil.which("epokio")
+        if not found:
+            return False
+        here = os.path.normcase(os.path.dirname(os.path.abspath(sys.executable)))
+        return os.path.normcase(os.path.dirname(os.path.abspath(found))) == here
+    except Exception:
         return False
-    here = os.path.normcase(os.path.dirname(os.path.abspath(sys.executable)))
-    return os.path.normcase(os.path.dirname(os.path.abspath(found))) == here
 
 
 def short_home(text: str) -> str:
     """홈 폴더 앞부분을 ~로(사용자 이름이 든 경로를 화면·응답에 그대로 내지 않는다). PowerShell·bash 둘 다 ~를 푼다"""
-    import os
     home = os.path.expanduser("~").rstrip("\\/")
     if not home or len(home) < 3:
         return text
-    i = text.lower().find(home.lower()) if os.name == "nt" else text.find(home)
-    if i < 0:
-        return text
-    quoted = text[:i].count('"') % 2 == 1          # 따옴표 안에서는 ~가 안 풀린다. PowerShell·bash 둘 다 "$HOME"은 푼다
-    return text[:i] + ("$HOME" if quoted else "~") + text[i + len(home):]
+    # ★경로 한 칸이 통째로 홈일 때만 바꾼다. 홈이 /home/al이면 /home/alice가 ~ice(bash에선 ice라는 사용자의 홈)로,
+    #   /mnt/home/al/x가 /mnt~/x로 바뀌었다. 작은따옴표 안에서는 ~도 $HOME도 안 풀리므로 그대로 둔다
+    hay, needle = (text.lower(), home.lower()) if os.name == "nt" else (text, home)
+    out, start, i = [], 0, hay.find(needle)
+    while i >= 0:
+        end = i + len(home)
+        before, quote = text[i - 1:i], _open_quote(text[:i])
+        rep = None
+        if text[end:end + 1] in ("", "/", "\\", " ", "\t", '"'):
+            if quote == '"' and before in ('"', " ", "\t", "="):
+                rep = "$HOME"                      # 큰따옴표 안에서는 ~가 안 풀린다. PowerShell·bash 둘 다 "$HOME"은 푼다
+            elif not quote and before in ("", " ", "\t"):
+                rep = "~"                          # 낱말 맨 앞의 ~만 풀린다
+        if rep:
+            out += [text[start:i], rep]
+            start = end
+        i = hay.find(needle, end if rep else i + 1)
+    return "".join(out) + text[start:]
+
+
+def _open_quote(text: str) -> str:
+    """text 끝에서 열려 있는 따옴표(" 또는 '). 닫혀 있으면 빈 문자열"""
+    q = ""
+    for c in text:
+        if q:
+            q = "" if c == q else q
+        elif c in "\"'":
+            q = c
+    return q
 
 
 def console_text(text: str, stream=None) -> str:

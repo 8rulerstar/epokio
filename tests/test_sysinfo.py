@@ -107,8 +107,30 @@ def test_cpu_needs_two_samples_then_gives_a_percentage():
 def test_cpu_delta_is_bounded_and_ignores_a_still_clock():
     assert sysinfo._cpu_delta("t", 0, 0) is None            # 첫 호출은 값이 없다
     assert sysinfo._cpu_delta("t", 50, 100) == 50.0
-    assert sysinfo._cpu_delta("t", 50, 100) is None         # 시계가 안 움직이면 0으로 나누지 않는다
+    assert sysinfo._cpu_delta("t", 50, 100) == 50.0         # 시계가 안 움직이면 0으로 나누지 않고 직전 값(아래 시험)
     assert sysinfo._cpu_delta("t", 1050, 1100) == 100.0     # 100을 넘지 않는다
+
+
+def test_a_reader_in_the_same_clock_tick_gets_the_last_value_not_none(monkeypatch):
+    """★CPU 직전 표본은 프로세스가 같이 쓴다. 다른 호출(앞 시험들이 남긴 기계 표본 스레드)이 같은 시계 눈금 안에서
+    바로 앞에 읽으면 차이가 0이라 None이 났다(0.8.0 윈도우 CI 'CPU 사용률을 못 읽었다'). 기준을 두고 직전 값을 준다"""
+    from epokio import maccpu, winstats
+    # 윈도우 GetSystemTimes (idle, kernel(idle 포함), user)
+    monkeypatch.setattr(winstats, "_TIMES", {})
+    assert winstats._since_last((0, 0, 0)) is None                   # 첫 표본
+    assert winstats._since_last((60, 80, 20)) == 40.0               # 다른 호출이 읽었다
+    assert winstats._since_last((60, 80, 20)) == 40.0               # 같은 눈금: None이 아니라 직전 값
+    assert winstats._since_last((110, 180, 20)) == 50.0             # 기준이 그대로라 그 뒤 구간을 잰다
+    # 맥 host_processor_info 눈금 [user, system, idle, nice]
+    a = [100, 50, 800, 0]
+    b = [110, 60, 880, 0]                                           # 100 중 idle 80 → 20%
+    c = [160, 60, 930, 0]                                           # 100 중 idle 50 → 50%
+    ticks = iter([a, b, b, c])
+    for k, v in (("lib", object()), ("failed", False), ("prev", None), ("last", None)):
+        monkeypatch.setitem(maccpu._state, k, v)
+    monkeypatch.setattr(maccpu, "_ticks", lambda lib: next(ticks))
+    assert [maccpu.cpu_percent() for _ in range(4)] == [None, 20.0, 20.0, 50.0]
+
 
 def test_mac_gpu_name_is_the_gpu_model_not_the_cpu_brand(monkeypatch):
     """★GPU 이름 칸에 machdep.cpu.brand_string(CPU 이름)을 넣던 버그."""
