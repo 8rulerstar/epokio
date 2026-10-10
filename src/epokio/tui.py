@@ -188,7 +188,8 @@ display_name = _display_name                  # 이름 규칙은 scan 한 곳에
 def row(r: Run, width: int, plain: bool = False) -> str:
     icon = PLAIN_STATE.get(r.state, "?") if plain else STATE.get(r.state, ("?", r.state))[0]
     pct = f"{int(r.progress * 100):3d}%" if r.progress is not None else "   ?"
-    when = f"{dur(r.eta)} left" if r.state == "running" else f"{dur(r.idle)} ago"
+    # ★실패는 기호 하나(x·✗)뿐이라 "NaN을 잡는다면서 x 하나"였다(2026-10-10 외부 검토). 이유를 글자로
+    when = f"{dur(r.eta)} left" if r.state == "running" else "NaN loss" if r.state == "failed" else f"{dur(r.idle)} ago"
     ep = x_count(r)
     unit = "step" if r.x_axis == "step" else "ep"
     best = f"best {r.best:.4f}" if r.best is not None else ""
@@ -321,6 +322,9 @@ def print_once(feed: Feed, width: int = 100):
     print(feed.where)
     for r in runs:
         print(row(r, width, plain))
+    if runs:                                   # 기호 풀이(기호만으로는 무엇인지 몰랐다)
+        sym = PLAIN_STATE if plain else {k: v[0] for k, v in STATE.items()}
+        print("  ".join(f"{sym[k]} {STATE[k][1].lower()}" for k in ("running", "stalled", "failed", "stopped", "done")))
 
 
 def main(argv: list[str] | None = None):

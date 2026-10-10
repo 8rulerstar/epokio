@@ -58,8 +58,9 @@ def test_once_into_a_pipe_uses_ascii_marks_and_bars(capsys):
     tui.print_once(Feed())                    # capsys의 stdout은 터미널이 아니다
     out = capsys.readouterr().out
     assert not set("▶…‖✗■✓★█▌·") & set(out), out
-    lines = out.splitlines()[2:]
+    lines, legend = out.splitlines()[2:-1], out.splitlines()[-1]
     assert [ln[0] for ln in lines] == [">", "!", "x", "+"] and "#" in lines[0] and "*" in lines[2]
+    assert "NaN loss" in lines[2] and "x failed" in legend and "! stalled" in legend   # 실패는 기호만이 아니라 이유도
     assert tui.cells(lines[0]) == tui.cells(lines[3])
     assert "█" in tui.row(_run("/x/a/train"), 100)          # 터미널 화면(curses)은 그대로
 

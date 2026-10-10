@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1 (2026-10-10)
+
+- **`epokio watch --once` says why a run failed** (*NaN loss*) instead of only an `x`, and prints what each mark means under the table.
+- Docs: `--autostart` keeps the helper running after logout only on Linux; on macOS and Windows it starts at login. The ntfy topic works like a password (or self-host ntfy), the stall floor can be raised with `epokio config stall_min`, and the comparison says runmon also alerts without its app.
+
 ## 0.9.0 (2026-10-10)
 
 ### Changed

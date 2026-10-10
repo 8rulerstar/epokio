@@ -36,12 +36,12 @@ python3 -m venv ~/.epokio-venv && ~/.epokio-venv/bin/pip install epokio
 
 ## 폰 알림, 세 단계
 
-1. 폰에 [ntfy](https://ntfy.sh) 앱을 깔고, 나만 아는 주제를 구독합니다. 주제 이름에는 영문, 숫자, `-`, `_`만 쓸 수 있습니다.
+1. 폰에 [ntfy](https://ntfy.sh) 앱을 깔고, 나만 아는 주제를 구독합니다. 주제 이름에는 영문, 숫자, `-`, `_`만 쓸 수 있습니다. ntfy.sh에서는 주제 이름이 비밀번호 구실을 합니다. 이름을 아는 사람은 누구나 알림을 볼 수 있으니 길게 짓거나 [ntfy 서버를 직접 두세요](https://docs.ntfy.sh/install/).
 2. 학습 기계에 저장합니다. `your-secret-topic` 자리에 내 주제를 넣으세요: `epokio alerts --add https://ntfy.sh/your-secret-topic`
 3. 시험해 봅니다: `epokio alerts --test`
 
-이제 도우미가 학습이 끝나거나, 실패하거나(NaN, 비정상 종료), 멈추면(평소 에폭 시간보다 한참, 적어도 3분 넘게 새 에폭이 없으면) 알림을 보냅니다. Slack, Discord, 텔레그램 웹훅도 똑같이 넣으면 됩니다(`https`만).
-알림은 도우미가 떠 있을 때만 갑니다. `epokio setup --autostart`는 sudo 없이 로그아웃·재부팅 뒤에도 도우미가 돌게 합니다(리눅스는 systemd 사용자 서비스, 맥은 LaunchAgent, 윈도우는 시작프로그램 폴더).
+이제 도우미가 학습이 끝나거나, 실패하거나(NaN, 비정상 종료), 멈추면(평소 에폭 시간보다 한참, 적어도 3분 넘게 새 에폭이 없으면, 이 바닥값은 `epokio config stall_min 10`처럼 올릴 수 있습니다) 알림을 보냅니다. Slack, Discord, 텔레그램 웹훅도 똑같이 넣으면 됩니다(`https`만).
+알림은 도우미가 떠 있을 때만 갑니다. `epokio setup --autostart`는 sudo 없이 도우미를 다시 띄웁니다. 리눅스는 systemd 사용자 서비스라 로그아웃·재부팅 뒤에도 돌고, 맥(LaunchAgent)과 윈도우(시작프로그램 폴더)는 로그인할 때 시작합니다.
 `epokio doctor`는 지금 도는지와 다시 돌아오는지를 보여 주고, `epokio doctor --test-alert`는 진짜 시험 알림을 보냅니다.
 
 ## 이런 걸 봅니다
@@ -94,7 +94,7 @@ with epokio.start("runs/colab-exp", epochs=20, notify=True) as run:
 | **W&B** | `wandb.init`/`log` 또는 프레임워크 연동 | 필요 | 끝남·비정상 종료(Slack, 이메일), 내 코드의 `run.alert()` | 팀이 대시보드, 스윕, 아티팩트, 모델 레지스트리를 같이 쓸 때 |
 | **Trackio**(Hugging Face) | `trackio.init`/`log`(W&B식 API) 또는 HF Trainer `report_to="trackio"` | 없음(HF Space는 선택) | 내 코드의 `trackio.alert()`, 웹훅으로 | 무료 로컬 W&B식 대시보드를 Space로 공유하고 싶을 때 |
 | **knockknock** | 학습 함수에 데코레이터 | 없음(메신저 자격 증명 필요) | 시작·끝남·비정상 종료, 12개 서비스(마지막 배포 2020년) | 이메일, Teams, SMS 같은 곳으로 끝남·실패만 알면 될 때 |
-| **runmon** | 없음: 명령을 감싸거나 tmux에 붙음 | 없음(폰 앱과 짝 맺기, 중계 서버는 직접 둘 수 있음) | 끝남, 실패, 오류 출력, GPU 놀음, 로그 끊김, 디스크 가득 | 프로세스별 GPU 보기나, 학습 기록이 아닌 아무 명령의 알림이 필요할 때 |
+| **runmon** | 없음: 명령을 감싸거나 tmux에 붙음 | 없음(ntfy, 텔레그램, Bark, 웹훅으로 바로. 앱은 직접 둘 수 있는 중계 서버로 짝 맺기) | 끝남, 실패, 오류 출력, GPU 놀음, 로그 끊김, 디스크 가득 | 프로세스별 GPU 보기나, 학습 기록이 아닌 아무 명령의 알림이 필요할 때 |
 
 더 많은 비교(MLflow, Aim, Ultralytics Platform, 가격): [guide.ko.md](guide.ko.md#다른-도구와-비교).
 

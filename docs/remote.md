@@ -22,7 +22,7 @@ No Python on Windows: run `Epokio.exe setup --lan --autostart` instead.
 
 `epokio setup` finds your training folders, starts the helper without a console window, prints a
 view-only token to paste into the Mac app (with `--lan`), and opens the page. `--lan` lets other machines on your network
-reach it; `--autostart` keeps the helper running after logout and reboot, without sudo. Run it again any time, it changes
+reach it; `--autostart` starts the helper again without sudo (on Linux it keeps running after logout and reboot; on macOS and Windows it starts when you log in). Run it again any time, it changes
 nothing that is already right.
 
 **Nothing to install on the server?** In the Mac app, open **Settings → Machines → Over SSH** and pick a host

@@ -38,12 +38,12 @@ Other accounts on the server can read a helper on `127.0.0.1`, so on a shared ma
 
 ## Phone alerts in 3 steps
 
-1. Install the [ntfy](https://ntfy.sh) app on your phone and subscribe to a topic only you know (letters, digits, `-` and `_`).
+1. Install the [ntfy](https://ntfy.sh) app on your phone and subscribe to a topic only you know (letters, digits, `-` and `_`). On ntfy.sh the topic name works like a password: anyone who knows it can read the alerts, so make it long, or [run your own ntfy server](https://docs.ntfy.sh/install/).
 2. Save it on the training machine, with your topic in place of `your-secret-topic`: `epokio alerts --add https://ntfy.sh/your-secret-topic`
 3. Check it: `epokio alerts --test`
 
-From then on, the helper sends an alert when a run finishes, fails (NaN loss or a crash) or stalls (no new epoch for well past its usual pace, 3 minutes at least). Slack, Discord and Telegram webhooks work the same way (`https` only).
-Alerts go out only while the helper runs. `epokio setup --autostart` keeps it running after logout and reboot without sudo (a systemd user service on Linux, a LaunchAgent on macOS, the Startup folder on Windows).
+From then on, the helper sends an alert when a run finishes, fails (NaN loss or a crash) or stalls (no new epoch for well past its usual pace, 3 minutes at least; raise the floor with `epokio config stall_min 10`). Slack, Discord and Telegram webhooks work the same way (`https` only).
+Alerts go out only while the helper runs. `epokio setup --autostart` starts it again without sudo: on Linux a systemd user service that keeps running after logout and reboot; on macOS a LaunchAgent and on Windows the Startup folder, which start it when you log in.
 `epokio doctor` shows whether it runs now and starts again; `epokio doctor --test-alert` sends a real test alert.
 
 ## What you get
@@ -96,7 +96,7 @@ Checked against each project's README and docs in October 2026. Epokio can read 
 | **W&B** | `wandb.init`/`log` or a framework integration | Yes | Run finished or crashed (Slack, email); `run.alert()` from your code | A team shares dashboards, sweeps, artifacts and a model registry |
 | **Trackio** (Hugging Face) | `trackio.init`/`log` (W&B-style API) or HF Trainer `report_to="trackio"` | No (optional HF Space) | `trackio.alert()` from your code, to webhooks | You want a free local W&B-style dashboard you can share on a Space |
 | **knockknock** | A decorator around your training function | No (needs the chat service's credentials) | Start, finish, crash on 12 services (last release 2020) | You only need a finish or crash ping on email, Teams, SMS and the like |
-| **runmon** | None: wraps the command or attaches to tmux | No (pairs its phone app; relay can be self-hosted) | Done, failed, error output, GPU idle, log silence, disk full | You want GPU-per-process views, or alerts for any command, not just training logs |
+| **runmon** | None: wraps the command or attaches to tmux | No (ntfy, Telegram, Bark or a webhook directly; its app pairs through a relay you can self-host) | Done, failed, error output, GPU idle, log silence, disk full | You want GPU-per-process views, or alerts for any command, not just training logs |
 
 More columns (MLflow, Aim, Ultralytics Platform, price): [docs/guide.md](docs/guide.md#how-it-compares).
 
