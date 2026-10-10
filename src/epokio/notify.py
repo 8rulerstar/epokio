@@ -111,7 +111,7 @@ def problem(url) -> str | None:
     if host.lower() == "ntfy.sh":
         topic = p.path.strip("/")
         if not re.fullmatch(r"[-_A-Za-z0-9]{1,64}", topic):
-            return "an ntfy topic may only use letters, digits, - and _ (e.g. https://ntfy.sh/your-secret-topic)"
+            return "an ntfy topic may only use letters, digits, - and _ (for example a long random one such as k3x9-q72m-train-alerts)"
     return None
 
 

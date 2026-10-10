@@ -19,6 +19,16 @@ def recent_epoch_sec(rows: list[dict], n: int = 10) -> float | None:
     return d[len(d) // 2] if d else None
 
 
+def longest_gap_sec(rows: list[dict]) -> float | None:
+    """기록 전체에서 두 번 이상 나온 긴 간격(두 번째로 긴 간격). ★중앙값만 보면 5에폭마다 6분씩 평가하는 학습(에폭은 1분)이
+    평가할 때마다 '멎음'(급한 폰 알림)이 됐다(2026-10-10 외부 검토). 최근 20줄의 최댓값을 썼더니 25에폭마다 하는 평가는
+    창 밖으로 밀려 다시 울렸고, 한 번뿐인 40분 지연(NFS 멈춤)이 다음 20에폭 동안 멎음 감지를 50분으로 늦췄다.
+    두 번째로 긴 간격은 되풀이되는 평가만 잡고 한 번뿐인 이상치는 건너뛴다"""
+    ts = [t for t in (_to_float(r.get("time")) for r in rows) if t is not None]
+    d = sorted(b - a for a, b in zip(ts, ts[1:]) if b > a)
+    return d[-2] if len(d) >= 2 else None
+
+
 def recent_unit_sec(rows: list[dict], n: int = 10) -> float | None:
     """최근 n줄에서 진행 한 칸(에폭, step 축이면 step)에 걸린 시간의 중앙값: 시간 차이 / epoch 열 차이.
     ★ETA가 줄 사이 시간에 남은 칸 수를 곱해서, 100 step마다 기록하는 step 학습은 남은 시간이 100배로 나왔다

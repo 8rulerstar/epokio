@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4 (2026-10-10)
+
+- **Fix: a run with a long evaluation every few epochs was announced as stalled each time.** The stall threshold now also stays a quarter above a long gap that has already happened twice in the log, so a periodic evaluation alerts at most the first two times, and a single long delay (a stuck network drive) does not slow later stall detection.
+- `epokio alerts --add` warns when an ntfy.sh topic is the README's example or shorter than 12 characters: anyone who subscribes to it sees your alerts. Its own example addresses are placeholders that cannot be pasted as they are.
+- Docs: Python 3.10 or later (macOS's own `python3` can be 3.9), `--root` for runs outside the folders setup searches, healthchecks.io and W&B Automations in the comparison (checked against their docs), and that a run which dies before its first epoch gets no alert without `epokio.start()`.
+
 ## 0.9.3 (2026-10-10)
 
 - **Fix: a TensorBoard run whose loss turned NaN was not marked failed.** Its loss column is `train/loss`, and the check only looked at columns ending in `_loss`.

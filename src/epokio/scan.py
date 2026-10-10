@@ -91,7 +91,7 @@ class Run:
 # ── 파일 읽기 ──────────────────────────────────────
 
 from .scan_names import STATE_ORDER, alias_of_sibling, crash_reason, display_name, find_override, fmt_dur, sort_runs, too_long, unique  # noqa: E402,F401  (옛 import 경로 유지)
-from .scan_timing import _read_total_epochs, _to_float, args_rewritten, fitness_epoch, patience_stop, recent_epoch_sec, recent_unit_sec  # noqa: E402,F401,E501
+from .scan_timing import _read_total_epochs, _to_float, args_rewritten, fitness_epoch, patience_stop, longest_gap_sec, recent_epoch_sec, recent_unit_sec  # noqa: E402,F401,E501
 
 _pick_metric = schema.pick_metric      # 옛 이름(윈도우 쪽 코드·시험이 부른다)
 
@@ -110,6 +110,7 @@ class _Parsed:
     lower: bool = False            # 대표 점수가 낮을수록 좋은가(= not metric_higher. 사람이 고른 방향 또는 열 이름으로 추정)
     epoch_sec: float | None = None     # 최근 기록 한 줄 사이의 시간(중앙값). 멈춤 판정이 쓴다
     unit_sec: float | None = None      # 최근 에폭(step 축이면 step) 하나에 걸린 시간(중앙값). ETA가 쓴다
+    gap_sec: float | None = None       # 최근 줄 사이 가장 긴 간격(긴 평가·저장). 멎음 문턱이 쓴다
     frac: float | None = None          # 끝낸 몫(0~1, HF global_step/max_steps). 첫 에폭이 안 끝나도 남은 시간을 낸다
     fit_epoch: int | None = None       # best.pt 에폭(patience 판정. 사람이 고른 대표 점수와 무관)
 
@@ -250,7 +251,7 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
         metric_name=mname or "",
         metric_higher=not lower, lower=lower,
         best=best, best_epoch=best_epoch, diverged=diverged, fit_epoch=fitness_epoch(rows, schema.pick_metric(cols)) if chosen else best_epoch,
-        epoch_sec=recent_epoch_sec(rows), unit_sec=recent_unit_sec(rows), frac=loaded.fraction,
+        epoch_sec=recent_epoch_sec(rows), unit_sec=recent_unit_sec(rows), gap_sec=longest_gap_sec(rows), frac=loaded.fraction,
     )
     if not parsed.elapsed:                     # 시간 열이 없는 프레임워크: 폴더가 생긴 뒤 흐른 시간
         try:
@@ -274,10 +275,11 @@ def _stale_after(p: "_Parsed", total: int | None) -> float:
     ★고정 3분이라, 에폭(또는 HF 체크포인트) 사이가 3분 넘는 학습은 매 에폭 '멎음'(급한 소리·폰 알림)과 '다시 돎'이 번갈아 떴다.
       계획 에폭을 모르면(Keras·Lightning) 끝난 것과 멎은 것을 구별할 수 없어 더 넉넉히 기다린다"""
     per_epoch = p.epoch_sec or (p.elapsed / p.epoch if p.epoch and p.elapsed else 0.0)   # 최근 에폭 중앙값이 있으면 그것
+    gap = (p.gap_sec or 0.0) * 1.25                  # 주기적인 긴 평가·저장보다는 길게
     if total:
-        return max(STALE_SEC, per_epoch * 1.5)
+        return max(STALE_SEC, per_epoch * 1.5, gap)
     # 계획 에폭을 모르면 stall_limits(최근 에폭의 3배+1분)와 누적 평균의 3배 중 큰 쪽
-    return max(stall_limits(p.epoch_sec)[0], per_epoch * 3)
+    return max(stall_limits(p.epoch_sec)[0], per_epoch * 3, gap)
 
 
 def read_run(run_dir: Path, now: float | None = None) -> Run | None:

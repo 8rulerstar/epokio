@@ -25,6 +25,19 @@ def _label() -> str:
         return socket.gethostname()
 
 
+_EXAMPLE_TOPICS = {"your-secret-topic", "your-long-random-topic", "my-train-alerts-k3x9q", "test", "alerts", "epokio"}
+
+
+def _guessable_topic(url: str) -> str | None:
+    """ntfy.sh 주제가 문서의 예시 그대로거나 12자보다 짧으면 그 주제. 직접 띄운 ntfy 서버는 보지 않는다"""
+    from urllib.parse import urlsplit
+    parts = urlsplit(url)
+    if parts.hostname != "ntfy.sh":
+        return None
+    topic = parts.path.strip("/")
+    return topic if topic.lower() in _EXAMPLE_TOPICS or len(topic) < 12 else None
+
+
 def _show(url: str) -> str:
     """화면에는 호스트와 가린 경로만. ★경로 앞 12자를 보여 짧은 ntfy 주제·텔레그램 봇 토큰 앞부분이 터미널 기록에 남았다"""
     return notify.masked_url(url)
@@ -47,7 +60,7 @@ def main(argv=None) -> int:
     for u, why in bad:
         print(f"Not saved: {why}.")
     if bad:
-        print("A webhook looks like  https://ntfy.sh/your-long-random-topic")
+        print("A webhook looks like  https://ntfy.sh/<a-long-random-topic>  (letters, digits, - and _)")
         return 2
     if a.lang and i18n.use(a.lang) == "en" and a.lang.replace("_", "-").split("-")[0].lower() != "en":
         # ★'--lang zz'도 "Saved"라 하고 저장해, 알림이 말없이 영어로 갔다
@@ -77,11 +90,16 @@ def main(argv=None) -> int:
         for u in gone:
             print(f"Not in the list: {_show(u)}")
         print(f"Saved. Webhooks: {len(urls)}.")
+        for u in a.add:                               # ★README 예시 주제를 그대로 붙여도 말없이 저장됐다(누구나 구독할 수 있다)
+            weak = _guessable_topic(u)
+            if weak:
+                print(f"Warning: the ntfy topic '{weak}' is easy to guess; anyone who subscribes to it sees your alerts. "
+                      "Use a long random one.")
         if a.add:                                     # ★알림에 이 기계 이름(기본은 컴퓨터 이름)이 실려 공개 ntfy 주제로 나간다는 걸 몰랐다
             print(f"Alerts name this machine '{_label()}'. Choose another with: epokio setup --label NAME")
     if a.list:
         if not urls:
-            print("No phone alerts set. Add one:  epokio alerts --add https://ntfy.sh/your-long-random-topic")
+            print("No phone alerts set. Add one:  epokio alerts --add https://ntfy.sh/<a-long-random-topic>")
         for u in urls:
             print(f"  {_show(u)}")
     if a.test:

@@ -8,7 +8,8 @@
 
 ## 빠른 시작
 
-파이썬 3.10 이상이면 윈도우, 맥, 리눅스 어디서나 됩니다. 학습을 돌리는 기계에서 터미널을 프로젝트 폴더에 열고:
+파이썬 3.10 이상이면 윈도우, 맥, 리눅스 어디서나 됩니다(맥에 기본으로 깔린 `python3`는 3.9일 수 있으니 `python3 --version`으로 확인하세요). 학습 폴더가 사용자 폴더의 바탕 화면, 문서, 다운로드, Projects, `~/runs` 밖에 있으면 알려 주세요: `epokio setup --root <폴더>`.
+학습을 돌리는 기계에서 터미널을 프로젝트 폴더에 열고:
 
 ```bash
 pip install epokio
@@ -17,7 +18,7 @@ epokio watch --once
 ```
 
 `epokio setup`은 학습 기록을 찾고, 도우미(기록을 읽고 알림을 보내는 작은 백그라운드 프로그램)를 띄우고, 그 웹 화면을 엽니다. `epokio watch --once`는 같은 목록을 터미널에 찍습니다.
-setup은 지금 폴더와 바탕 화면, 문서, 다운로드, Projects, `~/runs`를 찾아봅니다(사용자 폴더 안만). `D:\`나 `/data`처럼 다른 곳에 있으면 폴더를 알려 주세요: `epokio setup --root D:\myproject\runs`.
+setup은 지금 폴더와 위 폴더들을 찾아봅니다. 예를 들어 `D:\`나 `/data`에 있으면: `epokio setup --root D:\myproject\runs`.
 윈도우에서 `pip`이나 `epokio`를 못 찾는다고 나오면 앞에 `py -m`을 붙이세요: `py -m epokio setup`.
 pip이 *externally-managed-environment*로 멈추면(Ubuntu 24.04, Homebrew 파이썬) 가상환경이나 conda 환경에 설치하세요([방법](remote.md#on-windows-linux-or-your-phone), 영어).
 
@@ -40,7 +41,7 @@ python3 -m venv ~/.epokio-venv && ~/.epokio-venv/bin/pip install epokio
 2. 학습 기계에 저장합니다. `your-secret-topic` 자리에 내 주제를 넣으세요: `epokio alerts --add https://ntfy.sh/your-secret-topic`
 3. 시험해 봅니다: `epokio alerts --test`
 
-이제 도우미가 학습이 끝나거나, 손실이 NaN이 되거나, 멈추면 알림을 보냅니다. 멈춤은 계획 에폭 수를 알면 최근 에폭 시간의 1.5배(모르면 3배에 1분 더), 적어도 3분 동안 새 기록이 없는 경우이고, 이 바닥값은 `epokio config stall_min 10`처럼 올릴 수 있습니다. 학습이 비정상 종료되면 멈춤으로 알려 주고, 스크립트에서 `epokio.start()`를 쓰면 바로 실패로 알려 줍니다. 알림에는 학습 이름, 진행, 최고 점수와 이 기계의 이름이 들어갑니다(`epokio setup --label 이름`으로 바꿀 수 있습니다). Slack, Discord, 텔레그램 웹훅도 똑같이 넣으면 됩니다(`https`만).
+이제 도우미가 학습이 끝나거나, 손실이 NaN이 되거나, 멈추면 알림을 보냅니다. 멈춤은 계획 에폭 수를 알면 최근 에폭 시간의 1.5배(모르면 3배에 1분 더), 그리고 이미 두 번 있었던 긴 간격(주기적인 평가 등)의 1.25배, 적어도 3분 동안 새 기록이 없는 경우이고, 이 바닥값은 `epokio config stall_min 10`처럼 올릴 수 있습니다. 학습이 비정상 종료되면 멈춤으로 알려 주고, 스크립트에서 `epokio.start()`를 쓰면 바로 실패로 알려 줍니다. 첫 에폭을 기록하기 전에 죽은 학습(데이터 로더 오류 등)은 첫 에폭이 긴 것과 구별할 수 없어, `epokio.start()`를 쓰지 않으면 알림이 가지 않습니다. 알림에는 학습 이름, 진행, 최고 점수와 이 기계의 이름이 들어갑니다(`epokio setup --label 이름`으로 바꿀 수 있습니다). Slack, Discord, 텔레그램 웹훅도 똑같이 넣으면 됩니다(`https`만).
 알림은 도우미가 떠 있을 때만 갑니다. `epokio setup --autostart`는 sudo 없이 도우미를 다시 띄웁니다. 리눅스는 systemd 사용자 서비스라 로그아웃·재부팅 뒤에도 돌고, 맥(LaunchAgent)과 윈도우(시작프로그램 폴더)는 로그인할 때 시작합니다.
 `epokio doctor`는 지금 도는지와 다시 돌아오는지를 보여 주고, `epokio doctor --test-alert`는 진짜 시험 알림을 보냅니다.
 
@@ -91,8 +92,9 @@ with epokio.start("runs/colab-exp", epochs=20, notify=True) as run:
 |---|---|---|---|---|
 | **Epokio** | 프레임워크가 읽을 수 있는 파일을 남기면 없음(Keras는 `CSVLogger`나 `TensorBoard` 콜백) | 없음 | 멈춤(비정상 종료도 멈춤으로), NaN, 끝남 | |
 | **TensorBoard** | 코드나 프레임워크가 이벤트 파일을 남겨야 함 | 없음 | 없음 | step별 그래프, 그림, 히스토그램, 프로파일러가 필요할 때 |
-| **W&B** | `wandb.init`/`log` 또는 프레임워크 연동 | 필요 | 끝남·비정상 종료(Slack, 이메일), 내 코드의 `run.alert()` | 팀이 대시보드, 스윕, 아티팩트, 모델 레지스트리를 같이 쓸 때 |
+| **W&B** | `wandb.init`/`log` 또는 프레임워크 연동 | 필요 | 끝남·비정상 종료(Slack, 이메일, 사용자별 설정), 내 코드의 `run.alert()`, Slack·웹훅으로 가는 Automations(run 지표 조건은 Forge와 Dedicated Cloud만) | 팀이 대시보드, 스윕, 아티팩트, 모델 레지스트리를 같이 쓸 때 |
 | **Trackio**(Hugging Face) | `trackio.init`/`log`(W&B식 API) 또는 HF Trainer `report_to="trackio"` | 없음(HF Space는 선택) | 내 코드의 `trackio.alert()`, 웹훅으로 | 무료 로컬 W&B식 대시보드를 Space로 공유하고 싶을 때 |
+| **healthchecks.io** | 스크립트가 성공할 때 ping(HTTP 요청)을 보내야 함(시작·실패 ping은 선택) | 호스팅판은 필요(오픈소스라 직접 둘 수 있음) | 고정 주기나 cron 일정에 유예 시간을 더해도 ping이 없을 때. 이메일, Slack, 웹훅, SMS, PagerDuty 등 | 학습뿐 아니라 cron 작업, 예약 작업을 한곳에서 지켜볼 때. |
 | **knockknock** | 학습 함수에 데코레이터 | 없음(메신저 자격 증명 필요) | 시작·끝남·비정상 종료, 12개 서비스(마지막 배포 2020년) | 이메일, Teams, SMS 같은 곳으로 끝남·실패만 알면 될 때 |
 | **runmon** | 없음: 명령을 감싸거나 tmux에 붙음 | 없음(ntfy, 텔레그램, Bark, 웹훅으로 바로. 앱은 직접 둘 수 있는 중계 서버로 짝 맺기) | 끝남, 실패, 오류 출력, GPU 놀음, 로그 끊김, 디스크 가득 | 프로세스별 GPU 보기나, 학습 기록이 아닌 아무 명령의 알림이 필요할 때 |
 

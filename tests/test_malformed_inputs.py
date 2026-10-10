@@ -88,7 +88,7 @@ def test_alerts_add_says_what_is_wrong_and_saves_nothing(capsys):
     for bad in ("notaurl", "https://", "https://ntfy.sh/비밀-주제"):
         assert alerts_cli.main(["--add", bad]) == 2
         out = capsys.readouterr().out
-        assert "Not saved" in out and "https://ntfy.sh/your-long-random-topic" in out, out
+        assert "Not saved" in out and "https://ntfy.sh/<a-long-random-topic>" in out, out
         assert "95ea" not in out
     assert not alerts_cli.hooks_file().exists()
 

@@ -8,7 +8,8 @@ No code changes, no account: it reads what YOLO, Hugging Face, Lightning, Keras 
 
 ## Quick start
 
-Python 3.10 or later, on Windows, macOS or Linux. In a terminal in your project folder, on the machine that trains:
+Python 3.10 or later, on Windows, macOS or Linux (the `python3` that ships with macOS can be 3.9; check with `python3 --version`). Training folder outside Desktop, Documents, Downloads, Projects and `~/runs` in your user folder? Add it: `epokio setup --root <folder>`.
+In a terminal in your project folder, on the machine that trains:
 
 ```bash
 pip install epokio
@@ -17,7 +18,7 @@ epokio watch --once
 ```
 
 `epokio setup` finds your runs, starts the helper (a small background program that reads the logs and sends the alerts) and opens its page. `epokio watch --once` prints the same list in the terminal.
-Setup looks in this folder and in Desktop, Documents, Downloads, Projects and `~/runs`, inside your user folder. Runs somewhere else, like `D:\` or `/data`? Name the folder: `epokio setup --root D:\myproject\runs`.
+Setup looks in this folder and in those folders. For runs in `D:\` or `/data`, for example: `epokio setup --root D:\myproject\runs`.
 On Windows, if `pip` or `epokio` is not recognized, put `py -m` in front: `py -m epokio setup`.
 If pip stops with *externally-managed-environment* (Ubuntu 24.04, Homebrew Python), use a virtual environment or a conda env ([how](docs/remote.md#on-windows-linux-or-your-phone)).
 
@@ -42,7 +43,7 @@ Other accounts on the server can read a helper on `127.0.0.1`, so on a shared ma
 2. Save it on the training machine, with your topic in place of `your-secret-topic`: `epokio alerts --add https://ntfy.sh/your-secret-topic`
 3. Check it: `epokio alerts --test`
 
-From then on, the helper sends an alert when a run finishes, hits a NaN loss, or stalls: no new log row for 1.5 times its recent epoch time when the planned epochs are known (3 times plus a minute otherwise), 3 minutes at least, a floor you can raise with `epokio config stall_min 10`. A crash shows up as a stall, or right away as a failure if your script calls `epokio.start()`. Each alert carries the run name, its progress and best score, and this machine's name (`epokio setup --label NAME` to choose another). Slack, Discord and Telegram webhooks work the same way (`https` only).
+From then on, the helper sends an alert when a run finishes, hits a NaN loss, or stalls: no new log row for 1.5 times its recent epoch time when the planned epochs are known (3 times plus a minute otherwise), and for 1.25 times a long gap that has already happened twice (a periodic evaluation, say), 3 minutes at least, a floor you can raise with `epokio config stall_min 10`. A crash shows up as a stall, or right away as a failure if your script calls `epokio.start()`. A run that dies before it logs its first epoch (a data loader error, say) cannot be told apart from a long first epoch, so it gets no alert unless it uses `epokio.start()`. Each alert carries the run name, its progress and best score, and this machine's name (`epokio setup --label NAME` to choose another). Slack, Discord and Telegram webhooks work the same way (`https` only).
 Alerts go out only while the helper runs. `epokio setup --autostart` starts it again without sudo: on Linux a systemd user service that keeps running after logout and reboot; on macOS a LaunchAgent and on Windows the Startup folder, which start it when you log in.
 `epokio doctor` shows whether it runs now and starts again; `epokio doctor --test-alert` sends a real test alert.
 
@@ -93,8 +94,9 @@ Checked against each project's README and docs in October 2026. Epokio can read 
 |---|---|---|---|---|
 | **Epokio** | None if your framework writes a supported file (Keras: a `CSVLogger` or `TensorBoard` callback) | No | Stall (a crash shows up as one), NaN, finish | |
 | **TensorBoard** | Your code or framework writes event files | No | None | You want per-step charts, images, histograms or the profiler |
-| **W&B** | `wandb.init`/`log` or a framework integration | Yes | Run finished or crashed (Slack, email); `run.alert()` from your code | A team shares dashboards, sweeps, artifacts and a model registry |
+| **W&B** | `wandb.init`/`log` or a framework integration | Yes | Run finished or crashed (Slack, email, a per-user setting); `run.alert()` from your code; Automations to Slack or a webhook (run-metric ones only on Forge and Dedicated Cloud) | A team shares dashboards, sweeps, artifacts and a model registry |
 | **Trackio** (Hugging Face) | `trackio.init`/`log` (W&B-style API) or HF Trainer `report_to="trackio"` | No (optional HF Space) | `trackio.alert()` from your code, to webhooks | You want a free local W&B-style dashboard you can share on a Space |
+| **healthchecks.io** | A ping (HTTP request) from your script when it succeeds (start and fail pings optional) | Yes on the hosted service (open source, self-hostable) | A ping missing past a fixed period or cron schedule plus a grace time; email, Slack, webhooks, SMS, PagerDuty and more | You want one watchdog for cron jobs and scheduled tasks, not only training. |
 | **knockknock** | A decorator around your training function | No (needs the chat service's credentials) | Start, finish, crash on 12 services (last release 2020) | You only need a finish or crash ping on email, Teams, SMS and the like |
 | **runmon** | None: wraps the command or attaches to tmux | No (ntfy, Telegram, Bark or a webhook directly; its app pairs through a relay you can self-host) | Done, failed, error output, GPU idle, log silence, disk full | You want GPU-per-process views, or alerts for any command, not just training logs |
 

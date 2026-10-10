@@ -77,3 +77,54 @@ def test_adding_an_alert_says_which_machine_name_it_carries(tmp_path, monkeypatc
     monkeypatch.setattr(alerts_cli, "_label", lambda: "lab-07")
     assert alerts_cli.main(["--add", "https://ntfy.sh/a-long-random-topic-k3x9"]) == 0
     assert "Alerts name this machine 'lab-07'" in capsys.readouterr().out
+
+
+def test_a_periodic_long_eval_does_not_raise_a_stall_once_it_has_been_seen(tmp_path):
+    """에폭 1분, 5에폭마다 6분 평가: 한 번 본 긴 간격보다 짧은 조용함은 멎음이 아니다(2026-10-10)"""
+    d = tmp_path / "run"
+    d.mkdir()
+    t, rows = 0.0, ["epoch,train/box_loss,metrics/mAP50(B),time"]
+    for e in range(1, 11):
+        t += 60 + (360 if e % 5 == 0 else 0)
+        rows.append(f"{e},1.0,0.1,{t}")
+    (d / "results.csv").write_text("\n".join(rows) + "\n")
+    (d / "args.yaml").write_text("epochs: 50\n")
+    mtime = time.time() - 400                     # 마지막 줄 뒤 400초: 다음 평가 중(문턱 180초보다 길다)
+    os.utime(d / "results.csv", (mtime, mtime))
+    assert scan.read_run(d).state == "running"
+
+
+def test_adding_an_example_or_short_ntfy_topic_warns(tmp_path, monkeypatch, capsys):
+    from epokio import alerts_cli
+
+    monkeypatch.setattr(alerts_cli, "_label", lambda: "box")
+    alerts_cli.main(["--add", "https://ntfy.sh/your-secret-topic"])
+    assert "easy to guess" in capsys.readouterr().out
+    alerts_cli.main(["--add", "https://ntfy.sh/kq83-zz71-pr0f-train-alerts"])
+    assert "easy to guess" not in capsys.readouterr().out
+
+
+def _csv_run(d, gaps, epochs=200, quiet=400):
+    d.mkdir()
+    t, rows = 0.0, ["epoch,train/box_loss,metrics/mAP50(B),time"]
+    for e, g in enumerate(gaps, 1):
+        t += g
+        rows.append(f"{e},1.0,0.1,{t}")
+    (d / "results.csv").write_text("\n".join(rows) + "\n")
+    (d / "args.yaml").write_text(f"epochs: {epochs}\n")
+    mtime = time.time() - quiet
+    os.utime(d / "results.csv", (mtime, mtime))
+    return scan.read_run(d).state
+
+
+def test_an_evaluation_every_25_epochs_is_covered_once_it_has_recurred(tmp_path):
+    """최근 20줄만 보면 25에폭마다의 평가가 창 밖으로 밀려 다시 '멎음'이었다"""
+    gaps = [60 + (360 if e % 25 == 0 else 0) for e in range(1, 75)]  # 다음 평가(75) 중: 50의 간격은 최근 20줄 밖
+    assert _csv_run(tmp_path / "a", gaps) == "running"
+
+
+def test_a_one_off_long_delay_does_not_slow_stall_detection(tmp_path, monkeypatch):
+    """한 번뿐인 40분 지연이 문턱을 끌어올려 진짜 멈춤을 50분 뒤에야 잡았다"""
+    monkeypatch.setattr(scan, "STALE_SEC", 180)          # 다른 시험이 설정(stall_min)을 바꿔 둘 수 있다
+    gaps = [60] * 5 + [2400] + [60] * 10
+    assert _csv_run(tmp_path / "b", gaps) == "stalled"
