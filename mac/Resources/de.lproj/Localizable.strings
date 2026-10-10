@@ -1371,3 +1371,9 @@
 "Epochs / steps" = "Epochen / Schritte";
 "%d large log files: only the last part was loaded" = "%d große Logdateien: nur der letzte Teil wurde geladen";
 "Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "Wird mit dem besten Wert verglichen, also dem Wert des gespeicherten besten Modells (best.pt). Bei Segmentierung, Pose und Klassifizierung kann er etwas unter dem höchsten Wert der Spalte liegen.";
+"Starting jobs is off on this helper" = "Das Starten von Jobs ist bei diesem Helfer aus";
+"Epokio is only watching your logs here. Turn this on to start training and queue jobs from the app. It is the same as running %@." = "Epokio beobachtet hier nur deine Logs. Schalte dies ein, um Trainings aus der App zu starten und Jobs einzureihen. Entspricht %@.";
+"Run this on that machine to start training there: %@" = "Führe dies auf dem anderen Rechner aus, um dort zu trainieren: %@";
+"Turn on" = "Einschalten";
+"Could not read ~/.epokio/config.json. Run this in Terminal instead: %@" = "~/.epokio/config.json konnte nicht gelesen werden. Führe stattdessen im Terminal aus: %@";
+"Starting jobs is off on this helper. Turn it on at the top of New training or Queue, or run: %@" = "Das Starten von Jobs ist bei diesem Helfer aus. Schalte es oben unter Neues Training oder Warteschlange ein, oder führe aus: %@";

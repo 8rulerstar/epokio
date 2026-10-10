@@ -129,3 +129,35 @@ def test_reads_token_setting(tmp_path, monkeypatch):
     assert config.load()["reads_token"] == "auto"
     assert config.update({"reads_token": "always"})["reads_token"] == "always"
     assert config.update({"reads_token": "turbo"})["reads_token"] == "always"     # 모르는 값은 무시
+
+
+def test_reads_token_always_takes_effect_without_restarting_the_helper(srv):
+    """공용 서버: `epokio config reads_token always`가 곧바로 먹는다. ★예전엔 시작할 때만 읽어, --autostart 서비스는 계속 열려 있었다"""
+    from epokio import config, config_cli
+    go, tok = srv
+    u = go(False)
+    assert req(u + "/runs")[0] == 200
+    assert config_cli.main(["reads_token", "always"]) == 0
+    assert req(u + "/runs")[0] == 401 and req(u + "/health")[0] == 200
+    assert req(u + "/runs", {"Authorization": "Bearer " + tok})[0] == 200
+    config.update({"reads_token": "auto"})                  # 푸는 쪽은 다음 시작 때(늦게 풀려도 안전하다)
+    assert req(u + "/runs")[0] == 200
+
+
+def test_tray_alerts_still_reach_a_helper_with_reads_token_always(srv, monkeypatch):
+    """setup이 공용 서버에서 reads_token always로 잠근다. ★트레이 알림(/events)만 토큰 없이 불러 조용히 끊겼다"""
+    pytest.importorskip("PIL")
+    from epokio import config, tray
+    go, tok = srv
+    u = go(False)
+    config.update({"reads_token": "always"})
+    seen = []
+    feed = tray.Feed(u, [])
+    monkeypatch.setattr(feed, "_local_token", lambda: tok)        # 증명(HMAC)은 test_tui가 본다. 여기선 실어 보내는지만
+    real = feed._get
+    monkeypatch.setattr(feed, "_get", lambda route, **q: seen.append(real(route, **q)) or seen[-1])   # 401이면 여기서 터진다
+    t = tray.Tray.__new__(tray.Tray)
+    t.agent, t.feed, t.seq, t.cfg = u, feed, None, {"notify": True}
+    t._events()
+    assert seen == [{"route": "/events"}]
+    assert req(u + "/events")[0] == 401                          # 토큰 없이는 막혀 있다

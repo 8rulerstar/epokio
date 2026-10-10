@@ -45,7 +45,7 @@ final class AgentLauncher {
             exe = py
             p.executableURL = URL(fileURLWithPath: py)
             // 앱이 비정상 종료돼도 agent가 스스로 끝난다. 앱에 든 agent만 넘긴다(pip으로 깔린 옛 판은 이 인자를 몰라 기동이 실패한다)
-            p.arguments = ["-m", "epokio.agent"] + args + ["--parent-pid", String(ProcessInfo.processInfo.processIdentifier)]
+            p.arguments = ["-m", "epokio.agent"] + args + ["--parent-pid", String(ProcessInfo.processInfo.processIdentifier), "--launch-runs"]   // 앱의 학습·대기열 화면은 이 도우미로 작업을 시작한다(pip 도우미는 epokio config launch_runs on)
             p.environment = ProcessInfo.processInfo.environment.merging(["PYTHONPATH": bundled.path, "PYTHONUNBUFFERED": "1"]) { $1 }   // ★버퍼에 남아 agent.log가 비어 있었다
         } else if let installed = Self.findAgent() {
             exe = installed

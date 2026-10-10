@@ -9,7 +9,7 @@ function perClassHTML(r, d) {
   if (!c) {
     if (!d.weights || d.framework !== "ultralytics") return "";
     return `<h3>${t("Per class")}</h3><p class="hint">${t("Which classes pull the score down. Runs Epokio starts save this at the end; for this one it takes one validation pass with best.pt.")}</p>`
-      + (local ? `<button class="btn needs-run" id="clscalc">${t("Work out per-class scores")}</button>` : `<p class="hint">${t("Start it on the machine that has this run.")}</p>`);
+      + (local ? `<button class="btn needs-run needs-launch" id="clscalc">${t("Work out per-class scores")}</button>` : `<p class="hint">${t("Start it on the machine that has this run.")}</p>`);
   }
   let h = `<h3>${t("Per class")}</h3><p class="hint">${c.source === "val" ? t("From a validation pass with best.pt.") : t("From the last validation of this run.")} ${t("Weakest first. Highlighted: well below the class average.")}</p>`;
   for (const x of c.heads) {

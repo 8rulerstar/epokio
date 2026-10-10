@@ -634,8 +634,8 @@ def test_a_read_only_token_hides_what_it_cannot_change():
     assert "body.readonly .needs-run { display: none !important; }" in css and "body.readonly .ro-note { display: block; }" in css
     assert 'if (r.status === 403 && j.code === "read_only") setReadOnly(true);' in html
     assert 'setReadOnly(j.scope !== "run")' in html and "if (!takeHashToken() && S.token) login();" in html
-    for marker in ('<div class="needs-run"><div class="inrow wrap"', 'id="addfolder" class="needs-run"', '<div class="actions needs-run"',
-                   '`<select id="vset" class="needs-run"', 'class="btn primary needs-run" id="vpromote"', 'class="btn needs-run" id="clscalc"',
+    for marker in ('<div class="needs-run"><div class="inrow wrap"', 'id="addfolder" class="needs-run"', '<div class="actions needs-run needs-launch"',
+                   '`<select id="vset" class="needs-run"', 'class="btn primary needs-run" id="vpromote"', 'class="btn needs-run needs-launch" id="clscalc"',
                    'needs-run" style="margin-left:12px" id="newrun"', 'data-op="cancel"', '<div class="inrow needs-run"><input class="in" id="hookurl"',
                    'class="btn small needs-run" id="report"', "if (S.readOnly) {"):
         assert marker in html, marker

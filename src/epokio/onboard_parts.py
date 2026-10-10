@@ -3,6 +3,7 @@ onboard.py가 400줄 상한에 닿아 떼어 냈다. 시험이 바꿔 끼우는 
 onboard.<이름>으로 부른다(doctor.py와 같은 방식)."""
 from __future__ import annotations
 
+import os
 import socket
 import sys
 from pathlib import Path
@@ -93,3 +94,48 @@ def port_closed(port: int) -> bool:
         return True
     except OSError:
         return False
+
+
+def other_logins() -> bool | None:
+    """이 기계에 로그인할 수 있는 다른 계정이 있나. None = 모른다(그때는 있다고 본다).
+    pwd에 안 나오는 LDAP·SSSD 계정은 /home에 남의 폴더가 있는지로 본다(lost+found 등 root 것은 뺀다)"""
+    try:
+        import pwd
+        me = os.getuid()
+        users = pwd.getpwall()
+    except (ImportError, AttributeError, OSError):
+        return None
+    shut = ("nologin", "false", "sync", "shutdown", "halt")
+    if any(u.pw_uid != me and 1000 <= u.pw_uid < 65534 and u.pw_shell and Path(u.pw_shell).name not in shut
+           for u in users):
+        return True
+    try:
+        return any(d.is_dir() and d.stat().st_uid not in (0, me) for d in Path("/home").iterdir())
+    except OSError:
+        return None if not users else False
+
+
+def lock_reads(skip: bool, interactive: bool) -> None:
+    """SSH로 들어온 리눅스 서버: 보는 것(GET)에도 토큰이 필요하게(reads_token always). 다른 계정이 없다고 확실하면 안 묻는다.
+    ★알리기만 해서(공용 서버에서 남이 127.0.0.1로 내 학습 목록·로그를 읽는다) 대부분 그대로 열려 있었다.
+    auto일 때만 손댄다(always는 이미 잠김, never는 사용자가 고른 것). 도는 도우미에도 바로 먹는다(server.reads_locked)"""
+    from . import config, onboard
+    from .autostart import cli
+    if config.load().get("reads_token") != "auto":
+        return
+    others = onboard.other_logins()
+    if others is False:
+        return
+    who = "Other accounts on this server" if others else "This may be a shared server. Other accounts"
+    print(f"\n  {who} can read your runs and logs from the helper on 127.0.0.1.")
+    if skip:
+        print(f"  Left open (--no-lock-reads). To ask for a token later:  {cli('config reads_token always')}")
+        return
+    if interactive and not onboard._yes("  Ask for a token to view them too? [Y/n] "):
+        print(f"  Left open. To ask for a token later:  {cli('config reads_token always')}")
+        return
+    config.update({"reads_token": "always"})
+    print("  Viewing now needs your token (the page asks once; the Mac app takes it with this server's address).")
+    print(f"    show it with:  {cli('agent --show-token')}")
+    if not interactive:
+        print(f"  To undo:  {cli('config reads_token auto')}  (after the helper restarts)")

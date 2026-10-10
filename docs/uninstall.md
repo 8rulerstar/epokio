@@ -18,5 +18,6 @@ Quitting the app also stops the helper it started. A helper you started yourself
 shortcut in your Startup folder: type `shell:startup` in the Run box). Quit the tray icon, stop the helper
 (`py -m epokio agent --stop` or `.\Epokio.exe agent --stop`), delete `Epokio.exe`, then the folder `%USERPROFILE%\.epokio`,
 and `py -m pip uninstall epokio` if you used pip.
-**Linux:** `epokio autostart --off` (removes the tray entry); on a server set up with `--autostart`, also
-`systemctl --user disable --now epokio` and `rm ~/.config/systemd/user/epokio.service`. Then `epokio agent --stop`, `rm -rf ~/.epokio` and `pip uninstall epokio`.
+**Linux:** `epokio autostart --off` (disables and removes the systemd user service, or the tray entry on a Linux without systemd).
+Then `epokio agent --stop`, `rm -rf ~/.epokio` and `pip uninstall epokio`.
+**macOS with pip:** `epokio autostart --off` removes the LaunchAgent that `setup --autostart` made.

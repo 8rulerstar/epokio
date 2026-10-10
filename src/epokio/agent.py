@@ -151,8 +151,9 @@ class Agent(Watcher):
             from . import __version__
             # epokio: package version. setup and the tray restart an old helper if it differs from theirs
             #   Previously, after a pip upgrade the old helper kept running, served the new web page and loaded new modules (500s)
+            # launch_runs: whether this helper starts jobs. The web page hides Train, Queue and Sweeps when it is off
             return {"ok": True, "label": self.label, "version": VERSION, "api": VERSION, "epokio": __version__,
-                    "boot": self.boot}
+                    "boot": self.boot, "launch_runs": config.launch_runs(self.launch_flag)}
         if route == "/runs":
             import time
             hit = getattr(self, "_runs_cache", None)
@@ -292,7 +293,19 @@ class Agent(Watcher):
     RUN_REFUSED = (403, {"error": "This helper is open to the network, so it does not run training, scripts or models. "
                                   "Restart it with --allow-run to allow that, or use it from this machine (127.0.0.1)."})
 
+    # Starting jobs is off unless turned on (config.launch_runs). Routes: jobs_queue.LAUNCH_ROUTES
+    launch_flag = False         # --launch-runs (the Mac app passes it to the helper it starts)
+
+    def launch_refused(self) -> tuple[int, dict]:
+        cmd = autostart.short_home(autostart.cli(config.LAUNCH_CMD))     # a venv path can hold the user name
+        return 403, {"code": "launch_off", "cmd": cmd,
+                     "error": "Starting training, queue jobs and sweeps from the helper is off. Epokio only watches the logs you "
+                              f"already have. To turn it on, run this on the training machine: {cmd}"}
+
     def post(self, route: str, body: dict):
+        from .jobs_queue import LAUNCH_ROUTES
+        if route in LAUNCH_ROUTES and not config.launch_runs(self.launch_flag):
+            return self.launch_refused()
         # A helper open to the network (--host 0.0.0.0, --lan) does not run code without --allow-run (jobs_queue.CODE_KINDS).
         # The queue gate (Queue.add) blocks it; /predict (bypasses the queue) and /sweeps (adds trials later) are blocked here
         from .jobs_queue import RunRefused, runs_code
@@ -314,7 +327,8 @@ class Agent(Watcher):
                 self.pace.wake.set()
             return 200, {"ok": True}
         if route == "/config":
-            c = config.update(body)
+            # launch_runs is changed only on this machine (epokio config), never by a request
+            c = config.update({k: v for k, v in body.items() if k != "launch_runs"})
             config.apply(c)
             self._runs_cache = None
             if getattr(self, "pace", None):

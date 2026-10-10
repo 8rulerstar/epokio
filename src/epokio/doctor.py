@@ -7,7 +7,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-from . import autostart, onboard   # agent_health 등은 onboard.<이름>으로 부른다(시험이 onboard 쪽을 바꿔 끼운다)
+from . import autostart, onboard, service   # agent_health 등은 onboard.<이름>으로 부른다(시험이 onboard 쪽을 바꿔 끼운다)
 
 
 def doctor(argv: list[str] | None = None) -> int:
@@ -19,6 +19,8 @@ def doctor(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="epokio doctor", description="Print what Epokio sees, for a bug report.")
     ap.add_argument("--port", type=int, default=None, help=f"the helper's port (default: the running one, else {onboard.PORT})")
     ap.add_argument("--json", action="store_true", help="print JSON instead of text")
+    ap.add_argument("--test-alert", action="store_true",
+                    help="also send a real test alert to every saved webhook, to confirm your phone gets it")
     a = ap.parse_args(argv)
     if a.port is None:
         # ★8787로 고정해, 다른 포트로 뜬 도우미를 '안 돈다'고 오진했다(epokio watch는 agent.json을 읽어 잘 찾았다)
@@ -62,7 +64,7 @@ def doctor(argv: list[str] | None = None) -> int:
         "webhooks": hooks,
         "token_file": (Path.home() / ".epokio" / "token").exists(),
         "allowed_hosts": os.environ.get("EPOKIO_ALLOWED_HOSTS", ""),
-        "autostart": autostart.enabled() if autostart.supported() else None,
+        "autostart": service.status(),
         "pythons": [{"path": e["path"], "ready": e["ready"]} for e in envs.list_envs()],
         "log_tail": tail,
     }
@@ -71,35 +73,84 @@ def doctor(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(errors="replace")
     except (AttributeError, ValueError):
         pass
+    # The output is meant to be pasted into a public issue: paths under the home folder become ~ (they hold the user name)
+    def say(*parts):
+        print(_private(" ".join(map(str, parts))))
     if a.json:
-        print(json.dumps(info, ensure_ascii=False, indent=1))
-        return 0
-    print(f"Epokio {info['epokio']} | Python {info['python']} | {info['os']}")
-    print(f"  installed at {info['install']}")
+        print(json.dumps(_scrub(info), ensure_ascii=False, indent=1))
+        return _test_alert() if a.test_alert else 0
+    say(f"Epokio {info['epokio']} | Python {info['python']} | {info['os']}")
+    say(status_line(info))
+    say(f"  installed at {info['install']}")
     hp = info["helper"]
     if hp["running"]:
         warn = "" if hp["epokio"] == info["epokio"] else f"   ! different from this install; run `{autostart.cli('setup')}` to restart it"
-        print(f"  helper: running on port {hp['port']} | {hp['epokio']} | label {hp['label']}{warn}")
+        say(f"  helper: running on port {hp['port']} | {hp['epokio']} | label {hp['label']}{warn}")
     else:
-        print(f"  helper: NOT running on port {hp['port']}  (start it with `{autostart.cli('setup')}`)")
+        say(f"  helper: NOT running on port {hp['port']}  (start it with `{autostart.cli('setup')}`)")
     w = info["watching"] or {}
     if "runs" in w:
-        print(f"  watching {w['runs']} runs in {len(w['roots'])} folders:")
+        say(f"  watching {w['runs']} runs in {len(w['roots'])} folders:")
         for r in w["roots"]:
-            print(f"    {r}{'' if Path(r).exists() else '   ! missing'}")
-    print(f"  saved folders: {', '.join(roots) or 'none'}")
+            say(f"    {r}{'' if Path(r).exists() else '   ! missing'}")
+    say(f"  saved folders: {', '.join(roots) or 'none'}")
     wh = info["webhooks"]
-    print("  phone alerts: " + (wh["error"] if "error" in wh else f"{wh['saved']} webhooks saved"
+    say("  phone alerts: " + (wh["error"] if "error" in wh else f"{wh['saved']} webhooks saved"
                                 + (f" ({wh['saved'] - wh['usable']} not usable)" if wh["usable"] < wh["saved"] else "")))
-    print(f"  token file: {'yes' if info['token_file'] else 'no'} | allowed hosts: {info['allowed_hosts'] or '-'}"
-          f" | start at login: {info['autostart']}")
-    print(f"  pythons for training: " + (", ".join(f"{p['path']}{'' if p['ready'] else ' (no ultralytics)'}"
+    say(f"  token file: {'yes' if info['token_file'] else 'no'} | allowed hosts: {info['allowed_hosts'] or '-'}")
+    say(f"  pythons for training: " + (", ".join(f"{p['path']}{'' if p['ready'] else ' (no ultralytics)'}"
                                                  for p in info["pythons"]) or "none found"))
-    print(f"\n  last lines of {logf}:" if tail else f"\n  no log yet at {logf}")
+    say(f"\n  last lines of {logf}:" if tail else f"\n  no log yet at {logf}")
     for line in tail:
         # 옛 agent.log의 가운뎃점은 한국어 윈도우 콘솔·파이프에서 깨져 보였다(��). 출력 인코딩에 없는 글자는 ASCII로
-        print("    " + _console_safe(line.replace("·", "|")))
+        say("    " + _console_safe(line.replace("·", "|")))
+    if a.test_alert:
+        say()
+        return _test_alert()
+    if hooks.get("usable"):
+        say(f"\n  To check that alerts reach your phone:  {autostart.cli('doctor --test-alert')}")
     return 0
+
+
+def _private(text: str) -> str:
+    """The home folder becomes ~ wherever it starts a path, also inside quotes (a report, not a command to paste back)"""
+    import re
+    home = os.path.expanduser("~").rstrip("\\/")
+    if len(home) < 3:
+        return text
+    return re.sub(r"(?<![\w/\\.])" + re.escape(home) + r"(?=$|[\\/\s'\",\])])", "~", text, flags=re.I if os.name == "nt" else 0)
+
+
+def _scrub(v):
+    """JSON for a bug report: home paths become ~ in every string (user names stay off public issues)"""
+    if isinstance(v, dict):
+        return {k: _scrub(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_scrub(x) for x in v]
+    return _private(v) if isinstance(v, str) else v
+
+
+def status_line(info: dict) -> str:
+    """한 줄: 도우미가 지금 도나 · 로그아웃·재부팅 뒤에도 도나(자동 시작) · 알림 주소가 있나.
+    ★'알림이 안 와요'의 대부분이 이 셋 중 하나였는데, 예전 출력은 흩어져 있어 한눈에 안 보였다"""
+    hp, wh = info["helper"], info["webhooks"]
+    now = f"running now on port {hp['port']}" if hp["running"] else "NOT running"
+    alerts = (wh["error"] if "error" in wh else
+              f"{wh['usable']} webhook{'' if wh['usable'] == 1 else 's'}" if wh["usable"] else "none saved")
+    line = f"  Helper: {now} | autostart: {service.summary(info['autostart'])} | phone alerts: {alerts}"
+    todo = []
+    if not hp["running"]:
+        todo.append(f"start it: {autostart.cli('setup')}")
+    if not wh.get("usable") and "error" not in wh:
+        todo.append(f"add alerts: {autostart.cli('alerts --add https://ntfy.sh/<your-topic>')}")
+    return line + ("\n  Next: " + " | ".join(todo) if todo else "")
+
+
+def _test_alert() -> int:
+    """저장한 모든 웹후크로 진짜 시험 알림을 보낸다(사용자가 --test-alert로 청했을 때만). 하나라도 실패하면 1"""
+    from .alerts_cli import main as alerts
+    print("Sending a test alert to every saved webhook:")
+    return alerts(["--test"])
 
 
 def _console_safe(text: str, enc: str | None = None) -> str:

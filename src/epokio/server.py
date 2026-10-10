@@ -104,6 +104,13 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
     # Read the web page once at start. Reading it per request made an old helper serve the new page after a pip upgrade (page/code mismatch)
     page = (Path(__file__).parent / "web" / "index.html").read_bytes()
 
+    def reads_locked() -> bool:
+        """Viewing needs a token: decided at start (--require-token, --lan), or `epokio config reads_token always` at any time.
+        Previously "always" was read only at start, so on a shared server it waited for a helper restart (and --autostart restarts
+        nothing). Only tightening is live; auto and never still take effect at the next start"""
+        from . import config
+        return reads_need_token or config.load().get("reads_token") == "always"
+
     class Handler(BaseHTTPRequestHandler):
         _enc: list = []                                   # the last few (payload, gzip flag, bytes)
 
@@ -167,7 +174,8 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
             u = urlparse(self.path)
             static = u.path in ("/", "/index.html") or u.path.startswith("/web/")
             # Reads with a header token skip the Host check (a rebinding page does not know the token; MagicDNS etc.). POST always checks Host
-            host_fine = host_ok(self.headers.get("Host"), reads_need_token) and (static or self._host_ok())
+            locked = reads_locked()
+            host_fine = host_ok(self.headers.get("Host"), locked) and (static or self._host_ok())
             if not host_fine and not auth.check(self.headers.get("Authorization")):
                 return self._send(403, {"error": "unknown host name", "hint": "Open Epokio by this machine's IP address or name, "
                                         "or set EPOKIO_ALLOWED_HOSTS on this machine to the name you use."})
@@ -189,12 +197,13 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
                 # Only for pages opened on this machine: the command that shows the token (autostart.cli: exe, venv or py form). The web lock card
                 #   said epokio-agent --show-token, not on PATH on Windows. The venv path may contain the user name, so it is not sent outside
                 from .autostart import cli, short_home       # venv paths with the user name become ~
-                return self._send(200, {**agent.get("/health", {}), "token_cmd": short_home(cli("agent --show-token"))})
-            if reads_need_token and u.path not in OPEN_PATHS and not u.path.startswith("/web/") \
+                return self._send(200, {**agent.get("/health", {}), "token_cmd": short_home(cli("agent --show-token")),
+                                        "launch_cmd": short_home(cli("config launch_runs on"))})
+            if locked and u.path not in OPEN_PATHS and not u.path.startswith("/web/") \
                     and not auth.check_request(self.headers):
                 return self._send(401, {"error": "token required"})
             self.give_cookie = auth.presented(self.headers) if (
-                reads_need_token and auth.COOKIE not in (self.headers.get("Cookie") or "")) else ""
+                locked and auth.COOKIE not in (self.headers.get("Cookie") or "")) else ""
             if u.path in ("/", "/index.html"):   # web page: open http://machine:8787/ in a browser (Windows, Linux, phone)
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -258,7 +267,7 @@ def make_handler(agent: Agent, reads_need_token: bool = False):
                 self.close_connection = True
                 return self._send(413, {"error": f"body must be under {MAX_BODY // 1_000_000} MB"})
             raw = self.rfile.read(n) if n > 0 else b""
-            if not host_ok(self.headers.get("Host"), reads_need_token) or not self._host_ok():
+            if not host_ok(self.headers.get("Host"), reads_locked()) or not self._host_ok():
                 return self._send(403, {"error": "unexpected Host header"})
             scope = auth.post_scope(self.headers.get("Authorization"))
             if scope is None:

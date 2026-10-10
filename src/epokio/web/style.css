@@ -320,6 +320,10 @@ input.in:focus, select.in:focus { outline: 2px solid var(--accent); outline-offs
 /* ── 6차 손질: 보기 전용 토큰 · 불러오는 중 · 빈 화면 그림 · 상태 바뀜 · 상세 바꿀 때. 시간은 토큰(--m-*), 줄이면 멈춤 ── */
 /* 보기 전용 토큰이면 바꾸는 단추를 숨기고 이유를 한 줄로 보인다(server.py /login의 scope, 403 code read_only) */
 body.readonly .needs-run { display: none !important; }
+/* 작업 시작이 꺼진 도우미(config.launch_runs): 학습·대기열·스윕 탭과 시작 단추를 숨기고 켜는 법을 보인다 */
+body.nolaunch nav [data-launch], body.nolaunch .needs-launch { display: none !important; }
+.launch-note { display: none; }
+body.nolaunch .launch-note { display: block; }
 .ro-note { display: none; margin: 8px 0 0; }
 body.readonly .ro-note { display: block; }
 .pill.ro { --c: var(--soft); white-space: nowrap; flex: none; animation: fade var(--m-change) both; }

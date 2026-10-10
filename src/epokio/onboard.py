@@ -26,7 +26,7 @@ from pathlib import Path
 from . import auth, autostart
 from .autostart import cli
 from .discover import find_roots, remember_roots, saved_roots  # noqa: F401  (onboard_parts가 onboard.<이름>으로 부른다)
-from .onboard_parts import choose_port, found_roots, lan_ip, owner, port_closed, systemd_unit, unit_file  # noqa: F401  (onboard.<이름>으로도 부른다)
+from .onboard_parts import choose_port, found_roots, lan_ip, lock_reads, other_logins, owner, port_closed, systemd_unit, unit_file  # noqa: F401  (onboard.<이름>으로도 부른다)
 from .port import agent_proof, may_send_token, url_for
 
 PORT = 8787
@@ -163,10 +163,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", action="append", default=None,
                     help="a folder holding training runs (repeatable). Found automatically if omitted")
     ap.add_argument("--lan", action="store_true",
-                    help="let other machines on your network watch this one (needed for the Mac app)")
+                    help="let other computers and phones on your network watch this one (the Mac app on this same Mac does not need it)")
     ap.add_argument("--allow-run", action="store_true",
                     help="with --lan: also run training and scripts sent from other machines (refused by default)")
-    ap.add_argument("--autostart", action="store_true", help="also start the tray when you log in")
+    ap.add_argument("--autostart", action="store_true",
+                    help="keep the helper running after logout and reboot, no sudo (systemd user service on Linux, "
+                         "LaunchAgent on macOS, Startup folder on Windows)")
+    ap.add_argument("--no-autostart", action="store_true", help="do not ask about --autostart")
+    ap.add_argument("--no-lock-reads", action="store_true",
+                    help="over SSH on Linux: do not ask for a token to view (other accounts on the server can read your runs)")
     ap.add_argument("--no-browser", action="store_true", help="do not open the page")
     ap.add_argument("--port", type=int, default=None, help=f"port for the helper (default {PORT}, or the next free one)")
     ap.add_argument("--label", help="name this machine shows as, e.g. 'lab-07' (default: the computer name). "
@@ -204,7 +209,8 @@ def main(argv: list[str] | None = None) -> int:
     # 2. agent
     host = "0.0.0.0" if a.lan else "127.0.0.1"
     print()
-    via_systemd = a.autostart and headless() and autostart.supported()
+    from . import service
+    via_systemd = a.autostart and service.kind() in ("systemd", "launchd")    # the service starts the helper
     # 내 토큰을 증명한 도우미만 다시 쓴다. 남의 것(공용 서버)·다른 프로그램이면 다음 빈 포트에 내 것을 띄운다
     a.port, mine, note = choose_port(a.port or PORT, a.port is not None)
     if note:
@@ -228,8 +234,8 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"  It did not take the folder. Restart it:  {cli('agent --stop')}  then  {cli('setup')}")
     elif via_systemd:
-        # ★여기서 띄우고 아래 systemd 서비스도 켜면 같은 포트에 둘이 떠서 서비스가 '실패'로 끝났다. systemd가 띄우게 둔다
-        print("  The helper will be started by systemd (see below).")
+        # ★여기서 띄우고 아래 systemd 서비스도 켜면 같은 포트에 둘이 떠서 서비스가 '실패'로 끝났다. 서비스가 띄우게 둔다
+        print("  The helper will be started as a service (see below).")
     else:
         print("  Starting the helper...")
         start_agent(roots, host, a.port, allow_run=a.allow_run)
@@ -239,39 +245,22 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print("  Started.")
 
-    # 3. 로그인할 때 트레이
+    # 3. 로그아웃·재부팅 뒤에도 도우미가 돌게(service.py). ★알림은 도우미가 돌 때만 간다. SSH를 끊거나 다시 켜면 조용히 끊겼다
     if a.autostart:
         print()
-        import importlib.util
-        if not autostart.supported():
-            print("  Start at login is for Windows and Linux only.")
-        elif headless():
-            # ★화면 없는 서버에 트레이 바로 가기(.desktop)를 만들고 "로그인 때 뜬다"고 했지만 영영 안 떴다
-            unit = unit_file()
-            existed = unit.exists()
-            unit.parent.mkdir(parents=True, exist_ok=True)
-            unit.write_text(systemd_unit(roots, host, a.port, a.allow_run), encoding="utf-8")
-            print(f"  No desktop here, so instead of a tray this wrote a systemd service: {unit}")
-            print("  Turn it on. The first line keeps it running after you log out and after reboots:")
-            print("    sudo loginctl enable-linger $USER")
-            print("    systemctl --user daemon-reload && systemctl --user enable --now epokio")
-            if agent_alive(a.port) and existed:
-                # ★도는 도우미가 바로 이 서비스인데 '먼저 끄라'고만 해서, --lan을 뺀 뒤에도 옛 도우미가 0.0.0.0에 계속 열려 있었다
-                print("  The service is already running with the old settings. Apply the new ones now:")
-                print("    systemctl --user daemon-reload && systemctl --user restart epokio")
-            elif agent_alive(a.port):
-                print(f"  A helper is already running on port {a.port}. Stop it first, or the service cannot start.")
-        elif not getattr(sys, "frozen", False) and importlib.util.find_spec("pystray") is None:
-            # ★트레이 패키지 없이 켜 두면 로그인 때 트레이가 조용히 꺼져, 재부팅 뒤 아무것도 안 돌았다
-            print("  The tray needs one more package. Run:  " + autostart.pip_cmd('"epokio[tray]"'))
-            print("  then run setup again with --autostart.")
+        _autostart(roots, host, a.port, a.allow_run, via_systemd)
+    elif not a.no_autostart and service.kind() and not service.status()["installed"]:
+        print()
+        if sys.stdin.isatty() and sys.stdout.isatty() and _yes("  Keep the helper running after logout and reboot? (no sudo needed) [Y/n] "):
+            _autostart(roots, host, a.port, a.allow_run, False)
         else:
-            try:
-                autostart.enable()
-                print("  The tray will start when you log in.")
-                print(f"    turn it off with:  {cli('autostart --off')}")
-            except OSError as e:
-                print(f"  Could not set start at login: {e}")
+            print("  The helper stops at reboot" + (" and when you log out." if headless() else ".")
+                  + " Alerts need it running. Keep it running (no sudo):")
+            print(f"    {cli('setup --autostart')}")
+
+    # 3b. 공용 서버: 다른 계정이 127.0.0.1로 내 학습을 읽지 못하게(onboard_parts.lock_reads). 화면 있는 기계·--lan(이미 토큰)은 그대로
+    if headless() and sys.platform.startswith("linux") and not a.lan:
+        lock_reads(a.no_lock_reads, sys.stdin.isatty() and sys.stdout.isatty())
 
     # 4. 어디서 보나
     url = f"http://127.0.0.1:{a.port}/"
@@ -326,41 +315,56 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _yes(question: str) -> bool:
+    try:
+        return input(question).strip().lower() in ("", "y", "yes")
+    except (EOFError, OSError):
+        return False
+
+
+def _autostart(roots: list[Path], host: str, port: int, allow_run: bool, via_service: bool) -> None:
+    """--autostart: 서비스를 깔고 켠다. 못 켰는데 아무도 안 돌면 지금은 직접 띄운다(★systemd에 맡기고 아무것도 안 떠 있었다)"""
+    from . import service
+    if service.kind() is None:                      # systemctl 없는 리눅스: 옛 트레이 .desktop
+        if not autostart.tray_ready():
+            print("  This Linux has no systemd, and the tray needs one more package. Run:  " + autostart.pip_cmd('"epokio[tray]"'))
+            print("  then run setup again with --autostart.")
+            return
+        try:
+            autostart.enable()
+            print("  The tray will start when you log in.")
+            print(f"    turn it off with:  {cli('autostart --off')}")
+        except OSError as e:
+            print(f"  Could not set start at login: {e}")
+        return
+    up = service.install(roots, host, port, allow_run, running=agent_alive(port))
+    if via_service and not up:
+        start_agent(roots, host, port, allow_run=allow_run)
+        print("  Started the helper for now." if wait_for_agent(port) else f"  The helper did not answer. Try:  {cli('agent')} --port {port}")
+
+
 def doctor(argv: list[str] | None = None) -> int:
     from .doctor import doctor as run      # 400줄 상한으로 doctor.py에 떼어 냈다. 옛 이름도 되게
     return run(argv)
 
 
 def autostart_main(argv: list[str] | None = None) -> int:
+    from . import service
     ap = argparse.ArgumentParser(prog="epokio autostart",
-                                 description="Start the Epokio tray when you log in.")
+                                 description="Keep the Epokio helper running after logout and reboot, without sudo.")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--on", action="store_true", help="turn it on")
     g.add_argument("--off", action="store_true", help="turn it off")
     a = ap.parse_args(argv)
-
-    if not autostart.supported():
-        print("Start at login is for Windows and Linux only.")
-        print("On a Mac the app handles this, and you can change it in System Settings, Login Items.")
-        return 1
-    if a.on and headless() and sys.platform.startswith("linux"):
-        # ★화면 없는 서버에 트레이 바로 가기를 만들고 "로그인 때 뜬다"고 했지만 영영 안 떴다(setup은 이미 고쳤다)
-        print("This machine has no desktop, so a tray cannot start here. Use a systemd service instead:")
-        print(f"  {cli('setup --autostart')}")
-        return 1
-    if headless() and sys.platform.startswith("linux") and unit_file().exists():
-        # ★화면 없는 서버에서 --off가 'It was not on.'이라 하고, setup이 만든 systemd 서비스는 그대로 돌았다
-        print(f"Here Epokio starts as a systemd service ({unit_file()}).")
-        if a.off:
-            print("Turn it off with:\n  systemctl --user disable --now epokio")
-            print(f"  rm {unit_file()} && systemctl --user daemon-reload")
-        return 0
     if a.on:
-        p = autostart.enable()
-        print(f"On. The tray will start when you log in.\n  {p}")
-    elif a.off:
-        print("Off." if autostart.disable() else "It was not on.")
-    else:
-        print(f"{'On' if autostart.enabled() else 'Off'}.  ({autostart.entry()})")
-        print(f"  {cli('autostart --on')}    /    --off")
+        from .port import read_record
+        rec = read_record()
+        port = rec["port"] if rec and agent_alive(rec["port"]) else PORT
+        _autostart([], "127.0.0.1", port, False, service.kind() in ("systemd", "launchd"))
+        return 0
+    if a.off:
+        print("Off." if service.remove() else "It was not on.")
+        return 0
+    print(f"Start at login: {service.summary()}")
+    print(f"  {cli('autostart --on')}    /    --off")
     return 0

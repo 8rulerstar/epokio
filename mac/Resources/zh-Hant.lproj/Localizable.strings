@@ -1377,3 +1377,9 @@
 "Epochs / steps" = "Epoch / 步數";
 "%d large log files: only the last part was loaded" = "%d 個大型紀錄檔：只載入了最後一部分";
 "Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "與最佳分數比較，也就是已儲存的最佳模型（best.pt）的分數。對於分割、姿態與分類，它可能略低於該欄的最高值。";
+"Starting jobs is off on this helper" = "此助手已關閉啟動任務";
+"Epokio is only watching your logs here. Turn this on to start training and queue jobs from the app. It is the same as running %@." = "這裡 Epokio 只查看你的日誌。開啟後可從 App 開始訓練並加入佇列。等同於執行 %@。";
+"Run this on that machine to start training there: %@" = "在那台機器上執行以下指令即可在那裡訓練：%@";
+"Turn on" = "開啟";
+"Could not read ~/.epokio/config.json. Run this in Terminal instead: %@" = "無法讀取 ~/.epokio/config.json。請改在終端機執行：%@";
+"Starting jobs is off on this helper. Turn it on at the top of New training or Queue, or run: %@" = "此助手已關閉啟動任務。請在新增訓練或佇列頂端開啟，或執行：%@";

@@ -1371,3 +1371,9 @@
 "Epochs / steps" = "エポック / ステップ";
 "%d large log files: only the last part was loaded" = "大きなログファイル %d 件：末尾部分のみ読み込みました";
 "Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "最高スコア、つまり保存された最良モデル（best.pt）のスコアと比べます。セグメンテーション・姿勢推定・分類では、その列の最高値より少し低いことがあります。";
+"Starting jobs is off on this helper" = "このヘルパーではジョブの開始がオフです";
+"Epokio is only watching your logs here. Turn this on to start training and queue jobs from the app. It is the same as running %@." = "ここでは Epokio はログを見守るだけです。アプリから学習を開始してキューに入れるにはオンにしてください。%@ と同じです。";
+"Run this on that machine to start training there: %@" = "そのマシンでこれを実行すると学習を開始できます: %@";
+"Turn on" = "オンにする";
+"Could not read ~/.epokio/config.json. Run this in Terminal instead: %@" = "~/.epokio/config.json を読めませんでした。代わりにターミナルで実行してください: %@";
+"Starting jobs is off on this helper. Turn it on at the top of New training or Queue, or run: %@" = "このヘルパーではジョブの開始がオフです。新しい学習またはキューの上部でオンにするか、次を実行してください: %@";

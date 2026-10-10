@@ -18,7 +18,6 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.request
 import webbrowser
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -233,8 +232,8 @@ class Tray:
 
     def _events(self):
         try:
-            with urllib.request.urlopen(f"{self.agent}/events?since={self.seq or 0}", timeout=4) as f:
-                d = json.loads(f.read())
+            # 학습 목록과 같은 길로(내 도우미면 토큰을 싣는다). ★토큰 없이 불러 reads_token always인 도우미에선 알림이 조용히 끊겼다
+            d = self.feed._get("events", since=self.seq or 0)
         except OSError:
             return
         first = self.seq is None

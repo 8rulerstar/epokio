@@ -13,6 +13,9 @@ claude mcp add epokio -- epokio-mcp
 
 Then ask things like *"How did last night's training go?"* or *"Auto-label this folder with my best model."*
 
+The MCP server runs only if you add it as above. Its tools that start jobs (`start_training`, `auto_label`) are refused
+until you run `epokio config launch_runs on` on the training machine; reading runs works without it.
+
 | Look | Do (the tools tell your assistant to ask you first; whether it does is up to the assistant) |
 |---|---|
 | `list_runs`, `analyze_run`, `system_status`, `queue_status`, `job_log`, `python_envs`, `check_filenames` | `start_training`, `auto_label`, `cancel_job`, `export_report` |

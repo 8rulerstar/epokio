@@ -22,7 +22,7 @@ No Python on Windows: run `Epokio.exe setup --lan --autostart` instead.
 
 `epokio setup` finds your training folders, starts the helper without a console window, prints a
 view-only token to paste into the Mac app (with `--lan`), and opens the page. `--lan` lets other machines on your network
-reach it; `--autostart` brings the tray back when you log in. Run it again any time, it changes
+reach it; `--autostart` keeps the helper running after logout and reboot, without sudo. Run it again any time, it changes
 nothing that is already right.
 
 **Nothing to install on the server?** In the Mac app, open **Settings → Machines → Over SSH** and pick a host
@@ -78,7 +78,7 @@ progress, scores, curves, result images, comparisons and phone alerts.
 
 **Never used a terminal? On Windows:** download `Epokio.exe` from
 [Releases](https://github.com/8rulerstar/epokio/releases/latest) and double-click it. It needs no Python to watch.
-To train from the Train tab, install Python 3.10 or later first; the tab then sets up PyTorch and Ultralytics with one button. Windows SmartScreen may warn about an
+To train from the Train tab, turn it on first (`epokio config launch_runs on`) and install Python 3.10 or later; the tab then sets up PyTorch and Ultralytics with one button. Windows SmartScreen may warn about an
 unsigned app the first time: choose **More info → Run anyway**.
 
 **With Python** (3.10 or later; from [python.org](https://www.python.org/downloads/), tick **Add python.exe to PATH**):
@@ -111,8 +111,11 @@ python3 -m venv ~/.epokio-venv
 ~/.epokio-venv/bin/python -m epokio setup --root /data/runs --autostart
 ```
 
-On a machine without a display, `--autostart` writes a systemd user service instead of a tray entry
-and prints the two commands that turn it on. Setup does not open a browser there; it prints an
+On Linux, `--autostart` writes a systemd user service (`~/.config/systemd/user/epokio.service`), enables and starts it,
+and turns on linger so it keeps running after you log out (`loginctl enable-linger $USER`, no sudo on most servers;
+if it is refused, an admin runs `sudo loginctl enable-linger <you>` once). Where systemd cannot be reached it prints the
+commands instead and starts the helper for now. On macOS it writes a LaunchAgent (`~/Library/LaunchAgents/`), which runs while
+you are logged in. `epokio doctor` shows in one line whether the helper runs now and whether it will come back. Setup does not open a browser there; it prints an
 `ssh -N -L 18787:127.0.0.1:8787 <server>` command, and then `http://127.0.0.1:18787/` works on your own
 computer. That tunnel is the safest way in:
 
@@ -152,11 +155,11 @@ Logging never stops your training, even when the file is busy. In multi-GPU trai
 **A web page.** On the training PC open `http://127.0.0.1:8787/` (setup opens it for you). From your phone or another computer, use the address setup printed (needs `--lan`). Any browser works, with nothing to install and no account.
 
 * **Runs and Table:** progress, scores, curves, notes and result images for every run, and a sortable table you can filter (`lr0<0.01 batch>=16 tag:sample`).
-* **Train and Queue:** pick what the model should learn and how big it is. Epokio checks the dataset first and stops you if it is broken. With no Python for training yet, one button sets one up (CUDA PyTorch on a PC with an NVIDIA GPU). The queue shows each job's log, epoch, time left and finish time; reorder or cancel what is waiting, and stop the running job after a confirmation. When a job fails, it says why and what to change (GPU out of memory, data loader workers on Windows, CPU-only PyTorch, wrong dataset paths and more).
+* **Train and Queue** (off until you run `epokio config launch_runs on` on the training machine; the tabs are hidden until then): pick what the model should learn and how big it is. Epokio checks the dataset first and stops you if it is broken. With no Python for training yet, one button sets one up (CUDA PyTorch on a PC with an NVIDIA GPU). The queue shows each job's log, epoch, time left and finish time; reorder or cancel what is waiting, and stop the running job after a confirmation. When a job fails, it says why and what to change (GPU out of memory, data loader workers on Windows, CPU-only PyTorch, wrong dataset paths and more).
 * **Train again and Resume:** an Ultralytics run's page trains again with the same settings, and a run stopped before its last epoch resumes from `weights/last.pt` in the same folder with the Python that first ran it.
 * **Main score:** choose which logged value counts as the score, whether lower is better (loss, error rate), and a target that sends a phone alert. The list, ranking and alerts follow it. The page says which column was picked automatically and why. From a terminal: `epokio score <run> <column> [--lower]` for one run, or give a folder of runs to set the default for every run under it (`--auto` forgets the choice, `--list` shows the columns).
 * **Compare:** up to eight runs on one chart with only the settings that differ, a warning when they used different data, a settings table for every run shown, and CSV export.
-* **Review and Sweeps:** rank validation images by score and mark what went wrong, or run a sweep and see which values led to the best score.
+* **Review and Sweeps:** rank validation images by score and mark what went wrong, or run a sweep and see which values led to the best score (sweeps and new checks need `launch_runs` on too).
 * **Alerts:** turn on phone alerts (ntfy, Slack, Discord or Telegram) without the Mac app.
 
 On the training PC the page opens unlocked from the tray or setup. On another device it asks for the machine's token once (setup prints it with `--lan`, or run `py -m epokio agent --show-token`; `Epokio.exe agent --show-token` without Python), and the token stays in that browser. Train finds the Python environments on the machine (conda, python.org installs, project `.venv`s) and builds its settings from that environment's own Ultralytics.

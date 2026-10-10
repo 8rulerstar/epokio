@@ -22,21 +22,34 @@ Only the latest release gets fixes. There are no maintained older branches.
 Most of what Epokio does is "read files and show them", but two parts are worth
 understanding before you decide how to run it.
 
-**The agent's token is a key to running code on that machine.** The agent
+**The agent's main token can be a key to running code on that machine.** The agent
 (`epokio agent`, also started automatically by the macOS app) exposes an HTTP API. Read
-requests return run folders, metrics and log files. Write requests queue jobs, and a
+requests return run folders, metrics and log files. Write requests can queue jobs, and a
 job's whole purpose is to start a process: a training command, an evaluation, an export,
-or a generated Python script. So whoever holds the token can execute code on the machine
-as the user who runs the agent. Treat the token like an SSH key, not like a session
-cookie.
+or a generated Python script. When starting jobs is on, whoever holds the main token (or a
+`--scope run` token) can execute code on the machine as the user who runs the agent. Treat
+those tokens like an SSH key, not like a session cookie.
 
 How that is contained by default:
+
+- Starting jobs is **off** (`launch_runs`). The agent answers 403 `launch_off` to every
+  request that would start one until someone on that machine runs
+  `epokio config launch_runs on`, or the macOS app's Turn on button writes the same value
+  to `~/.epokio/config.json`. `POST /config` cannot change it. The helper the macOS app
+  starts itself passes `--launch-runs`.
+- Tokens made with `epokio agent --add-token` are view-only unless made with
+  `--scope run`, and a token limited to folders (`--root`) is always view-only.
 
 - The agent binds **127.0.0.1**. Nothing outside the machine can reach it unless you
   pass `--host 0.0.0.0` yourself.
 - The token lives in `~/.epokio/token`, created with owner-only permissions. A token
   file left world readable by an older version is corrected on startup.
 - Writes always require the token, including over loopback.
+- On loopback, reads do **not** require a token by default, so on a machine other people
+  can log in to (a shared GPU server), their accounts can read your run list and logs
+  through `127.0.0.1`. `epokio config reads_token always` closes that at once. Over SSH
+  on Linux, `epokio setup` turns it on when other accounts can log in or it cannot tell
+  (it asks in a terminal; `--no-lock-reads` skips it).
 - When the agent is bound to a non-loopback address, reads require the token too. The
   web page itself and `/health` stay open so you have somewhere to enter it.
   `--open-reads` relaxes read requests, and is meant only for a network you trust.

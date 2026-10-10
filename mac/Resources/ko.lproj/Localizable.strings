@@ -1380,3 +1380,9 @@
 "Epochs / steps" = "에폭 / 스텝";
 "%d large log files: only the last part was loaded" = "큰 기록 파일 %d개: 끝부분만 불러옴(앞쪽 기록 없음)";
 "Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "최고 점수, 곧 저장된 가장 좋은 모델(best.pt)의 점수와 비교합니다. 분할·포즈·분류에서는 그 열의 가장 높은 값보다 조금 낮을 수 있습니다.";
+"Starting jobs is off on this helper" = "이 도우미는 작업 시작이 꺼져 있습니다";
+"Epokio is only watching your logs here. Turn this on to start training and queue jobs from the app. It is the same as running %@." = "여기서는 Epokio가 기록만 지켜봅니다. 앱에서 학습을 시작하고 대기열에 넣으려면 켜세요. %@ 명령과 같습니다.";
+"Run this on that machine to start training there: %@" = "그 기계에서 이 명령을 실행하면 학습을 시작할 수 있습니다: %@";
+"Turn on" = "켜기";
+"Could not read ~/.epokio/config.json. Run this in Terminal instead: %@" = "~/.epokio/config.json을 읽지 못했습니다. 대신 터미널에서 실행하세요: %@";
+"Starting jobs is off on this helper. Turn it on at the top of New training or Queue, or run: %@" = "이 도우미는 작업 시작이 꺼져 있습니다. 새 학습이나 대기열 화면 맨 위에서 켜거나 이 명령을 실행하세요: %@";

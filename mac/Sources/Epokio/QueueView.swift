@@ -18,6 +18,7 @@ struct QueueView: View {
     var body: some View {
         HSplitView {
             List(selection: $selected) {
+                LaunchOffCard()                                // pip 도우미(작업 시작 끔)를 쓰고 있으면 켜는 버튼(LaunchGate)
                 // ★못 받아도 '대기열이 비었음'을 보여, agent가 꺼졌거나 토큰이 틀린 것을 알 수 없었다
                 if let loadError {
                     Label(loadError, systemImage: "exclamationmark.triangle").font(.ui(12)).foregroundStyle(.warn)

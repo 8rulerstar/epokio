@@ -39,6 +39,7 @@ async function api(p, method, body) {
   if (r.status === 401) throw new Locked(t("This needs this machine's token"));
   const j = await r.json().catch(() => ({}));
   if (r.status === 403 && j.code === "read_only") setReadOnly(true);   // 보기 전용 토큰: 바꾸는 단추를 숨긴다(문장은 agent가 화면 언어로 준다)
+  if (r.status === 403 && j.code === "launch_off") { setLaunch(false, j.cmd); throw new Error(launchOffText()); }   // 작업 시작이 꺼진 도우미
   if (!r.ok) throw new Error((j.error || t("request failed ({status})", { status: r.status })) + (j.hint ? ". " + j.hint : ""));
   return j;
 }
@@ -63,6 +64,17 @@ function setReadOnly(on) {
   const ro = $("#ro"); if (ro) ro.hidden = !on;
   S.lastMain = "";                                      // 다음 갱신에 안내 문구(.ro-note)까지 다시 그린다
 }
+
+/// 도우미가 작업(학습·대기열·스윕·검사)을 시작하지 않으면 body.nolaunch: CSS가 Train·Queue·Sweeps 탭과 .needs-launch를 숨기고
+/// .launch-note(켜는 법)를 보인다. ★Epokio는 이미 있는 기록을 읽고 알리는 도구다. 학습을 띄우는 화면은 켠 사람에게만(config.launch_runs)
+function setLaunch(on, cmd) {
+  if (cmd) S.launchCmd = cmd;
+  if (S.launch === on) return;
+  S.launch = on; document.body.classList.toggle("nolaunch", !on);
+  if (!on && ["train", "queue", "sweeps"].includes(S.tab)) tab("runs");
+  S.lastMain = "";
+}
+const launchOffText = () => t("Starting training and jobs from this page is off. To turn it on, run this on the training machine: {cmd}", { cmd: S.launchCmd || "epokio config launch_runs on" });
 
 /// 파이썬 환경 목록을 고르기 칸에 채운다(ultralytics 없는 것은 고를 수 없게)
 async function fillPythons(sel) {
@@ -508,7 +520,7 @@ function detailHTML(r, d) {
   // 다시 학습은 이 기계의 Ultralytics 학습만(학습 탭은 YOLO 폼이다). ★SSH 서버 학습·Lightning 학습에도 떠서, 그 서버의 경로로
   //   이 기계에 학습을 넣거나 다른 프레임워크의 data를 YOLO 폼에 채웠다
   const again = d.args?.data && !originOf(r) && (r.framework || "ultralytics") === "ultralytics";
-  if (again || canResume) h += `<div class="actions needs-run" style="margin-top:10px">`
+  if (again || canResume) h += `<p class="hint launch-note">${esc(launchOffText())}</p><div class="actions needs-run needs-launch" style="margin-top:10px">`
     + (canResume ? `<button class="btn small primary" id="resume" title="${t("Continue from the last saved epoch (weights/last.pt)")}">${t("Resume")}</button>` : "")
     + (again ? `<button class="btn small" id="again" title="${t("Open Train with the settings this run used")}">${t("Train again with these settings")}</button>` : "") + `</div><div id="resumemsg" role="alert">${S.resumeMsg?.path === r.path ? `<div class="msg" style="--c:var(--red)">${esc(S.resumeMsg.text)}</div>` : ""}</div>`;
   const names = { B: t("Box"), P: t("Pose"), M: t("Mask") };
@@ -537,7 +549,7 @@ function detailHTML(r, d) {
     + (r.meta.goal != null ? `<p class="hint">${t("Goal:")} ${esc(pretty(r.metric_name, d))} ${r.lower ? "≤" : "≥"} ${esc(r.meta.goal)} ${r.meta.goal_hit ? `· <b style='color:var(--green)'>${t("reached")}</b>` : ""}</p>` : "");
   h += perClassHTML(r, d) + snapshotsHTML(r, d) + machineHTML(r, d);                            // 클래스별 성능 (classes.js)
   if (d.notes.length) h += `<h3>${t("What stands out")}</h3>` + d.notes.map((n, i) => `<div class="note" style="animation-delay:${i * 60}ms">💡 ${esc(n.observation)}<p>→ ${esc(n.try)}</p>
-      ${n.next && !originOf(r) ? `<button class="chip nextrun needs-run" style="--c:var(--brand)" data-next="${i}">▶ ${esc(t("Try: {change}", { change: nextSummary(n.next, d.args) }))}</button>` : ""}</div>`).join("");
+      ${n.next && !originOf(r) ? `<button class="chip nextrun needs-run needs-launch" style="--c:var(--brand)" data-next="${i}">▶ ${esc(t("Try: {change}", { change: nextSummary(n.next, d.args) }))}</button>` : ""}</div>`).join("");
   if (d.images.length) h += `<h3>${t("Result images")}</h3><p class="hint">${t("Saved by the framework. Click to enlarge.")}</p><div class="gallery">`
     + d.images.map((n) => { const src = "file?path=" + encodeURIComponent(r.path + "/" + n); return `<figure role="button" tabindex="0" aria-label="${esc(n)}" data-src="${src}"><img loading="lazy" src="${src}" alt=""><figcaption>${esc(n)}</figcaption></figure>`; }).join("") + `</div>`;
   h += versionsHTML(r, d);                           // 계보·단계 (versions.js)

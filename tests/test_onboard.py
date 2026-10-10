@@ -24,7 +24,7 @@ def test_it_knows_where_the_entry_goes():
 
 def test_the_launcher_avoids_a_console_window_on_windows():
     exe, *args = autostart.launcher()
-    assert args == ["-m", "epokio.tray"]
+    assert args == ["-m", "epokio.tray" if autostart.tray_ready() else "epokio.agent"]   # 트레이 패키지가 없으면 도우미만
     if sys.platform == "win32":
         from pathlib import Path
         # pythonw 가 있는데도 python 을 고르면 로그인할 때마다 검은 창이 남는다
@@ -232,34 +232,6 @@ def test_headless_autostart_is_a_systemd_service(tmp_path):
     assert "Restart=on-failure" in unit and "WantedBy=default.target" in unit
 
 
-def test_rerunning_setup_on_a_server_says_how_to_apply_the_new_settings(monkeypatch, tmp_path, capsys):
-    """★도는 도우미가 바로 그 서비스인데 '먼저 끄라'고만 해서, --lan을 뺀 뒤에도 옛 도우미가 0.0.0.0에 열려 있었다"""
-    from pathlib import Path
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    monkeypatch.setattr(onboard, "headless", lambda: True)
-    monkeypatch.setattr(autostart, "supported", lambda: True)
-    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
-    monkeypatch.setattr(onboard, "owner", lambda *a, **k: "mine")          # 내 토큰을 증명한 내 도우미
-    monkeypatch.setattr(onboard, "find_roots", lambda: [])
-    unit = tmp_path / ".config" / "systemd" / "user" / "epokio.service"
-    unit.parent.mkdir(parents=True)
-    unit.write_text("old --host 0.0.0.0", encoding="utf-8")
-    onboard.main(["--autostart", "--no-browser"])
-    out = capsys.readouterr().out
-    assert "systemctl --user daemon-reload && systemctl --user restart epokio" in out
-    assert "Stop it first" not in out and "--host 127.0.0.1" in unit.read_text(encoding="utf-8")
-
-
-def test_autostart_on_a_server_points_to_systemd(monkeypatch, capsys):
-    """★화면 없는 서버에 트레이 바로 가기를 만들고 '로그인 때 뜬다'고 했다"""
-    monkeypatch.setattr(onboard, "headless", lambda: True)
-    monkeypatch.setattr(autostart, "supported", lambda: True)
-    monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setattr(autostart, "enable", lambda *a, **k: pytest.fail("made a tray entry"))
-    assert onboard.autostart_main(["--on"]) == 1
-    assert "epokio setup --autostart" in capsys.readouterr().out
-
-
 def test_desktop_entry_quotes_paths_with_spaces():
     """★빈칸이 있는 venv 경로가 Exec에서 둘로 갈라져 트레이가 안 떴다"""
     assert autostart._desktop_quote("/home/lab user/my venv/bin/python") == '"/home/lab user/my venv/bin/python"'
@@ -369,21 +341,6 @@ def test_doctor_log_tail_has_no_middle_dot(monkeypatch, tmp_path, capsys):
     assert doctor._console_safe("a·éb", "ascii") == "a??b"
 
 
-def test_autostart_off_on_a_server_names_the_systemd_service(monkeypatch, tmp_path, capsys):
-    """★화면 없는 서버에서 --off가 'It was not on.'이라 하고, setup이 만든 서비스(--lan이면 0.0.0.0)는 계속 돌았다"""
-    from pathlib import Path
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    monkeypatch.setattr(onboard, "headless", lambda: True)
-    monkeypatch.setattr(autostart, "supported", lambda: True)
-    monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setattr(autostart, "disable", lambda *a, **k: pytest.fail("looked for a tray entry"))
-    onboard.unit_file().parent.mkdir(parents=True)
-    onboard.unit_file().write_text("x", encoding="utf-8")
-    assert onboard.autostart_main(["--off"]) == 0
-    out = capsys.readouterr().out
-    assert "systemctl --user disable --now epokio" in out and "not on" not in out
-
-
 def test_setup_under_sudo_says_it_is_setting_up_root(monkeypatch):
     """★`sudo epokio setup`은 아무 말 없이 root의 홈에 서비스·토큰을 썼다"""
     monkeypatch.setattr(onboard.os, "name", "posix")
@@ -392,3 +349,87 @@ def test_setup_under_sudo_says_it_is_setting_up_root(monkeypatch):
     assert "for root, not lab" in onboard.sudo_warning()
     monkeypatch.delenv("SUDO_USER")
     assert onboard.sudo_warning() == ""
+
+
+def _ssh_linux(monkeypatch, tmp_path, others):
+    from pathlib import Path
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    (tmp_path / "runs").mkdir(exist_ok=True)
+    monkeypatch.setattr(onboard, "outdated", lambda *a, **k: None)
+    monkeypatch.setattr(onboard, "agent_alive", lambda *a, **k: True)
+    monkeypatch.setattr(onboard, "owner", lambda *a, **k: "mine")
+    monkeypatch.setattr(onboard, "add_roots_live", lambda port, roots: True)
+    monkeypatch.setattr(onboard, "headless", lambda: True)
+    monkeypatch.setattr(onboard, "other_logins", lambda: others)
+    monkeypatch.setattr(onboard.sys, "platform", "linux")
+    return ["--root", str(tmp_path / "runs"), "--no-autostart"]
+
+
+def test_setup_over_ssh_on_a_shared_linux_server_locks_reads_by_default(monkeypatch, tmp_path, capsys):
+    """★공용 서버에서 다른 계정이 127.0.0.1로 내 학습을 읽는다는 것을 알리기만 해서 대부분 열려 있었다.
+    터미널이 아니면 묻지 않고 잠그고 푸는 법을 찍는다. 다른 계정이 있는지 모를 때(None)도 잠근다"""
+    from epokio import config
+    for others in (True, None):
+        config.update({"reads_token": "auto"})
+        onboard.main(_ssh_linux(monkeypatch, tmp_path, others))
+        out = capsys.readouterr().out
+        assert config.load()["reads_token"] == "always"
+        assert "config reads_token auto" in out and "agent --show-token" in out
+    onboard.main(_ssh_linux(monkeypatch, tmp_path, True))        # 이미 잠겼으면 다시 말하지 않는다
+    assert "reads_token" not in capsys.readouterr().out
+
+
+def test_setup_asks_before_locking_reads_in_a_terminal(monkeypatch, tmp_path, capsys):
+    from epokio import config
+    argv = _ssh_linux(monkeypatch, tmp_path, True)
+    monkeypatch.setattr(onboard.sys.stdin, "isatty", lambda: True, raising=False)
+    monkeypatch.setattr(onboard.sys.stdout, "isatty", lambda: True, raising=False)
+    monkeypatch.setattr(onboard.auth, "page_url", lambda u: u)
+    asked = []
+    monkeypatch.setattr("builtins.input", lambda q: asked.append(q) or "n")
+    onboard.main(argv)
+    assert any("[Y/n]" in q and "token" in q for q in asked)
+    assert config.load()["reads_token"] == "auto" and "config reads_token always" in capsys.readouterr().out
+    monkeypatch.setattr("builtins.input", lambda q: "")             # 그냥 엔터 = 예
+    onboard.main(argv)
+    assert config.load()["reads_token"] == "always"
+    assert "config reads_token auto" not in capsys.readouterr().out   # 직접 고른 사람에게 푸는 법은 안 찍는다
+
+
+def test_setup_leaves_reads_open_when_told_or_alone_or_never(monkeypatch, tmp_path, capsys):
+    """--no-lock-reads, 다른 계정이 없는 기계, 사용자가 never로 둔 기계, 화면 있는 데스크톱은 그대로"""
+    from epokio import config
+    argv = _ssh_linux(monkeypatch, tmp_path, True)
+    onboard.main(argv + ["--no-lock-reads"])
+    assert config.load()["reads_token"] == "auto" and "config reads_token always" in capsys.readouterr().out
+    monkeypatch.setattr(onboard, "other_logins", lambda: False)
+    onboard.main(argv)
+    assert config.load()["reads_token"] == "auto" and "reads_token" not in capsys.readouterr().out
+    monkeypatch.setattr(onboard, "other_logins", lambda: True)
+    config.update({"reads_token": "never"})
+    onboard.main(argv)
+    assert config.load()["reads_token"] == "never"
+    config.update({"reads_token": "auto"})
+    monkeypatch.setattr(onboard, "headless", lambda: False)
+    monkeypatch.setattr("webbrowser.open", lambda *a, **k: True)
+    onboard.main(argv + ["--no-browser"])
+    assert config.load()["reads_token"] == "auto"
+
+
+def test_other_logins_sees_real_accounts_only(monkeypatch, tmp_path):
+    """시스템 계정(uid<1000, nologin)과 나 자신은 세지 않는다. pwd가 없으면(윈도우) 모른다"""
+    import sys
+    import types
+    from epokio import onboard_parts
+    U = lambda uid, sh: types.SimpleNamespace(pw_uid=uid, pw_shell=sh)        # noqa: E731
+    fake = types.SimpleNamespace(getpwall=lambda: [U(0, "/bin/bash"), U(33, "/usr/sbin/nologin"), U(1000, "/bin/bash"),
+                                                   U(65534, "/bin/sh"), U(1001, "/usr/sbin/nologin")])
+    monkeypatch.setitem(sys.modules, "pwd", fake)
+    monkeypatch.setattr(onboard_parts.os, "getuid", lambda: 1000, raising=False)
+    monkeypatch.setattr(onboard_parts, "Path", lambda p: tmp_path / "home" if p == "/home" else __import__("pathlib").Path(p))
+    (tmp_path / "home").mkdir()
+    assert onboard_parts.other_logins() is False
+    fake.getpwall = lambda: [U(1000, "/bin/bash"), U(1002, "/bin/zsh")]
+    assert onboard_parts.other_logins() is True
+    monkeypatch.setitem(sys.modules, "pwd", None)                     # import pwd -> ImportError
+    assert onboard_parts.other_logins() is None

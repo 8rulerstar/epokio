@@ -1379,3 +1379,9 @@
 "Epochs / steps" = "Épocas / passos";
 "%d large log files: only the last part was loaded" = "%d arquivos de log grandes: só a parte final foi carregada";
 "Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "Comparado com a melhor pontuação, que é a do melhor modelo salvo (best.pt). Em segmentação, pose e classificação, ela pode ficar um pouco abaixo do maior valor da coluna.";
+"Starting jobs is off on this helper" = "Iniciar tarefas está desligado neste assistente";
+"Epokio is only watching your logs here. Turn this on to start training and queue jobs from the app. It is the same as running %@." = "Aqui o Epokio só acompanha seus registros. Ligue para iniciar treinos e colocar tarefas na fila pelo app. É o mesmo que executar %@.";
+"Run this on that machine to start training there: %@" = "Execute isto naquela máquina para treinar lá: %@";
+"Turn on" = "Ligar";
+"Could not read ~/.epokio/config.json. Run this in Terminal instead: %@" = "Não foi possível ler ~/.epokio/config.json. Execute no Terminal: %@";
+"Starting jobs is off on this helper. Turn it on at the top of New training or Queue, or run: %@" = "Iniciar tarefas está desligado neste assistente. Ligue no topo de Novo treino ou Fila, ou execute: %@";

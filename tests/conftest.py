@@ -18,6 +18,15 @@ def _isolated_home(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("PYTHONPATH", os.pathsep.join([src, *rest]))
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
+    # 작업 시작(학습·대기열·스윕)은 기본으로 꺼져 있다(config.launch_runs). 대기열·스윕 시험은 켠 상태를 시험하므로 여기서 켠다.
+    # 꺼진 상태는 test_launch_gate.py가 delenv로 따로 본다. 환경 변수라 시험이 띄운 자식 도우미에도 간다
+    monkeypatch.setenv("EPOKIO_LAUNCH_RUNS", "1")
+    # 자동 시작 항목(시작프로그램 폴더·~/.config/autostart)도 가짜 홈에. 윈도우는 APPDATA를 본다
+    monkeypatch.setenv("APPDATA", str(home / "AppData" / "Roaming"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
+    # ★systemctl·launchctl·loginctl을 진짜로 부르면 이 기계에 서비스를 깔고 linger를 켠다. service._run 하나로 막는다
+    from epokio import service
+    monkeypatch.setattr(service, "_run", lambda cmd, timeout=20: (False, "not run in tests"))
     ep = home / ".epokio"
     from epokio import auth, config, envs, jobs, runmeta
     from epokio.agent import Agent

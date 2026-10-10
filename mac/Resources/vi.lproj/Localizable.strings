@@ -1371,3 +1371,9 @@
 "Epochs / steps" = "Epoch / bước";
 "%d large log files: only the last part was loaded" = "%d tệp nhật ký lớn: chỉ tải phần cuối";
 "Compared with the best score, which is the score of the saved best model (best.pt). For segmentation, pose and classification it can be a little below the column's highest value." = "So với điểm tốt nhất, tức là điểm của mô hình tốt nhất đã lưu (best.pt). Với phân đoạn, tư thế và phân loại, điểm này có thể thấp hơn một chút so với giá trị cao nhất của cột.";
+"Starting jobs is off on this helper" = "Trình trợ giúp này đang tắt việc bắt đầu tác vụ";
+"Epokio is only watching your logs here. Turn this on to start training and queue jobs from the app. It is the same as running %@." = "Ở đây Epokio chỉ theo dõi nhật ký của bạn. Bật lên để bắt đầu huấn luyện và xếp hàng tác vụ từ ứng dụng. Giống như chạy %@.";
+"Run this on that machine to start training there: %@" = "Chạy lệnh này trên máy đó để huấn luyện ở đó: %@";
+"Turn on" = "Bật";
+"Could not read ~/.epokio/config.json. Run this in Terminal instead: %@" = "Không đọc được ~/.epokio/config.json. Hãy chạy lệnh này trong Terminal: %@";
+"Starting jobs is off on this helper. Turn it on at the top of New training or Queue, or run: %@" = "Trình trợ giúp này đang tắt việc bắt đầu tác vụ. Bật ở đầu màn hình Huấn luyện mới hoặc Hàng đợi, hoặc chạy: %@";

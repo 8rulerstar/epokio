@@ -1,4 +1,4 @@
-"""`epokio` 명령 하나로 모은다: setup · watch · agent · tray · autostart · mcp · alerts · doctor · score"""
+"""`epokio` 명령 하나로 모은다: setup · watch · agent · tray · autostart · mcp · alerts · doctor · config · score"""
 from __future__ import annotations
 
 import sys
@@ -6,13 +6,14 @@ import sys
 HELP = """usage: epokio <command> [options]
 
   setup      set this machine up: find training folders, start the helper, open the page
-  autostart  start the tray when you log in (Windows, Linux)
+  autostart  keep the helper running after logout and reboot (on, off, status)
   watch      watch training runs in the terminal (good over SSH)
   agent      run the helper that the app, web page and terminal read from
   tray       training progress in the system tray (Windows, Linux)
   mcp        run the MCP server for AI assistants
   alerts     phone alerts (webhooks): --add URL, --remove URL, --list, --test, --lang
-  doctor     print what Epokio sees (versions, helper, folders, log) for a bug report
+  doctor     check the helper, start at login and alerts; --test-alert sends one (paste the output into a bug report)
+  config     show or change settings, e.g. `config launch_runs on` to start training from the web page
   score      choose a run's (or a folder's) main score column: score <run> <column> [--lower], --auto, --list
 
 Run `epokio <command> -h` for options, `epokio --version` for the version."""
@@ -35,6 +36,9 @@ def _main():
         sys.exit(run(rest))
     elif cmd == "score":
         from .score_cli import main as run
+        sys.exit(run(rest))
+    elif cmd == "config":
+        from .config_cli import main as run
         sys.exit(run(rest))
     elif cmd == "doctor":
         from .doctor import doctor as run

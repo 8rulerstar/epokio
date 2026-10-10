@@ -136,6 +136,7 @@ const KO = {
   "{n} of {total}": "{total}개 중 {n}개", "Compare {n}": "{n}개 비교", "Pick up to {n} runs": "최대 {n}개까지 고를 수 있습니다",
   "Name or text, key<value · key>=value · key=value · key!=value, tag:name. All must match.": "이름이나 글자, 키<값 · 키>=값 · 키=값 · 키!=값, tag:이름. 모두 맞아야 합니다.",
   // 보기 전용 토큰·불러오기·저장
+  "Starting training and jobs from this page is off. To turn it on, run this on the training machine: {cmd}": "이 페이지에서 학습과 작업을 시작하는 기능은 꺼져 있습니다. 켜려면 학습 기계에서 이것을 실행하세요: {cmd}",
   "view only": "보기 전용", "This token can only view. Changing things needs a token that can run.": "이 토큰은 보기만 할 수 있습니다. 바꾸려면 실행할 수 있는 토큰이 필요합니다.",
   "This token can only view, so the main score, target and tags cannot be changed here.": "이 토큰은 보기 전용이라 여기서 대표 점수·목표·태그를 바꿀 수 없습니다.",
   "This token can only view, so alerts cannot be changed here.": "이 토큰은 보기 전용이라 여기서 알림을 바꿀 수 없습니다.",

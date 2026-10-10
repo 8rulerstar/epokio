@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.0 (2026-10-10)
+
+### Changed
+
+- **Starting jobs from the helper is off by default.** The web page's Train, Queue and Sweeps tabs, Train again, Resume, per-class checks, new review checks and the MCP tools `start_training` and `auto_label` now need `epokio config launch_runs on` on the training machine. Until then the tabs and buttons are hidden, the page says how to turn it on, and the helper answers 403 with `code: launch_off`. Cancelling, reordering and clearing jobs already in the queue still work. The setting cannot be changed from the page (`POST /config` ignores it). The Mac app passes `--launch-runs` to the helper it starts, so its Train and Queue screens work as before. If the app finds a helper already running with it off (for example one started by `epokio setup --autostart`), New training and Queue show why and a **Turn on** button that writes `launch_runs: true` to `~/.epokio/config.json` on that Mac (the same as `epokio config launch_runs on`; no restart). For another machine they show the command to run there. Previously those screens only got 403 and an unrelated address error.
+- **`epokio setup --autostart` keeps the helper alive after logout and reboot, without sudo,** on every OS: a systemd user service on Linux (with or without a desktop; setup now enables and starts it and turns on linger, or says what to run when it cannot), a LaunchAgent on macOS (new), and the Startup folder on Windows. Without the tray package it starts the helper directly instead of stopping with *needs one more package*. `epokio autostart --on/--off` manage the same thing.
+- **`epokio setup` suggests autostart.** In a terminal it asks *Keep the helper running after logout and reboot? [Y/n]*; otherwise it prints the command. `--no-autostart` skips it.
+- **`epokio config reads_token always` takes effect at once** (viewing then needs a token), so a shared server's `--autostart` helper is locked without a restart. It used to be read only when the helper started. Turning it back to `auto` or `never` still waits for the next start. Over SSH on Linux, `epokio setup` now says that other accounts on the server can read the helper and prints this command. The README and guide point to it instead of running `epokio agent --require-token` in the foreground.
+- **Over SSH on Linux, `epokio setup` locks reads on a shared server.** When other accounts can log in (or it cannot tell), it asks *Ask for a token to view them too? [Y/n]* and sets `reads_token always`. Without a terminal it sets it by default and prints how to undo it (`epokio config reads_token auto`); `--no-lock-reads` leaves it open. Machines with a desktop, `--lan` setups and an explicit `reads_token never` are unchanged. The web page asks for the token once (`epokio agent --show-token`). The tray's alerts now send the token too; they used to stop silently on a locked helper.
+- **README** says what Epokio does in the first line, has a section on shared GPU servers over SSH, and a comparison with TensorBoard, W&B, Trackio, knockknock and runmon.
+
+- **`epokio doctor` keeps your user name out of bug reports:** paths under your home folder print as `~` in the text and `--json` output (log lines, folders, Python paths).
+- **SECURITY.md** describes the `launch_runs` gate, view-only tokens and loopback reads on shared servers. `epokio setup --help` no longer says `--lan` is needed for the Mac app (only for another computer or a phone).
+
+### Added
+
+- **`epokio doctor`** starts with one line: whether the helper runs now, whether autostart is installed (and enabled, and kept after logout), and how many alert webhooks are saved. `epokio doctor --test-alert` sends a real test alert to every saved webhook.
+- **`epokio config`** shows and changes settings (`epokio config launch_runs on`, `epokio config stall_min 10`).
+
 ## 0.8.0 (2026-10-09)
 
 ### Added

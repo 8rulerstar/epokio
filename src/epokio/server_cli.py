@@ -52,6 +52,9 @@ def main():
     ap.add_argument("--parent-pid", type=int, default=None,
                     help="exit when this PID (the app that started us) exits. Only the Mac app passes it")
     ap.add_argument("--stop", action="store_true", help="stop the helper running on --port, then exit")
+    ap.add_argument("--launch-runs", action="store_true",
+                    help="let this helper start training, queue jobs and sweeps (off by default; "
+                         "to keep it on, run `epokio config launch_runs on` instead)")
     a = ap.parse_args()
 
     if a.show_token:
@@ -115,6 +118,7 @@ def main():
     # 포트부터 잡는다. ★같은 포트로 두 번 켜면 대기열 일꾼이 먼저 돌기 시작한 뒤에야 포트 오류로 죽었다
     srv, actual = bind_first(a.host, a.port)
     agent = Agent(roots, label)
+    agent.launch_flag = a.launch_runs
     if not a.root:
         # 서버를 먼저 열고 탐색은 뒤에서. ★탐색을 기다리게 하면 앱이 '꺼져 있다'고 본다.
         # 5분마다 다시 찾는다. ★한 번만 찾아서, 켠 뒤에 처음 생긴 runs 폴더는 영영 안 보였다(setup은 "생기면 잡는다"고 했다).

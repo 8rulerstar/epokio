@@ -1,4 +1,4 @@
-"""로그인할 때 트레이를 알아서 띄운다.
+"""로그인할 때 트레이(없으면 도우미)를 알아서 띄운다. 리눅스 systemd·맥 launchd 서비스는 service.py.
 
 윈도우 사용자가 포기하는 자리가 여기다. 맥은 `.dmg`를 끌어다 놓으면 끝인데 윈도우는 켤 때마다
 검은 창을 열고 `epokio-agent --host 0.0.0.0 --root ...`를 다시 쳐야 했다.
@@ -177,9 +177,19 @@ def child_env() -> dict:
     return env
 
 
+def tray_ready() -> bool:
+    """트레이를 띄울 수 있나(exe면 들어 있고, pip 설치면 epokio[tray]의 pystray가 있어야)"""
+    import importlib.util
+    try:
+        return bool(getattr(sys, "frozen", False) or importlib.util.find_spec("pystray"))
+    except (ImportError, ValueError):
+        return False
+
+
 def launcher() -> list[str]:
-    """로그인할 때 띄울 명령."""
-    return self_command("tray")
+    """로그인할 때 띄울 명령. 트레이가 있으면 트레이(도우미도 띄운다), 없으면 도우미만.
+    ★트레이 패키지 없이는 '설치하라'고만 하고 아무것도 안 만들어, 재부팅 뒤 알림이 끊겼다(알림은 도우미만 있으면 된다)"""
+    return self_command("tray" if tray_ready() else "agent")
 
 
 def enabled(where: Path | None = None) -> bool:

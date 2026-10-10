@@ -59,7 +59,7 @@ function paintReview() {
   const d = R.data;
   let h = `<div class="card detail"><div class="toolbar"><h2 style="margin:0;font-size:var(--t-title)">${t("Review")}</h2>
     <select id="rjob" aria-label="${t("Check to review")}">${R.jobs.map((j) => `<option value="${j.id}" ${j.id === R.job ? "selected" : ""}>${esc(j.name)}</option>`).join("") || `<option>${t("No checks yet")}</option>`}</select>
-    <button class="btn needs-run" id="rnew">＋ ${t("New check")}</button><button class="btn needs-run" id="rimp">⇪ ${t("Open predictions file")}</button>`;
+    <button class="btn needs-run needs-launch" id="rnew">＋ ${t("New check")}</button><button class="btn needs-run" id="rimp">⇪ ${t("Open predictions file")}</button>`;
   if (d?.rows) h += `<span style="margin-left:auto" class="hint">${t("{n} of {total} reviewed", { n: Object.keys(R.verdicts).length, total: d.rows.length })}</span>
     <button class="btn needs-run" id="rret" title="${t("Make a dataset from marked images and fixed labels")}">↻ ${t("Retrain set")}</button>`;
   h += `</div>`;

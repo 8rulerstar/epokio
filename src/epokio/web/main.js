@@ -43,7 +43,8 @@ addEventListener("hashchange", () => { if (takeHashToken()) { S.lastMain = ""; r
 { const ro = $("#ro"); if (ro) { ro.textContent = t("view only"); ro.title = t("This token can only view. Changing things needs a token that can run."); } }
 { const sk = $("#skeltext"); if (sk) sk.textContent = t("Loading…"); }     // 처음 불러오는 동안 화면 읽기 프로그램에도(role=status)
 // 토큰을 보는 명령(autostart.cli 모양). 이 기계에서 연 화면에만 온다. ★잠금 카드가 윈도우 PATH에 없는 명령(epokio-agent)을 안내했다
-api("health").then((h) => { S.tokenCmd = h.token_cmd || ""; }).catch(() => {});
+// launch_runs가 false면 작업을 시작하는 탭·단추를 숨긴다. 옛 도우미(값 없음)는 예전처럼 다 보인다
+api("health").then((h) => { S.tokenCmd = h.token_cmd || ""; setLaunch(h.launch_runs !== false, h.launch_cmd); }).catch(() => {});
 refresh();
 setInterval(() => { if (!document.hidden && !document.querySelector(".lightbox, .modal, dialog[open]")) refresh(true); }, 4000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(true); });   // 돌아오면 4초를 기다리지 않고 바로

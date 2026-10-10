@@ -35,6 +35,11 @@ def runs_code(route: str, body: dict) -> bool:
     return route in ("/predict", "/sweeps")
 
 
+# 작업을 새로 시작하는 요청. 설정(config.launch_runs)이 꺼져 있으면 agent가 403(launch_off)으로 돌려준다.
+# 이미 든 작업을 다루는 요청(취소·순서·지우기)은 늘 열려 있다
+LAUNCH_ROUTES = ("/jobs", "/sweeps", "/predict", "/classes")
+
+
 class RunRefused(Exception):
     """네트워크에 연 도우미가 --allow-run 없이 코드를 돌리는 작업을 받았다(agent가 403으로 돌려준다)"""
 

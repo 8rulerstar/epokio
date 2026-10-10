@@ -1,7 +1,7 @@
 # Epokio
 
-**Get a phone alert when a training run stalls, hits NaN or finishes.**
-No code changes: it reads the logs YOLO, Hugging Face, Lightning, Keras and TensorBoard already write. Works over SSH.
+**Epokio reads the training logs you already have and alerts your phone when a run stalls, hits NaN, or finishes.**
+No code changes, no account: it reads what YOLO, Hugging Face, Lightning, Keras and TensorBoard already write. Works over SSH.
 
 ![A run goes from Training to Stalled and an ntfy alert arrives on the phone](https://raw.githubusercontent.com/8rulerstar/epokio/main/docs/images/alert.gif)
 
@@ -20,6 +20,21 @@ Setup looks in this folder and in Desktop, Documents, Downloads, Projects and `~
 On Windows, if `pip` or `epokio` is not recognized, put `py -m` in front: `py -m epokio setup`.
 If pip stops with *externally-managed-environment* (Ubuntu 24.04, Homebrew Python), use a virtual environment or a conda env ([how](https://github.com/8rulerstar/epokio/blob/main/docs/remote.md#on-windows-linux-or-your-phone)).
 
+## On a shared GPU server over SSH
+
+No sudo needed. In your own account on the server (a conda env works too):
+
+```bash
+python3 -m venv ~/.epokio-venv && ~/.epokio-venv/bin/pip install epokio
+~/.epokio-venv/bin/epokio setup --root /data/you/runs --autostart
+```
+
+`--autostart` writes a systemd user service, so the helper survives SSH logout and reboots. To keep it running after you log out,
+setup turns on linger (`loginctl enable-linger $USER`); if the server refuses, an admin runs `sudo loginctl enable-linger <you>` once.
+`epokio doctor` says in one line whether the helper runs now and comes back. Setup prints an SSH tunnel such as
+`ssh -N -L 18787:127.0.0.1:8787 <server>` for your own computer, then `http://127.0.0.1:18787/` shows the server's runs; `epokio watch` works in plain SSH.
+Other accounts on the server can read a helper on `127.0.0.1`, so on a shared machine see [limits](https://github.com/8rulerstar/epokio/blob/main/docs/guide.md#limits).
+
 ## Phone alerts in 3 steps
 
 1. Install the [ntfy](https://ntfy.sh) app on your phone and subscribe to a topic only you know (letters, digits, `-` and `_`).
@@ -27,13 +42,14 @@ If pip stops with *externally-managed-environment* (Ubuntu 24.04, Homebrew Pytho
 3. Check it: `epokio alerts --test`
 
 From then on, the helper sends an alert when a run finishes, fails (NaN loss or a crash) or stalls (no new epoch for well past its usual pace, 3 minutes at least). Slack, Discord and Telegram webhooks work the same way (`https` only).
-Alerts go out only while the helper runs, and it does not come back after a reboot by itself. To start it at login, `pip install "epokio[tray]"` and run `epokio setup --autostart` (Windows and Linux; on a server without a desktop it writes a systemd service instead).
+Alerts go out only while the helper runs. `epokio setup --autostart` keeps it running after logout and reboot without sudo (a systemd user service on Linux, a LaunchAgent on macOS, the Startup folder on Windows).
+`epokio doctor` shows whether it runs now and starts again; `epokio doctor --test-alert` sends a real test alert.
 
 ## What you get
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/8rulerstar/epokio/main/docs/images/run-detail.gif" height="400" alt="Loss curves gain one epoch at a time; the lowest validation loss is marked at epoch 23, then flagged as overfitting with a note that the score fell">
-  <img src="https://raw.githubusercontent.com/8rulerstar/epokio/main/docs/images/phone.gif" height="400" alt="The Epokio page on a phone with a view-only token: a run turns Done, and a Hugging Face run's score goes up when a new checkpoint lands">
+  <img src="https://raw.githubusercontent.com/8rulerstar/epokio/main/docs/images/run-detail.gif" height="400" alt="Loss curves of a YOLO run gain one epoch at a time. The lowest validation loss is marked at epoch 23, then flagged as overfitting, and a note says the score peaked at epoch 23 and fell">
+  <img src="https://raw.githubusercontent.com/8rulerstar/epokio/main/docs/images/phone.gif" height="400" alt="The Epokio page on a phone with a view-only token: a run turns Done, a tap opens a Hugging Face run, and its score goes up when a new checkpoint lands">
 </p>
 
 * **One live list** of every run: progress, time left and best score, whatever framework wrote the log.
@@ -41,21 +57,6 @@ Alerts go out only while the helper runs, and it does not come back after a rebo
 * **On your phone too.** `epokio setup --lan` prints the address and a view-only token, which shows everything and hides every button that changes something.
 * **Also in a terminal** (`epokio watch`, good over SSH), a tray icon on Windows and Linux, and a [macOS menu bar app](https://github.com/8rulerstar/epokio/blob/main/docs/studio.md).
 * **No account, no upload.** Only the alerts you add leave the machine.
-
-## Why not just use...
-
-| | Better than Epokio at | What Epokio adds |
-|---|---|---|
-| **TensorBoard** | Per-step charts, images, histograms, the profiler. | Alerts with no browser tab open. One list for many frameworks' logs, TensorBoard files included. |
-| **W&B** | Team dashboards, sweeps, artifacts, a model registry. | No account, no logging calls, no upload. Reads W&B's local files, so you can keep both. |
-| **nvitop** | Live GPU, process and memory view. | Knows the run: epoch, time left, best score, stalls and NaN. |
-
-## Remote servers over SSH
-
-Run the quick start on the server (runs under `/data` or `/scratch` need `--root`). In an SSH session setup opens no browser:
-it prints a tunnel command for your own computer, such as `ssh -N -L 18787:127.0.0.1:8787 <server>`, and then `http://127.0.0.1:18787/` shows the server's runs.
-The helper listens on `127.0.0.1`, so it is not on the network, and `epokio watch` works in a plain SSH session.
-The macOS app can also read a server over SSH with nothing installed there ([how](https://github.com/8rulerstar/epokio/blob/main/docs/guide.md#ssh-from-the-mac-app)).
 
 ## Notebooks and Colab
 
@@ -77,10 +78,26 @@ You get an alert when the block ends, or when it raises (with the error). A netw
 ## Security defaults
 
 * The helper listens on `127.0.0.1` only. `setup --lan` opens it to your network and then asks for a token.
-* The page can also start training. New tokens are view-only; `epokio agent --add-token NAME --scope run` makes one that can start runs.
+* Starting training, queue jobs and sweeps from the page (and from MCP) is off. `epokio config launch_runs on` turns it on and shows the Train, Queue and Sweeps tabs.
+* New tokens are view-only; `epokio agent --add-token NAME --scope run` makes one that can change things.
 * A `--lan` helper runs nothing sent over the network unless it was started with `--allow-run`.
-* On a shared server, other accounts can read a helper on `127.0.0.1`. Run it as `epokio agent --require-token` and give each person a token limited to their folders ([how](https://github.com/8rulerstar/epokio/blob/main/docs/guide.md#limits)).
+* On a shared server, other accounts can read a helper on `127.0.0.1`. Over SSH on Linux, `epokio setup` asks to make viewing need a token too (`reads_token always`, on by default without a terminal, `--no-lock-reads` skips it; the page then asks for `epokio agent --show-token` once). Elsewhere run `epokio config reads_token always`. Then give each person a token limited to their folders ([how](https://github.com/8rulerstar/epokio/blob/main/docs/guide.md#limits)).
 * The helper speaks plain HTTP. Prefer an SSH tunnel or Tailscale over `--lan`. Details: [docs/remote.md](https://github.com/8rulerstar/epokio/blob/main/docs/remote.md).
+
+## Compared with other tools
+
+Checked against each project's README and docs in October 2026. Epokio can read TensorBoard event files and W&B's local files, so it can sit next to them.
+
+| | Code changes | Account | Alerts | Pick it instead when |
+|---|---|---|---|---|
+| **Epokio** | None if your framework writes a supported file (Keras: a `CSVLogger` or `TensorBoard` callback) | No | Stall, NaN or crash, finish | |
+| **TensorBoard** | Your code or framework writes event files | No | None | You want per-step charts, images, histograms or the profiler |
+| **W&B** | `wandb.init`/`log` or a framework integration | Yes | Run finished or crashed (Slack, email); `run.alert()` from your code | A team shares dashboards, sweeps, artifacts and a model registry |
+| **Trackio** (Hugging Face) | `trackio.init`/`log` (W&B-style API) or HF Trainer `report_to="trackio"` | No (optional HF Space) | `trackio.alert()` from your code, to webhooks | You want a free local W&B-style dashboard you can share on a Space |
+| **knockknock** | A decorator around your training function | No (needs the chat service's credentials) | Start, finish, crash on 12 services (last release 2020) | You only need a finish or crash ping on email, Teams, SMS and the like |
+| **runmon** | None: wraps the command or attaches to tmux | No (pairs its phone app; relay can be self-hosted) | Done, failed, error output, GPU idle, log silence, disk full | You want GPU-per-process views, or alerts for any command, not just training logs |
+
+More columns (MLflow, Aim, Ultralytics Platform, price): [docs/guide.md](https://github.com/8rulerstar/epokio/blob/main/docs/guide.md#how-it-compares).
 
 ## Supported formats
 
@@ -91,7 +108,8 @@ Which file each one reads, planned epochs and best-score rules: [docs/guide.md](
 
 ## More
 
-Full docs, the macOS menu bar app and the Windows app: [github.com/8rulerstar/epokio](https://github.com/8rulerstar/epokio)
-([guide](https://github.com/8rulerstar/epokio/blob/main/docs/guide.md), [changelog](https://github.com/8rulerstar/epokio/blob/main/CHANGELOG.md)).
+[Guide](https://github.com/8rulerstar/epokio/blob/main/docs/guide.md) (alerts, limits, full comparison, privacy, troubleshooting) ·
+[Mac app](https://github.com/8rulerstar/epokio/blob/main/docs/studio.md) · [Remote helpers, Windows app, tray, phone](https://github.com/8rulerstar/epokio/blob/main/docs/remote.md) · [AI assistants (MCP)](https://github.com/8rulerstar/epokio/blob/main/docs/mcp.md) ·
+[Uninstall](https://github.com/8rulerstar/epokio/blob/main/docs/uninstall.md) · [Changelog](https://github.com/8rulerstar/epokio/blob/main/CHANGELOG.md) · [Contributing](https://github.com/8rulerstar/epokio/blob/main/CONTRIBUTING.md)
 
-Something wrong? Run `epokio doctor` and paste the output into an issue (it never prints your token). MIT licence.
+Something wrong? Run `epokio doctor` and paste the output into an issue (it never prints your token). License: [MIT](https://github.com/8rulerstar/epokio/blob/main/LICENSE).

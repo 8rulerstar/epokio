@@ -135,6 +135,7 @@ struct TrainView: View {
                     }
                     RecipeMenu(task: $task, size: $size, epochs: $epochs, overrides: $overrides, data: $data, status: $status)
                 }
+                LaunchOffCard(machine: machine)                // 작업 시작이 꺼진 도우미면 이유와 켜는 버튼(LaunchGate)
                 if mode == "practice" { PracticePanel().transition(.opacity) } else if mode == "script" { scriptPanel.transition(.opacity) } else {
                 if remote {
                     VStack(alignment: .leading, spacing: 6) {

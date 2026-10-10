@@ -29,7 +29,7 @@ Full steps for Windows, Linux, the tray icon and remote helpers: [remote.md](rem
 * **Remote machines over SSH** with nothing installed on the server: only the new tail of each log is copied.
 * **Per-class scores** (precision, recall, mAP per class, weakest first) for Ultralytics runs started from Epokio, or after a one-click per-class check, and a plain-language note on what to change next.
 * **Step-based runs** (W&B without `epoch`, TensorBoard step scalars, a CSV whose first column is `step`, `iter` or `iteration`) show progress in steps.
-* **More:** the macOS menu bar app, a Studio window, compare, starting and queuing runs, labeling review, sweeps and dataset views. See [studio.md](studio.md).
+* **More:** the macOS menu bar app, a Studio window, compare, starting and queuing runs, labeling review, sweeps and dataset views. See [studio.md](studio.md). Starting runs, the queue and sweeps from the web page and MCP are off until you run `epokio config launch_runs on`; the Mac app's own helper has them on, and if the app is using a helper that has them off, its New training and Queue screens offer a Turn on button.
 
 ## Supported formats
 
@@ -112,7 +112,7 @@ Every 15 seconds Epokio runs `ssh -o BatchMode=yes -o ConnectTimeout=8 <host> py
 * OpenMMLab iteration-based runs (no epoch) are not read.
 * Over SSH, only the known log file names are read, not any CSV. Binary logs and configs over the size limit are skipped.
 * Your own CSV named `results.csv`, `metrics.csv` or `epokio_log.csv` is left to the Ultralytics, Lightning and `epokio.start` readers, so it is not read as your own CSV. Use another name.
-* **Shared servers:** by default any user who can log in to the machine can read the helper on `127.0.0.1` (runs, settings, logs). Start it as `epokio agent --require-token` so that viewing needs a token too (stop a helper that `epokio setup` started first: `epokio agent --stop`; this one runs in the foreground, so use tmux or a service), then give each person a token limited to their folders: `epokio agent --add-token alice --scope read --root /data/alice/runs` (`--root` can repeat and can be a pattern). That token sees only runs under those folders in the run list, run pages, images, events and the table, and nothing else (no queue, sweeps, settings or changes). Tokens without `--root` see every watched run.
+* **Shared servers:** by default any user who can log in to the machine can read the helper on `127.0.0.1` (runs, settings, logs). Run `epokio config reads_token always` so that viewing needs a token too (it takes effect at once, also for a helper that `--autostart` keeps running; `epokio agent --show-token` prints yours, and the web page asks for it once). Over SSH on Linux, `epokio setup` does this for you when other accounts can log in (or it cannot tell): in a terminal it asks *[Y/n]*, otherwise it turns it on and prints `epokio config reads_token auto` to undo it (after a helper restart). `--no-lock-reads` leaves it open. Then give each person a token limited to their folders: `epokio agent --add-token alice --scope read --root /data/alice/runs` (`--root` can repeat and can be a pattern). That token sees only runs under those folders in the run list, run pages, images, events and the table, and nothing else (no queue, sweeps, settings or changes). Tokens without `--root` see every watched run.
 * The Mac app is not notarized and the Windows app is not signed, so both warn on first launch.
 * The helper speaks plain HTTP. Prefer an SSH tunnel or Tailscale over `--lan`. A helper opened with `--lan` only shows runs unless started with `--allow-run`, and new tokens are view-only unless made with `--scope run`.
 
@@ -133,6 +133,12 @@ Every 15 seconds Epokio runs `ssh -o BatchMode=yes -o ConnectTimeout=8 <host> py
 
 Epokio also suggests the next run from what it sees in the curves (for example "still improving: train 2× longer from best.pt"),
 using simple rules on your machine rather than a cloud AI.
+
+**Alert-only tools.** knockknock wraps your training function in a decorator and pings on start, finish and crash
+(12 services; its last PyPI release was in 2020). runmon wraps a command or attaches to a tmux session and alerts on
+done, failed, error output, GPU idle, log silence and disk full through its phone app or ntfy, Bark, Telegram and webhooks
+(from its README, not tested here). Epokio instead reads the log files, so it knows epochs, time left and the best score,
+and catches NaN and stalls measured against each run's own pace. Short table: [README](../README.md#compared-with-other-tools).
 
 **Use it alongside a tracker, not instead of one.** If your team already logs to W&B or MLflow, keep doing that.
 Epokio reads W&B's local files and TensorBoard logs too, so it can show the same runs in your menu bar or terminal

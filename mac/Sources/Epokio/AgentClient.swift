@@ -171,6 +171,10 @@ struct AgentClient {
             let m = obj["error"] as? String ?? ""
             // 보기 전용 토큰: 403 + code "read_only" + 이유 문장(server.py). ★주소 이름 거절(Host 403) 문장이 떠 엉뚱한 것을 고치게 했다
             if code == 403, obj["code"] as? String == "read_only", !m.isEmpty { throw AgentError.refused(m) }
+            // 작업 시작이 꺼진 도우미(launch_off). ★'주소를 받지 않는다'(Host 403) 문장이 떠 엉뚱한 것을 고치게 했다. 켜는 버튼은 LaunchGate
+            if code == 403, obj["code"] as? String == "launch_off" {
+                throw AgentError.refused(L("Starting jobs is off on this helper. Turn it on at the top of New training or Queue, or run: %@", obj["cmd"] as? String ?? LaunchGate.command))
+            }
             throw AgentError.http(code, m)
         }
         return obj

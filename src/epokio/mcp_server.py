@@ -227,12 +227,16 @@ def check_filenames(path: str) -> dict:
 
 
 # ── 실행 (토큰) ────────────────────────────────────
+# 작업 시작은 도우미에서 기본으로 꺼져 있다(config.launch_runs). 도구가 대신 켜지 않고 사람이 켜게 알린다
+LAUNCH_NOTE = ("Starting jobs is off unless the user ran `epokio config launch_runs on` on the training machine; "
+               "if Epokio refuses with that hint, tell the user instead of retrying.")
+
 
 @server.tool(description="Queue a YOLO training run. Always confirm with the user first: it can take hours. "
                          "python must be a path from python_envs (a ready one). "
                          "model is e.g. yolo11n.pt or a path to weights. extra holds any other ultralytics "
                          "train argument, for example {\"imgsz\": 1024, \"batch\": 8}; output location "
-                         "settings (project, name, exist_ok, save_dir, resume) are not accepted.",
+                         "settings (project, name, exist_ok, save_dir, resume) are not accepted. " + LAUNCH_NOTE,
              annotations=RUN)
 def start_training(data: str, python: str, model: str = "yolo11n.pt", epochs: int = 50,
                    name: str = "", extra: dict | None = None) -> dict:
@@ -246,7 +250,7 @@ def start_training(data: str, python: str, model: str = "yolo11n.pt", epochs: in
 
 @server.tool(description="Queue auto-labeling of an image folder with a trained model. Labels go to a separate "
                          "labels_auto folder and never overwrite existing labels. Always confirm with the user first. "
-                         "python must be a path from python_envs.", annotations=RUN)
+                         "python must be a path from python_envs. " + LAUNCH_NOTE, annotations=RUN)
 def auto_label(model: str, source: str, python: str, conf: float = 0.25, name: str = "") -> dict:
     _check_python(python)
     return _post("/jobs", {"kind": "autolabel", "name": name or "autolabel", "python": python,
