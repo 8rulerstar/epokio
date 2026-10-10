@@ -30,22 +30,9 @@ LIMITS = {"stall_min": (2, 240), "disk_low_gb": (0.5, 500), "gpu_hot_c": (60, 10
           "quiet_from": (0, 23), "quiet_to": (0, 23)}
 
 
-def load() -> dict:
-    try:
-        return {**DEFAULTS, **{k: v for k, v in json.loads(FILE.read_text(encoding="utf-8")).items() if k in DEFAULTS}}
-    except (OSError, ValueError):
-        return dict(DEFAULTS)
-
-
-def update(changes: dict) -> dict:
-    """알려진 값만, 허용 범위 안으로 잘라서 저장한다"""
-    from . import jsonfile
-    # 깨진 파일은 옆에 남기고(.broken-…) 기본값에서 시작한다. ★예전엔 조용히 기본값으로 덮어써 기준값이 사라졌다
-    try:
-        saved = jsonfile.read(FILE, {})
-    except jsonfile.BrokenFile:
-        saved = {}
-    c = {**DEFAULTS, **{k: v for k, v in (saved if isinstance(saved, dict) else {}).items() if k in DEFAULTS}}
+def _merge(base: dict, changes: dict) -> dict:
+    """알려진 키만, 타입이 맞는 값만, 허용 범위 안으로 잘라서 base에 얹는다"""
+    c = dict(base)
     for k, v in changes.items():
         if k in CHOICES:
             if v in CHOICES[k]:
@@ -56,6 +43,28 @@ def update(changes: dict) -> dict:
         elif k in DEFAULTS and isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
             lo, hi = LIMITS[k]
             c[k] = type(DEFAULTS[k])(min(max(v, lo), hi))
+    return c
+
+
+def load() -> dict:
+    """★손으로 고친 config.json이 객체가 아니면(`null`, `[1,2]`) .items()에서 죽어 도우미가 아예 안 떴고,
+    값의 타입이 틀리면("x") 감시 루프가 매번 실패해 알림이 멈췄다(2026-10-10 외부 검토). 저장할 때와 같은 검사를 거친다"""
+    try:
+        saved = json.loads(FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return dict(DEFAULTS)
+    return _merge(DEFAULTS, saved if isinstance(saved, dict) else {})
+
+
+def update(changes: dict) -> dict:
+    """알려진 값만, 허용 범위 안으로 잘라서 저장한다"""
+    from . import jsonfile
+    # 깨진 파일은 옆에 남기고(.broken-…) 기본값에서 시작한다. ★예전엔 조용히 기본값으로 덮어써 기준값이 사라졌다
+    try:
+        saved = jsonfile.read(FILE, {})
+    except jsonfile.BrokenFile:
+        saved = {}
+    c = _merge(_merge(DEFAULTS, saved if isinstance(saved, dict) else {}), changes)
     jsonfile.write(FILE, c)                  # 원자적으로(쓰다 끊겨도 반쯤 쓴 파일이 안 남는다)
     return c
 

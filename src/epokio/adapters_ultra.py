@@ -58,11 +58,13 @@ class Ultralytics(Adapter):
         rows = [r for r in all_rows if r.get("epoch")]
         if any(k in YOLOV5_ALIASES for k in header):
             header = [YOLOV5_ALIASES.get(k, k) for k in header]
-        if rows and any(k in YOLOV5_ALIASES for k in rows[0]):       # 옛 YOLOv5: 이름을 지금 규칙으로, 에폭은 0부터라 +1
+        if rows and any(k in YOLOV5_ALIASES for k in rows[0]):       # 옛 YOLOv5: 이름을 지금 규칙으로
             rows = [{YOLOV5_ALIASES.get(k, k): v for k, v in r.items()} for r in rows]
-            if rows[0]["epoch"] == "0":
-                for r in rows:
-                    r["epoch"] = _num(float(r["epoch"]) + 1) if r["epoch"] else r["epoch"]
+        # 에폭을 0부터 적는 로그는 +1. 옛 YOLOv5와 YOLOv8 8.0.x(8.0.200 전까지 self.epoch를 그대로 적었다).
+        # ★v8만 빼먹어서 다 끝난 5에폭 학습이 '4/5, 80%, 학습 중'으로 보였다(2026-10-10 외부 검토)
+        if rows and _num(rows[0]["epoch"]) == "0":
+            for r in rows:
+                r["epoch"] = _num(float(r["epoch"]) + 1) if r["epoch"] else r["epoch"]
         extra = d / "epokio_log.csv"                             # epokio.log()로 더 남긴 값: 같은 에폭에 붙인다
         if extra.exists():
             more = {_num(r["epoch"]): _log_row(r) for r in _read_csv(extra) if r.get("epoch")}

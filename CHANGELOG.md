@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2 (2026-10-10)
+
+- **Fix: YOLOv8 8.0.x logs were one epoch behind.** Before 8.0.200, Ultralytics wrote `results.csv` epochs from 0, so a finished 5-epoch run showed *4/5, 80%, training*. Logs that start at epoch 0 are now shifted by one, as old YOLOv5 logs already were.
+- **Fix: a `config.json` that is valid JSON but not an object** (`null`, `[1, 2]`) stopped the helper from starting, and a value of the wrong type (`"disk_low_gb": "x"`) made every watch pass fail. Saved settings are now checked on load the same way as on save.
+- **Fix: a step run whose files appeared at the same moment showed *0s left*** while training. Time left is now unknown until the run has been measured, as for epoch runs.
+
 ## 0.9.1 (2026-10-10)
 
 - **`epokio watch --once` says why a run failed** (*NaN loss*) instead of only an `x`, and prints what each mark means under the table.

@@ -257,8 +257,9 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
             parsed.elapsed = max(st.st_mtime - born, 0.0) if st.st_mtime < time.time() + 3600 else 0.0   # ★미래 시각 파일(시계가 뒤로 감)이 "3285d left"
         except (OSError, ValueError):
             pass
-        # ★복사본은 파일이 한 순간에 생겨 0초로 보였다(모름으로). '에폭 x 1초'로 가르면 빠른 진짜 학습도 시간이 비었다
-        if axis == "epoch" and parsed.epoch and parsed.elapsed < COPY_SPREAD_SEC:
+        # ★복사본은 파일이 한 순간에 생겨 0초로 보였다(모름으로). '에폭 x 1초'로 가르면 빠른 진짜 학습도 시간이 비었다.
+        #   step 축도 같다: HF 폴더와 trainer_state.json이 거의 같이 생기면 진행 중인 학습이 "0s left"였다(2026-10-10)
+        if parsed.epoch and parsed.elapsed < COPY_SPREAD_SEC:
             parsed.elapsed = 0.0
     # args.yaml은 기록 파일이 바뀔 때만 다시 읽는다. step 축이면 args.yaml의 epochs는 단위가 달라 안 본다
     meta = _Meta(csv_path, loaded.framework, loaded.total if axis == "step" else (_read_total_epochs(run_dir) or loaded.total), st.st_mtime, axis,
