@@ -77,6 +77,8 @@ def main(argv=None) -> int:
         for u in gone:
             print(f"Not in the list: {_show(u)}")
         print(f"Saved. Webhooks: {len(urls)}.")
+        if a.add:                                     # ★알림에 이 기계 이름(기본은 컴퓨터 이름)이 실려 공개 ntfy 주제로 나간다는 걸 몰랐다
+            print(f"Alerts name this machine '{_label()}'. Choose another with: epokio setup --label NAME")
     if a.list:
         if not urls:
             print("No phone alerts set. Add one:  epokio alerts --add https://ntfy.sh/your-long-random-topic")

@@ -63,6 +63,12 @@ IMAGE_FILES = {
 _HEAD_RE = re.compile(r"\(([A-Z])\)$")
 
 
+def is_loss_column(key: str) -> bool:
+    """손실 열인가: 'val/box_loss'처럼 _loss로 끝나거나, TensorBoard·Ultralytics식 'train/loss'·'loss'.
+    ★_loss로 끝나는 것만 봐서 TensorBoard의 train/loss가 NaN이 돼도 '실패' 알림이 가지 않았다(2026-10-10)"""
+    return key.endswith("_loss") or key.rsplit("/", 1)[-1] == "loss"
+
+
 def head_col(kind: str, head: str) -> str:
     """head_col("mAP50-95", "B") → "metrics/mAP50-95(B)" """
     return f"metrics/{kind}({head})"

@@ -40,7 +40,7 @@ python3 -m venv ~/.epokio-venv && ~/.epokio-venv/bin/pip install epokio
 2. 학습 기계에 저장합니다. `your-secret-topic` 자리에 내 주제를 넣으세요: `epokio alerts --add https://ntfy.sh/your-secret-topic`
 3. 시험해 봅니다: `epokio alerts --test`
 
-이제 도우미가 학습이 끝나거나, 실패하거나(NaN, 비정상 종료), 멈추면(평소 에폭 시간보다 한참, 적어도 3분 넘게 새 에폭이 없으면, 이 바닥값은 `epokio config stall_min 10`처럼 올릴 수 있습니다) 알림을 보냅니다. Slack, Discord, 텔레그램 웹훅도 똑같이 넣으면 됩니다(`https`만).
+이제 도우미가 학습이 끝나거나, 손실이 NaN이 되거나, 멈추면 알림을 보냅니다. 멈춤은 계획 에폭 수를 알면 최근 에폭 시간의 1.5배(모르면 3배에 1분 더), 적어도 3분 동안 새 기록이 없는 경우이고, 이 바닥값은 `epokio config stall_min 10`처럼 올릴 수 있습니다. 학습이 비정상 종료되면 멈춤으로 알려 주고, 스크립트에서 `epokio.start()`를 쓰면 바로 실패로 알려 줍니다. 알림에는 학습 이름, 진행, 최고 점수와 이 기계의 이름이 들어갑니다(`epokio setup --label 이름`으로 바꿀 수 있습니다). Slack, Discord, 텔레그램 웹훅도 똑같이 넣으면 됩니다(`https`만).
 알림은 도우미가 떠 있을 때만 갑니다. `epokio setup --autostart`는 sudo 없이 도우미를 다시 띄웁니다. 리눅스는 systemd 사용자 서비스라 로그아웃·재부팅 뒤에도 돌고, 맥(LaunchAgent)과 윈도우(시작프로그램 폴더)는 로그인할 때 시작합니다.
 `epokio doctor`는 지금 도는지와 다시 돌아오는지를 보여 주고, `epokio doctor --test-alert`는 진짜 시험 알림을 보냅니다.
 
@@ -55,7 +55,7 @@ python3 -m venv ~/.epokio-venv && ~/.epokio-venv/bin/pip install epokio
 * **곡선과 쉬운 말 메모.** 검증 손실이 가장 낮은 에폭을 표시하고, 점수가 떨어지기 시작하면 알려 줍니다.
 * **폰에서도.** `epokio setup --lan`이 주소와 보기 전용 토큰을 알려 줍니다. 그 토큰으로는 다 보이지만 바꾸는 단추는 전부 숨겨집니다.
 * **터미널에서도**(`epokio watch`, SSH에 좋습니다), 윈도우·리눅스 트레이 아이콘, [맥 메뉴바 앱](studio.md)(영어).
-* **계정도, 업로드도 없습니다.** 내가 넣은 알림만 기계 밖으로 나갑니다.
+* **계정도, 업로드도 없습니다.** pip로 설치한 도우미는 내가 넣은 알림만 기계 밖으로 보냅니다. 맥 앱은 여기에 더해 업데이트를 확인하고, 내 키로 켰을 때만 지표 요약을 AI 서비스로 보냅니다.
 
 ## 노트북과 코랩
 
@@ -77,7 +77,7 @@ with epokio.start("runs/colab-exp", epochs=20, notify=True) as run:
 ## 기본 보안
 
 * 도우미는 `127.0.0.1`에서만 듣습니다. `setup --lan`을 붙이면 네트워크에 열리고 토큰을 요구합니다.
-* 웹 화면(과 MCP)에서 학습, 대기열 작업, 스윕을 시작하는 기능은 꺼져 있습니다. `epokio config launch_runs on`으로 켜면 Train, Queue, Sweeps 탭이 나타납니다.
+* 웹 화면(과 MCP)에서 학습, 대기열 작업, 스윕을 시작하는 기능은 꺼져 있습니다. `epokio config launch_runs on`으로 켜면 Train, Queue, Sweeps 탭이 나타납니다. 맥 앱이 스스로 띄우는 도우미는 앱의 학습 화면이 동작하도록 이 기능이 켜져 있습니다.
 * 새로 만든 토큰은 보기 전용이고, 바꾸기까지 하는 토큰은 `epokio agent --add-token NAME --scope run`으로 만듭니다.
 * `--lan`으로 연 도우미는 `--allow-run`으로 띄우지 않는 한 네트워크로 온 것을 실행하지 않습니다.
 * 공용 서버에서는 다른 계정도 `127.0.0.1`의 도우미를 읽을 수 있습니다. SSH로 들어온 리눅스에서는 `epokio setup`이 보는 것에도 토큰이 필요하게 할지 묻습니다(`reads_token always`, 터미널이 아니면 기본으로 켜고 `--no-lock-reads`면 건너뜀. 웹 화면은 `epokio agent --show-token`의 토큰을 한 번 묻습니다). 그 밖에서는 `epokio config reads_token always`를 치고, 사람마다 그 사람 폴더로 제한한 토큰을 주세요([방법](guide.ko.md#한계)).
@@ -89,7 +89,7 @@ with epokio.start("runs/colab-exp", epochs=20, notify=True) as run:
 
 | | 코드 수정 | 계정 | 알림 | 이럴 땐 그쪽을 |
 |---|---|---|---|---|
-| **Epokio** | 프레임워크가 읽을 수 있는 파일을 남기면 없음(Keras는 `CSVLogger`나 `TensorBoard` 콜백) | 없음 | 멈춤, NaN·비정상 종료, 끝남 | |
+| **Epokio** | 프레임워크가 읽을 수 있는 파일을 남기면 없음(Keras는 `CSVLogger`나 `TensorBoard` 콜백) | 없음 | 멈춤(비정상 종료도 멈춤으로), NaN, 끝남 | |
 | **TensorBoard** | 코드나 프레임워크가 이벤트 파일을 남겨야 함 | 없음 | 없음 | step별 그래프, 그림, 히스토그램, 프로파일러가 필요할 때 |
 | **W&B** | `wandb.init`/`log` 또는 프레임워크 연동 | 필요 | 끝남·비정상 종료(Slack, 이메일), 내 코드의 `run.alert()` | 팀이 대시보드, 스윕, 아티팩트, 모델 레지스트리를 같이 쓸 때 |
 | **Trackio**(Hugging Face) | `trackio.init`/`log`(W&B식 API) 또는 HF Trainer `report_to="trackio"` | 없음(HF Space는 선택) | 내 코드의 `trackio.alert()`, 웹훅으로 | 무료 로컬 W&B식 대시보드를 Space로 공유하고 싶을 때 |

@@ -9,6 +9,7 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 from . import adapters, schema
+from .schema import is_loss_column
 
 STALE_SEC = 180       # 이 시간 넘게 안 변하면 진행 중이 아니다
 COPY_SPREAD_SEC = 0.05   # 시간 열 없이 폴더 시각으로 잰 학습 전체가 이보다 짧으면 잰 게 아니라 복사된 것이다(파일이 한 순간에 생김)
@@ -234,7 +235,7 @@ def _parse(run_dir: Path) -> tuple[_Parsed, _Meta] | None:
     diverged = any(
         _to_float(v) is None
         for k, v in last.items()
-        if k.endswith("_loss") and v not in ("", None)
+        if is_loss_column(k) and v not in ("", None)
     )
 
     hist = []

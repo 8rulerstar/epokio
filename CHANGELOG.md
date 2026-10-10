@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3 (2026-10-10)
+
+- **Fix: a TensorBoard run whose loss turned NaN was not marked failed.** Its loss column is `train/loss`, and the check only looked at columns ending in `_loss`.
+- `epokio alerts --add` says which machine name the alerts carry (the computer name unless you set `epokio setup --label NAME`), since it goes to the alert service with each message.
+- Docs: the stall rule as the code applies it (1.5 times the recent epoch time when the planned epochs are known, 3 times plus a minute otherwise, 3 minutes at least); a crash shows up as a stall unless the script calls `epokio.start()`; alerts carry the run name, progress, best score and machine name; the Mac app's own helper can start jobs, and the app also checks for updates and, if you turn it on, sends metric summaries to an AI service.
+
 ## 0.9.2 (2026-10-10)
 
 - **Fix: YOLOv8 8.0.x logs were one epoch behind.** Before 8.0.200, Ultralytics wrote `results.csv` epochs from 0, so a finished 5-epoch run showed *4/5, 80%, training*. Logs that start at epoch 0 are now shifted by one, as old YOLOv5 logs already were.

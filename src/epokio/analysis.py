@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from .msg import tr
+from .schema import is_loss_column
 
 import math
 from dataclasses import dataclass, field
@@ -311,13 +312,13 @@ def _notes(rows, heads, args: dict | None = None, framework: str = "ultralytics"
     # 5) 발산: 모든 행에서 손실이 처음 NaN이 된 에폭. 끝까지 NaN이면 발산, 뒤에 돌아왔으면 따로 알린다
     first = None
     for i, r in enumerate(rows):
-        c = next((c for c in r if c.endswith("_loss") and _f(r.get(c)) is None and r.get(c) not in ("", None)), None)
+        c = next((c for c in r if is_loss_column(c) and _f(r.get(c)) is None and r.get(c) not in ("", None)), None)
         if c:
             first = (i, c)
             break
     if first:
         i, c = first
-        last_nan = any(k.endswith("_loss") and _f(rows[-1].get(k)) is None and rows[-1].get(k) not in ("", None)
+        last_nan = any(is_loss_column(k) and _f(rows[-1].get(k)) is None and rows[-1].get(k) not in ("", None)
                        for k in rows[-1])
         if last_nan:
             out.append((tr("{c} first became NaN at epoch {e} and stayed broken to the end. Training diverged.",

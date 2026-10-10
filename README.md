@@ -42,7 +42,7 @@ Other accounts on the server can read a helper on `127.0.0.1`, so on a shared ma
 2. Save it on the training machine, with your topic in place of `your-secret-topic`: `epokio alerts --add https://ntfy.sh/your-secret-topic`
 3. Check it: `epokio alerts --test`
 
-From then on, the helper sends an alert when a run finishes, fails (NaN loss or a crash) or stalls (no new epoch for well past its usual pace, 3 minutes at least; raise the floor with `epokio config stall_min 10`). Slack, Discord and Telegram webhooks work the same way (`https` only).
+From then on, the helper sends an alert when a run finishes, hits a NaN loss, or stalls: no new log row for 1.5 times its recent epoch time when the planned epochs are known (3 times plus a minute otherwise), 3 minutes at least, a floor you can raise with `epokio config stall_min 10`. A crash shows up as a stall, or right away as a failure if your script calls `epokio.start()`. Each alert carries the run name, its progress and best score, and this machine's name (`epokio setup --label NAME` to choose another). Slack, Discord and Telegram webhooks work the same way (`https` only).
 Alerts go out only while the helper runs. `epokio setup --autostart` starts it again without sudo: on Linux a systemd user service that keeps running after logout and reboot; on macOS a LaunchAgent and on Windows the Startup folder, which start it when you log in.
 `epokio doctor` shows whether it runs now and starts again; `epokio doctor --test-alert` sends a real test alert.
 
@@ -57,7 +57,7 @@ Alerts go out only while the helper runs. `epokio setup --autostart` starts it a
 * **Curves with a plain-language note.** It marks the epoch with the lowest validation loss and says when the score starts to fall.
 * **On your phone too.** `epokio setup --lan` prints the address and a view-only token, which shows everything and hides every button that changes something.
 * **Also in a terminal** (`epokio watch`, good over SSH), a tray icon on Windows and Linux, and a [macOS menu bar app](docs/studio.md).
-* **No account, no upload.** Only the alerts you add leave the machine.
+* **No account, no upload.** From the pip install, only the alerts you add leave the machine. The Mac app also checks for updates and, if you turn it on with your own key, sends metric summaries to an AI service.
 
 ## Notebooks and Colab
 
@@ -79,7 +79,7 @@ You get an alert when the block ends, or when it raises (with the error). A netw
 ## Security defaults
 
 * The helper listens on `127.0.0.1` only. `setup --lan` opens it to your network and then asks for a token.
-* Starting training, queue jobs and sweeps from the page (and from MCP) is off. `epokio config launch_runs on` turns it on and shows the Train, Queue and Sweeps tabs.
+* Starting training, queue jobs and sweeps from the page (and from MCP) is off. `epokio config launch_runs on` turns it on and shows the Train, Queue and Sweeps tabs. The helper the Mac app starts for itself has it on, so the app's training screens work.
 * New tokens are view-only; `epokio agent --add-token NAME --scope run` makes one that can change things.
 * A `--lan` helper runs nothing sent over the network unless it was started with `--allow-run`.
 * On a shared server, other accounts can read a helper on `127.0.0.1`. Over SSH on Linux, `epokio setup` asks to make viewing need a token too (`reads_token always`, on by default without a terminal, `--no-lock-reads` skips it; the page then asks for `epokio agent --show-token` once). Elsewhere run `epokio config reads_token always`. Then give each person a token limited to their folders ([how](docs/guide.md#limits)).
@@ -91,7 +91,7 @@ Checked against each project's README and docs in October 2026. Epokio can read 
 
 | | Code changes | Account | Alerts | Pick it instead when |
 |---|---|---|---|---|
-| **Epokio** | None if your framework writes a supported file (Keras: a `CSVLogger` or `TensorBoard` callback) | No | Stall, NaN or crash, finish | |
+| **Epokio** | None if your framework writes a supported file (Keras: a `CSVLogger` or `TensorBoard` callback) | No | Stall (a crash shows up as one), NaN, finish | |
 | **TensorBoard** | Your code or framework writes event files | No | None | You want per-step charts, images, histograms or the profiler |
 | **W&B** | `wandb.init`/`log` or a framework integration | Yes | Run finished or crashed (Slack, email); `run.alert()` from your code | A team shares dashboards, sweeps, artifacts and a model registry |
 | **Trackio** (Hugging Face) | `trackio.init`/`log` (W&B-style API) or HF Trainer `report_to="trackio"` | No (optional HF Space) | `trackio.alert()` from your code, to webhooks | You want a free local W&B-style dashboard you can share on a Space |
