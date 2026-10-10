@@ -71,7 +71,9 @@ def test_the_desktop_entry_is_well_formed(tmp_path):
     path = autostart.enable(tmp_path / "autostart")
     text = path.read_text(encoding="utf-8")
     assert text.startswith("[Desktop Entry]")
-    assert "Type=Application" in text and "epokio.tray" in text
+    # 트레이(pystray)가 깔려 있으면 트레이를, 없으면 도우미만 띄운다(CI 리눅스는 트레이가 없다)
+    want = "epokio.tray" if autostart.tray_ready() else "epokio.agent"
+    assert "Type=Application" in text and want in text
 
 
 # ── epokio setup ─────────────────────────────────────
